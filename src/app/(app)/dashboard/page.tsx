@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   const [sets, profile, checkins] = await Promise.all([
     getTrainingSets(supabase, 8),
     getProfile(supabase),
-    getCheckins(supabase, 14),
+    getCheckins(supabase, 30),
   ]);
   const units = profile?.units ?? "kg";
   const todayStr = todayKey();

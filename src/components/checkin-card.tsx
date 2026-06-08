@@ -25,6 +25,8 @@ export function CheckinCard({ today }: { today: DailyCheckin | null }) {
     motivation: today?.motivation ?? null,
     energy: today?.energy ?? null,
   });
+  const [restingHr, setRestingHr] = useState(today?.resting_hr != null ? String(today.resting_hr) : "");
+  const [hrv, setHrv] = useState(today?.hrv != null ? String(today.hrv) : "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,13 @@ export function CheckinCard({ today }: { today: DailyCheckin | null }) {
       const { error } = await supabase
         .from("daily_checkins")
         .upsert(
-          { user_id: user.id, date: todayStr, ...values },
+          {
+            user_id: user.id,
+            date: todayStr,
+            ...values,
+            resting_hr: restingHr === "" ? null : Number(restingHr),
+            hrv: hrv === "" ? null : Number(hrv),
+          },
           { onConflict: "user_id,date" },
         );
       if (error) throw error;
@@ -105,6 +113,42 @@ export function CheckinCard({ today }: { today: DailyCheckin | null }) {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-4 border-t border-border pt-4">
+        <p className="mb-2 text-[11px] uppercase tracking-wide text-muted">
+          From your wearable (optional)
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Resting HR (bpm)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input"
+              placeholder="54"
+              value={restingHr}
+              onChange={(e) => {
+                setRestingHr(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </div>
+          <div>
+            <label className="label">HRV (ms)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className="input"
+              placeholder="65"
+              value={hrv}
+              onChange={(e) => {
+                setHrv(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}

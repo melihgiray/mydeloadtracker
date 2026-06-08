@@ -24,6 +24,10 @@ const FACTOR_INFO: Record<string, string> = {
   stalled_majors: "Major lifts that haven't gained e1RM or volume for 3+ weeks.",
   rpe_creep: "The same (or lighter) weight feeling harder week over week.",
   wellness: "Your daily sleep, soreness, motivation, and energy check-ins.",
+  hrv_depression:
+    "Heart-rate variability vs your baseline — a drop means your nervous system hasn't fully recovered.",
+  rhr_elevation:
+    "Resting heart rate vs your baseline — a sustained rise is a classic under-recovery sign.",
   frequency_drop: "Training sessions dropping versus your recent average.",
   acwr_spike:
     "This week's volume vs your 6-week average — a fast ramp adds fatigue and injury risk.",

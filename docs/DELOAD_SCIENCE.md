@@ -36,13 +36,16 @@ normalized to sum to 1.
 | **Stalled lifts** | Strength stalling **3+ weeks** at the same loads on main lifts. | `factorStall` (0.45) + deload signal (a) |
 | **RPE creep** | A load that felt like RPE 7 now feels like RPE 9 (≈ **+2** at the same weight). | `factorRpeCreep` (0.4) + deload signal (b) |
 | **Subjective wellness** | Poor sleep, high soreness, low motivation/energy (daily 1–5 check-ins) are well-supported under-recovery markers. | `factorWellness` (0.4) |
+| **HRV depression** | A drop in heart-rate variability (e.g. RMSSD) vs the athlete's own baseline is among the most-supported *objective* fatigue/overreaching markers. | `factorHrv` (0.45) |
+| **Resting-HR elevation** | A sustained rise in morning resting HR vs baseline signals autonomic under-recovery. | `factorRestingHr` (0.35) |
 | **Frequency drop / missed sessions** | "Two bad workouts in a row" and falling session frequency signal under-recovery. | `factorFrequency` (0.34) + deload signal (c) |
 | **Workload spike (ACWR)** | Acute:chronic workload ratio **> 1.5** is linked to elevated fatigue/injury risk (Gabbett). | `factorAcwr` (0.28) |
 | **Time under load** | Sustained hard weeks without a lighter week accumulate fatigue. The deload spacing is now **experience-adjusted** (see below). | `factorTimeUnderLoad` (0.22) |
 
-> Now captured via daily check-ins: sleep, soreness, motivation, energy (the
-> `wellness` factor). Still not captured (need wearables): HRV depression and
-> resting-HR elevation — the obvious next inputs (see roadmap).
+> Now captured: subjective wellness (sleep/soreness/motivation/energy) **and**
+> objective recovery — HRV depression and resting-HR elevation vs the athlete's
+> own rolling baseline. Both are entered manually in the check-in today and are
+> built to auto-sync from wearables (Oura/Whoop/Apple Health) next.
 
 ## Experience-adjusted deload cadence (StrengthLevel standards)
 

@@ -80,15 +80,15 @@ export default async function LandingPage() {
           tells you when to back off — before a plateau costs you months.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/login" className="btn-brand px-6 py-2.5">
-            Try it free — demo in 10s
+          <Link href="/demo" className="btn-brand px-6 py-2.5">
+            See a live demo — no signup
           </Link>
           <Link href="/login" className="btn-ghost px-6 py-2.5">
-            I already have an account
+            Sign up free
           </Link>
         </div>
         <p className="mt-3 text-xs text-muted">
-          No credit card. Sign up and tap “Load demo data” to explore a full 8-week athlete.
+          The demo runs the real engine on a sample athlete. No credit card, ever.
         </p>
       </section>
 

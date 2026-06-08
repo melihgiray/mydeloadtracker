@@ -71,6 +71,10 @@ export interface DailyCheckin {
   soreness: number | null; // 1-5, higher worse
   motivation: number | null; // 1-5, higher better
   energy: number | null; // 1-5, higher better
+  /** Resting heart rate (bpm), from a wearable or manual. Higher vs baseline = under-recovery. */
+  resting_hr: number | null;
+  /** Heart-rate variability (ms, e.g. RMSSD). Lower vs baseline = under-recovery. */
+  hrv: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

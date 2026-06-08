@@ -357,6 +357,83 @@ function factorWellness(checkins: DailyCheckin[], now: Date): ReadinessFactor {
   return factor("wellness", "Subjective recovery", 0.4, value, detail);
 }
 
+// Split a metric's daily readings into a recent average (last ~4 days) and a
+// personal baseline (readings 7+ days ago, within the window). Returns nulls
+// when there isn't enough data to be meaningful.
+function splitRecentBaseline(
+  readings: { date: string; v: number | null }[],
+  now: Date,
+): { recent: number | null; baseline: number | null } {
+  const recentCut = new Date(now);
+  recentCut.setDate(recentCut.getDate() - 4);
+  const baseEnd = new Date(now);
+  baseEnd.setDate(baseEnd.getDate() - 7);
+  const recentVals: number[] = [];
+  const baseVals: number[] = [];
+  for (const r of readings) {
+    if (r.v == null) continue;
+    const d = new Date(r.date + "T00:00:00");
+    if (d >= recentCut) recentVals.push(r.v);
+    else if (d <= baseEnd) baseVals.push(r.v);
+  }
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const median = (a: number[]) => {
+    const s = [...a].sort((x, y) => x - y);
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  return {
+    recent: recentVals.length >= 2 ? mean(recentVals) : null,
+    baseline: baseVals.length >= 3 ? median(baseVals) : null,
+  };
+}
+
+// (8) Resting heart-rate elevation vs the athlete's own baseline. A sustained
+// rise in morning RHR is a classic autonomic under-recovery marker.
+function factorRestingHr(checkins: DailyCheckin[], now: Date): ReadinessFactor {
+  const { recent, baseline } = splitRecentBaseline(
+    checkins.map((c) => ({ date: c.date, v: c.resting_hr })),
+    now,
+  );
+  if (recent == null || baseline == null) {
+    return factor("rhr_elevation", "Resting HR vs baseline", 0.35, 0, "No resting-HR data yet.");
+  }
+  const delta = recent - baseline;
+  const value = ramp(delta, 3, 10); // +3 bpm starts to count, +10 maxes out
+  return factor(
+    "rhr_elevation",
+    "Resting HR vs baseline",
+    0.35,
+    value,
+    delta >= 3
+      ? `Resting HR is ${round1(delta)} bpm above baseline (${round1(baseline)} → ${round1(recent)} bpm).`
+      : `Resting HR is steady vs baseline (~${round1(recent)} bpm).`,
+  );
+}
+
+// (9) HRV depression vs baseline. A drop in HRV (e.g. RMSSD) is among the most
+// supported objective markers of accumulated fatigue / sympathetic dominance.
+function factorHrv(checkins: DailyCheckin[], now: Date): ReadinessFactor {
+  const { recent, baseline } = splitRecentBaseline(
+    checkins.map((c) => ({ date: c.date, v: c.hrv })),
+    now,
+  );
+  if (recent == null || baseline == null || baseline <= 0) {
+    return factor("hrv_depression", "HRV vs baseline", 0.45, 0, "No HRV data yet.");
+  }
+  const dropPct = ((baseline - recent) / baseline) * 100;
+  const value = ramp(dropPct, 5, 25); // 5% below baseline starts, 25% maxes out
+  return factor(
+    "hrv_depression",
+    "HRV vs baseline",
+    0.45,
+    value,
+    dropPct >= 5
+      ? `HRV is down ${round1(dropPct)}% vs baseline (${round1(baseline)} → ${round1(recent)} ms).`
+      : `HRV is holding near baseline (~${round1(recent)} ms).`,
+  );
+}
+
 const BANDS: ReadinessBand[] = [
   { id: "fresh", label: "Fresh — primed to push", tone: "good" },
   { id: "solid", label: "Solid — keep progressing", tone: "good" },
@@ -394,6 +471,8 @@ export function computeReadiness(
     factorStall(majors),
     factorRpeCreep(sets, now),
     factorWellness(checkins, now),
+    factorHrv(checkins, now),
+    factorRestingHr(checkins, now),
     factorFrequency(sets, now),
     factorAcwr(sets, now),
     factorTimeUnderLoad(sets, now, cadence),

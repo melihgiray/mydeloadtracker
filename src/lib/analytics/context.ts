@@ -96,13 +96,15 @@ export function buildCoachContext(
 
   // Recent subjective check-ins (sleep/soreness/motivation/energy, 1-5)
   if (checkins.length) {
-    lines.push("RECENT DAILY CHECK-INS (1-5; soreness higher = worse):");
+    lines.push("RECENT DAILY CHECK-INS (1-5; soreness higher = worse; RHR bpm, HRV ms):");
     for (const c of checkins.slice(0, 7)) {
       const bits = [
         c.sleep_quality != null ? `sleep ${c.sleep_quality}` : null,
         c.soreness != null ? `soreness ${c.soreness}` : null,
         c.motivation != null ? `motivation ${c.motivation}` : null,
         c.energy != null ? `energy ${c.energy}` : null,
+        c.resting_hr != null ? `RHR ${c.resting_hr}` : null,
+        c.hrv != null ? `HRV ${c.hrv}` : null,
       ].filter(Boolean);
       lines.push(`  ${c.date}: ${bits.join(", ")}`);
     }

@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   const [sets, profile, checkins] = await Promise.all([
     getTrainingSets(supabase, 8),
     getProfile(supabase),
-    getCheckins(supabase, 14),
+    getCheckins(supabase, 30),
   ]);
   const context = buildCoachContext(sets, profile, checkins);
 

@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { startOfWeek } from "@/lib/analytics/dates";
+import { buildSampleCheckins } from "@/lib/analytics/sample";
 
 export const runtime = "nodejs";
 
@@ -99,6 +100,36 @@ export async function POST() {
     .from("profiles")
     .update({ bodyweight: 85, sex: "male" })
     .eq("id", user.id);
+
+  // Best-effort: seed daily check-ins (incl. HRV / resting HR) so the readiness
+  // model's recovery factors light up. Falls back to the 1-5 metrics if the
+  // recovery columns (migration 0007) aren't applied, and is skipped entirely if
+  // the table (0003) is missing.
+  const sampleCi = buildSampleCheckins();
+  const ciFull = sampleCi.map((c) => ({
+    user_id: user.id,
+    date: c.date,
+    sleep_quality: c.sleep_quality,
+    soreness: c.soreness,
+    motivation: c.motivation,
+    energy: c.energy,
+    resting_hr: c.resting_hr,
+    hrv: c.hrv,
+  }));
+  const { error: ciErr } = await supabase
+    .from("daily_checkins")
+    .upsert(ciFull, { onConflict: "user_id,date" });
+  if (ciErr) {
+    const ciBasic = sampleCi.map((c) => ({
+      user_id: user.id,
+      date: c.date,
+      sleep_quality: c.sleep_quality,
+      soreness: c.soreness,
+      motivation: c.motivation,
+      energy: c.energy,
+    }));
+    await supabase.from("daily_checkins").upsert(ciBasic, { onConflict: "user_id,date" });
+  }
 
   // Clear any previous demo sessions so re-seeding is idempotent.
   await supabase.from("workout_sessions").delete().eq("user_id", user.id);
