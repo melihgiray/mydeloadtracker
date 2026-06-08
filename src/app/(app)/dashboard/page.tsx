@@ -58,6 +58,15 @@ export default async function DashboardPage() {
   });
   const volume = buildVolumeReport(sets, 8);
   const setVolume = buildSetVolume(sets, 4, 8);
+
+  // Tonnage as a single total-per-week series. This is tonnage's honest use —
+  // tracking your own total work over time — NOT a cross-muscle comparison,
+  // where heavy lifts (back/legs) always dwarf small muscles (biceps) and
+  // misrepresent how balanced your training actually is.
+  const tonnageTrend = {
+    muscleGroups: ["Total"],
+    rows: volume.rows.map((r) => ({ label: r.label, Total: r.total })),
+  };
   const records = buildRecords(sets);
   const progress = buildProgressReport(sets, 4);
 
@@ -110,11 +119,14 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="card lg:col-span-3">
           <div className="mb-1 flex items-center justify-between">
-            <h2 className="font-semibold">Weekly volume load (tonnage)</h2>
+            <h2 className="font-semibold">Weekly sets by muscle group</h2>
             <span className="text-xs text-muted">last 8 weeks</span>
           </div>
-          <p className="mb-4 text-xs text-muted">Σ weight × reps — total work, biased toward heavy lifts.</p>
-          <VolumeChart report={volume} />
+          <p className="mb-4 text-xs text-muted">
+            Hard sets — the fair way to compare muscles. 10 back sets ≈ 10 biceps sets in stimulus,
+            even though back moves far heavier loads.
+          </p>
+          <VolumeChart report={setVolume} unit="sets" />
         </div>
 
         <div className="lg:col-span-2">
@@ -122,15 +134,30 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="font-semibold">Weekly hard sets per muscle group</h2>
-          <span className="text-xs text-muted">avg, last 4 weeks</span>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <div className="card lg:col-span-3">
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="font-semibold">Muscles vs the growth target</h2>
+            <span className="text-xs text-muted">avg, last 4 weeks</span>
+          </div>
+          <p className="mb-4 text-xs text-muted">
+            Research favors ~10–20 hard sets/muscle/week. The shaded band marks that range, so you
+            can see at a glance which muscles are under- or over-trained.
+          </p>
+          <SetVolumePanel report={setVolume} />
         </div>
-        <p className="mb-4 text-xs text-muted">
-          The hypertrophy-dose view — research favors ~10–20 hard sets/muscle/week over raw tonnage.
-        </p>
-        <SetVolumePanel report={setVolume} />
+
+        <div className="card lg:col-span-2">
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="font-semibold">Total workload</h2>
+            <span className="text-xs text-muted">tonnage/wk</span>
+          </div>
+          <p className="mb-4 text-xs text-muted">
+            Σ weight × reps across all lifts. Use this to track your own progressive overload over
+            time — not to compare muscles.
+          </p>
+          <VolumeChart report={tonnageTrend} unit={units} showLegend={false} height={240} />
+        </div>
       </div>
 
       <div className="card">

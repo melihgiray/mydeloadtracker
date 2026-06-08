@@ -1,28 +1,46 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Activity, Brain, LineChart, TriangleAlert } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Brain,
+  Gauge,
+  HeartPulse,
+  Trophy,
+  TriangleAlert,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
 const FEATURES = [
   {
-    icon: Activity,
-    title: "Log every set",
-    body: "Capture exercise, sets, reps, weight, and RPE in seconds. Each session is timestamped.",
-  },
-  {
-    icon: LineChart,
-    title: "Progressive overload",
-    body: "Estimated 1RM (Epley) normalizes every rep range so you see real progress, plateaus, and regressions.",
-  },
-  {
     icon: TriangleAlert,
     title: "Deload detection",
-    body: "A 3-signal algorithm flags exactly when — and why — it's time to back off and recover.",
+    body: "A transparent 3-signal model flags exactly when — and why — to back off, before a stall quietly costs you gains.",
+  },
+  {
+    icon: Gauge,
+    title: "Readiness score",
+    body: "Seven fatigue markers — e1RM regression, RPE creep, workload spikes, sleep and more — combine into one 0–100 daily gauge.",
+  },
+  {
+    icon: Trophy,
+    title: "Strength standards",
+    body: "Every main lift banded Beginner → Elite by bodyweight-relative strength (à la StrengthLevel) — and it tailors deload timing to your level.",
+  },
+  {
+    icon: BarChart3,
+    title: "Smart volume",
+    body: "Hard sets per muscle vs the 10–20 growth range — the fair way to balance training, instead of tonnage that just rewards heavy lifts.",
   },
   {
     icon: Brain,
     title: "AI coach",
-    body: "Chat with a coach that knows your last 8 weeks of numbers and proactively surfaces weak points.",
+    body: "Chat with a coach that reasons from your real last-8-weeks numbers and cites specific lifts, weeks, and trends.",
+  },
+  {
+    icon: HeartPulse,
+    title: "Recovery check-ins",
+    body: "Sleep, soreness, motivation, and energy feed the readiness model — the data foundation for a learned recovery engine.",
   },
 ];
 
@@ -49,7 +67,7 @@ export default async function LandingPage() {
 
       <section className="flex flex-1 flex-col items-center justify-center py-16 text-center">
         <span className="mb-4 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted">
-          Train hard. Recover smart.
+          Train hard. Recover smart. Backed by the science.
         </span>
         <h1 className="max-w-3xl text-balance text-4xl font-bold leading-tight sm:text-6xl">
           Know exactly when to{" "}
@@ -57,21 +75,24 @@ export default async function LandingPage() {
           <span className="text-warning">deload</span>.
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-muted">
-          MyDeloadTracker turns your logged sets into estimated-1RM trends, catches stalls
-          before they cost you gains, and gives you an AI coach that reasons from your real
-          numbers.
+          Most lifters stall because they overtrain or under-recover blind. MyDeloadTracker turns
+          your logged sets into estimated-1RM trends, a daily readiness score, and an AI coach that
+          tells you when to back off — before a plateau costs you months.
         </p>
-        <div className="mt-8 flex gap-3">
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/login" className="btn-brand px-6 py-2.5">
-            Get started — it&apos;s free
+            Try it free — demo in 10s
           </Link>
           <Link href="/login" className="btn-ghost px-6 py-2.5">
             I already have an account
           </Link>
         </div>
+        <p className="mt-3 text-xs text-muted">
+          No credit card. Sign up and tap “Load demo data” to explore a full 8-week athlete.
+        </p>
       </section>
 
-      <section className="grid gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 pb-12 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map((f) => (
           <div key={f.title} className="card">
             <f.icon className="mb-3 h-6 w-6 text-brand" />
@@ -80,6 +101,20 @@ export default async function LandingPage() {
           </div>
         ))}
       </section>
+
+      <section className="mb-20 rounded-2xl border border-border bg-surface/60 p-6 text-center sm:p-8">
+        <h2 className="text-lg font-semibold">Where we&apos;re headed</h2>
+        <p className="mx-auto mt-2 max-w-2xl text-pretty text-sm text-muted">
+          The web app is the wedge: a coaching engine that already knows your fatigue, your level,
+          and your weak points. Next it connects to your wearables for objective recovery (HRV,
+          sleep) — and ultimately moves to <span className="text-foreground">hands-free, real-time
+          coaching in the gym</span>, so the right cue reaches you mid-set.
+        </p>
+      </section>
+
+      <footer className="border-t border-border py-6 text-center text-xs text-muted">
+        Educational training analytics, not medical advice.
+      </footer>
     </main>
   );
 }

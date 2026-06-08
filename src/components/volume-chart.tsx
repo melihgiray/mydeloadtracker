@@ -10,7 +10,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { VolumeReport } from "@/lib/analytics/volume";
 
 // A fixed, readable palette cycled across muscle groups.
 const COLORS = [
@@ -26,17 +25,35 @@ const COLORS = [
   "#818cf8",
 ];
 
-export function VolumeChart({ report }: { report: VolumeReport }) {
+// Structural prop: works for both the tonnage report and the set-volume report,
+// since both expose `rows` (with a `label`) and `muscleGroups`.
+interface ChartReport {
+  rows: Array<{ label: string } & Record<string, number | string>>;
+  muscleGroups: string[];
+}
+
+export function VolumeChart({
+  report,
+  unit,
+  height = 300,
+  showLegend = true,
+}: {
+  report: ChartReport;
+  /** Appended in the tooltip, e.g. "sets" or "kg". */
+  unit?: string;
+  height?: number;
+  showLegend?: boolean;
+}) {
   if (report.muscleGroups.length === 0) {
     return (
-      <div className="grid h-72 place-items-center text-sm text-muted">
-        No volume logged in this window yet.
+      <div className="grid place-items-center text-sm text-muted" style={{ height }}>
+        Nothing logged in this window yet.
       </div>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height={height}>
       <BarChart data={report.rows} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 16% 20%)" vertical={false} />
         <XAxis
@@ -60,8 +77,9 @@ export function VolumeChart({ report }: { report: VolumeReport }) {
           }}
           labelStyle={{ color: "hsl(210 20% 96%)" }}
           cursor={{ fill: "hsl(222 18% 15% / 0.5)" }}
+          formatter={(value) => (unit ? `${value} ${unit}` : `${value}`)}
         />
-        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+        {showLegend && <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />}
         {report.muscleGroups.map((mg, i) => (
           <Bar
             key={mg}
