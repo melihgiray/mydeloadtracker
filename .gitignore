@@ -30,3 +30,6 @@ yarn-error.log*
 # supabase
 /supabase/.branches
 /supabase/.temp
+
+# vercel
+.vercel
