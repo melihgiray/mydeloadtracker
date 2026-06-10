@@ -25,6 +25,12 @@ create trigger wearable_connections_set_updated_at
 
 alter table public.wearable_connections enable row level security;
 
+-- drop-if-exists makes this migration safe to re-run.
+drop policy if exists "wearables_select_own" on public.wearable_connections;
+drop policy if exists "wearables_insert_own" on public.wearable_connections;
+drop policy if exists "wearables_update_own" on public.wearable_connections;
+drop policy if exists "wearables_delete_own" on public.wearable_connections;
+
 create policy "wearables_select_own" on public.wearable_connections
   for select using (auth.uid() = user_id);
 create policy "wearables_insert_own" on public.wearable_connections

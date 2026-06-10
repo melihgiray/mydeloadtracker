@@ -1,7 +1,8 @@
--- MyDeloadTracker: apply migrations 0004 + 0005 + 0006 in one go.
--- Safe to run multiple times. Paste into Supabase SQL Editor and click Run.
+-- MyDeloadTracker: apply migrations 0004–0008 in one go.
+-- Assumes initial setup (0001–0003) is already applied. Idempotent; run once.
 begin;
 
+-- ===== 0004_expand_exercise_library =====
 -- Expand the exercise library and add an `equipment` dimension for more detail.
 -- Adds ~70 movements across 13 muscle groups (Quads, Hamstrings, Glutes,
 -- Calves, Chest, Back, Shoulders, Traps, Triceps, Biceps, Forearms, Core,
@@ -124,6 +125,7 @@ values
   (null, 'Hip Adduction Machine',   'Adductors',  'Adduction',       'machine',    false)
 on conflict do nothing;
 
+-- ===== 0005_standards_and_more_exercises =====
 -- Strength-standards support + a larger exercise library.
 --
 -- 1) Adds bodyweight + sex to profiles so we can band lifts against
@@ -239,6 +241,7 @@ values
   (null, 'Sled Push',               'Quads',      'Carry',           'machine',    false)
 on conflict do nothing;
 
+-- ===== 0006_more_exercises =====
 -- Round out the exercise library toward StrengthLevel's catalog (~65 more
 -- movements across all muscle groups: more presses/rows/curls, Olympic lifts,
 -- unilateral work, core, and strongman). All global (user_id = null), non-major.
@@ -352,5 +355,62 @@ values
   -- Adductors
   (null, 'Cossack Squat',              'Adductors',  'Squat',           'dumbbell',   false)
 on conflict do nothing;
+
+-- ===== 0007_checkin_recovery_metrics =====
+-- Add objective recovery metrics to daily check-ins: resting heart rate and HRV.
+-- These feed two new readiness factors (RHR elevation, HRV depression vs the
+-- athlete's own baseline) and are the first wearable-sourced inputs — manual for
+-- now, auto-synced from Oura/Whoop/Apple Health later. Idempotent.
+
+alter table public.daily_checkins
+  add column if not exists resting_hr smallint
+    check (resting_hr is null or (resting_hr between 25 and 220));
+
+alter table public.daily_checkins
+  add column if not exists hrv smallint
+    check (hrv is null or (hrv between 0 and 400));
+
+-- ===== 0008_wearable_connections =====
+-- Wearable OAuth connections (Oura first; Whoop/Garmin later share this table).
+-- Stores per-user access/refresh tokens so we can auto-sync objective recovery
+-- (HRV, resting HR, sleep) into daily_checkins. Owner-only via RLS.
+
+create table if not exists public.wearable_connections (
+  id            uuid primary key default uuid_generate_v4(),
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  provider      text not null, -- 'oura' | 'whoop' | 'garmin' | ...
+  access_token  text not null,
+  refresh_token text,
+  expires_at    timestamptz,
+  scope         text,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (user_id, provider)
+);
+
+create index if not exists wearable_connections_user_idx
+  on public.wearable_connections (user_id);
+
+drop trigger if exists wearable_connections_set_updated_at on public.wearable_connections;
+create trigger wearable_connections_set_updated_at
+  before update on public.wearable_connections
+  for each row execute function public.set_updated_at();
+
+alter table public.wearable_connections enable row level security;
+
+-- drop-if-exists makes this migration safe to re-run.
+drop policy if exists "wearables_select_own" on public.wearable_connections;
+drop policy if exists "wearables_insert_own" on public.wearable_connections;
+drop policy if exists "wearables_update_own" on public.wearable_connections;
+drop policy if exists "wearables_delete_own" on public.wearable_connections;
+
+create policy "wearables_select_own" on public.wearable_connections
+  for select using (auth.uid() = user_id);
+create policy "wearables_insert_own" on public.wearable_connections
+  for insert with check (auth.uid() = user_id);
+create policy "wearables_update_own" on public.wearable_connections
+  for update using (auth.uid() = user_id);
+create policy "wearables_delete_own" on public.wearable_connections
+  for delete using (auth.uid() = user_id);
 
 commit;
