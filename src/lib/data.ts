@@ -88,6 +88,20 @@ export async function getCheckins(
   return (data ?? []) as DailyCheckin[];
 }
 
+/** Connection status for a wearable provider (no tokens exposed). */
+export async function getWearableStatus(
+  supabase: SupabaseClient,
+  provider: string,
+): Promise<{ connected: boolean; lastSync: string | null }> {
+  const { data, error } = await supabase
+    .from("wearable_connections")
+    .select("updated_at")
+    .eq("provider", provider)
+    .maybeSingle();
+  if (error || !data) return { connected: false, lastSync: null };
+  return { connected: true, lastSync: (data as { updated_at: string }).updated_at };
+}
+
 /** A session joined with its sets and each set's exercise, for history/editing. */
 export interface SessionWithSets {
   id: string;
