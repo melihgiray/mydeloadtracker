@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { Activity, Brain, Dumbbell, Flame, Sparkles, TrendingUp, Trophy } from "lucide-react";
-import {
-  buildSampleSets,
-  buildSampleCheckins,
-  SAMPLE_BODYWEIGHT,
-  SAMPLE_SEX,
-  SAMPLE_UNITS,
-} from "@/lib/analytics/sample";
+import { buildSampleSets, buildSampleCheckins, sampleBodyweight, SAMPLE_SEX } from "@/lib/analytics/sample";
+import type { Units } from "@/lib/types";
 import { detectDeload } from "@/lib/analytics/deload";
 import { computeReadiness } from "@/lib/analytics/readiness";
 import { buildVolumeReport } from "@/lib/analytics/volume";
@@ -26,31 +21,38 @@ import { TrackOnMount } from "@/components/analytics";
 
 export const dynamic = "force-dynamic";
 
-// A realistic sample of what the live AI coach would say for this athlete.
-const SAMPLE_COACH = `You've earned a deload, and the data is unanimous. Three majors — squat (117.5kg), bench (78kg), and overhead press (50kg) — haven't moved in 3+ weeks while RPE climbed to 9–9.5. Your HRV is down ~21% and resting HR is up ~7 bpm vs baseline, and you dropped from 4 to 2 sessions this week. That's accumulated fatigue masking strength, not a strength ceiling.
+// A realistic sample of what the live AI coach would say — numbers in the
+// viewer's chosen unit so it reads natively for lb or kg lifters.
+function coachText(units: Units): string {
+  const w = (kg: number) => (units === "lb" ? `${Math.round((kg * 2.20462) / 5) * 5}lb` : `${kg}kg`);
+  const incTxt =
+    units === "lb" ? "5lb to squat/dead and 2.5lb to bench/press" : "2.5kg to squat/dead and 1kg to bench/press";
+  return `You've earned a deload, and the data is unanimous. Three majors — squat (${w(117.5)}), bench (${w(78)}), and overhead press (${w(50)}) — haven't moved in 3+ weeks while RPE climbed to 9–9.5. Your HRV is down ~21% and resting HR is up ~7 bpm vs baseline, and you dropped from 4 to 2 sessions this week. That's accumulated fatigue masking strength, not a strength ceiling.
 
 **This week — deload:**
 - Keep the lifts, cut volume ~50%: 2 sets instead of 3–4.
-- Drop intensity to ~RPE 6: squat ~95kg, bench ~65kg for your 5s.
+- Drop intensity to ~RPE 6: squat ~${w(95)}, bench ~${w(65)} for your 5s.
 - Sleep is your lever — the HRV dip tracks your 2/5 sleep scores.
 
-**Next week — resume:** retest at last week's top weights. Expect them to feel ~1–2 RPE easier; that's the supercompensation. Then add 2.5kg to squat/dead and 1kg to bench/press and rebuild.`;
+**Next week — resume:** retest at last week's top weights. Expect them to feel ~1–2 RPE easier; that's the supercompensation. Then add ${incTxt} and rebuild.`;
+}
 
-export default function DemoPage() {
+export default function DemoPage({ searchParams }: { searchParams: { units?: string } }) {
+  // Default to lb for the (US-heavy) launch audience; ?units=kg flips it.
+  const units: Units = searchParams?.units === "kg" ? "kg" : "lb";
+  const bodyweight = sampleBodyweight(units);
+
   const now = new Date();
-  const sets = buildSampleSets(now);
+  const sets = buildSampleSets(now, units);
   const checkins = buildSampleCheckins(now);
 
   const deload = detectDeload(sets, now);
-  const readiness = computeReadiness(sets, checkins, now, {
-    bodyweight: SAMPLE_BODYWEIGHT,
-    sex: SAMPLE_SEX,
-  });
+  const readiness = computeReadiness(sets, checkins, now, { bodyweight, sex: SAMPLE_SEX });
   const volume = buildVolumeReport(sets, 8, now);
   const setVolume = buildSetVolume(sets, 4, 8, now);
   const records = buildRecords(sets);
   const progress = buildProgressReport(sets, 4, now);
-  const nextSessions = buildNextSessions(sets, { units: SAMPLE_UNITS, deload: deload.recommended });
+  const nextSessions = buildNextSessions(sets, { units, deload: deload.recommended });
 
   const tonnageTrend = {
     muscleGroups: ["Total"],
@@ -64,7 +66,7 @@ export default function DemoPage() {
   const progressing = progress.filter((p) => p.status === "progressing").length;
   const stalls = progress.filter((p) => p.status === "plateauing" || p.status === "regressing").length;
   const stats = [
-    { label: "8-week tonnage", value: Math.round(totalVolume).toLocaleString(), unit: SAMPLE_UNITS, icon: Flame },
+    { label: "8-week tonnage", value: Math.round(totalVolume).toLocaleString(), unit: units, icon: Flame },
     { label: "Lifts progressing", value: String(progressing), unit: "", icon: TrendingUp },
     { label: "Stalled lifts", value: String(stalls), unit: "", icon: Dumbbell },
     { label: "Personal records", value: String(records.length), unit: "", icon: Trophy },
@@ -82,7 +84,21 @@ export default function DemoPage() {
           MyDeloadTracker
         </Link>
         <div className="flex items-center gap-2">
-          <Link href="/login" className="btn-ghost">
+          <div className="inline-flex rounded-lg border border-border p-0.5 text-xs font-medium">
+            <Link
+              href="/demo?units=lb"
+              className={`rounded px-2.5 py-1 ${units === "lb" ? "bg-brand text-brand-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              lb
+            </Link>
+            <Link
+              href="/demo?units=kg"
+              className={`rounded px-2.5 py-1 ${units === "kg" ? "bg-brand text-brand-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              kg
+            </Link>
+          </div>
+          <Link href="/login" className="btn-ghost max-sm:hidden">
             Sign in
           </Link>
           <Link href="/login" className="btn-brand">
@@ -130,7 +146,7 @@ export default function DemoPage() {
           <p className="mb-4 text-xs text-muted">
             Concrete targets from the last numbers + RPE — this athlete is in a deload, so everything backs off.
           </p>
-          <NextSessionCard sessions={nextSessions} units={SAMPLE_UNITS} />
+          <NextSessionCard sessions={nextSessions} units={units} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-5">
@@ -150,7 +166,7 @@ export default function DemoPage() {
               <span className="text-xs text-muted">tonnage/wk</span>
             </div>
             <p className="mb-4 text-xs text-muted">Your own work trend over time — not a muscle comparison.</p>
-            <VolumeChart report={tonnageTrend} unit={SAMPLE_UNITS} showLegend={false} height={240} />
+            <VolumeChart report={tonnageTrend} unit={units} showLegend={false} height={240} />
           </div>
         </div>
 
@@ -168,8 +184,8 @@ export default function DemoPage() {
           <div className="lg:col-span-2">
             <StrengthStandards
               lifts={standardLifts}
-              units={SAMPLE_UNITS}
-              initialBodyweight={SAMPLE_BODYWEIGHT}
+              units={units}
+              initialBodyweight={bodyweight}
               initialSex={SAMPLE_SEX}
             />
           </div>
@@ -187,7 +203,7 @@ export default function DemoPage() {
             </div>
           </div>
           <div className="whitespace-pre-wrap rounded-xl bg-background/60 p-4 text-sm leading-relaxed">
-            {SAMPLE_COACH}
+            {coachText(units)}
           </div>
           <Link href="/login" className="btn-brand mt-4">
             Chat with the live coach — free
@@ -197,7 +213,7 @@ export default function DemoPage() {
         {/* Records */}
         <div className="card">
           <h2 className="mb-4 font-semibold">Personal records</h2>
-          <RecordsTable records={records} units={SAMPLE_UNITS} />
+          <RecordsTable records={records} units={units} />
         </div>
 
         {/* Bottom CTA */}

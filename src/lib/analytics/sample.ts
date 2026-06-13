@@ -5,13 +5,22 @@
 // of `now`, so the demo always shows a fresh window ending today and never goes
 // stale. No DB, no auth.
 
-import type { DailyCheckin, TrainingSet } from "@/lib/types";
+import type { DailyCheckin, TrainingSet, Units } from "@/lib/types";
 import { localDateKey, startOfWeek } from "./dates";
 
-export const SAMPLE_BODYWEIGHT = 85;
+export const SAMPLE_BODYWEIGHT = 85; // kg
 export const SAMPLE_SEX = "male" as const;
 export const SAMPLE_UNITS = "kg" as const;
 export const SAMPLE_NAME = "Sample Athlete";
+
+const LB_PER_KG = 2.20462;
+/** Convert a kg weight to a clean lb number (nearest 5 lb plate). */
+const toUnit = (kg: number, units: Units) => (units === "lb" ? Math.round((kg * LB_PER_KG) / 5) * 5 : kg);
+
+/** The sample athlete's bodyweight in the requested unit. */
+export function sampleBodyweight(units: Units = "kg"): number {
+  return units === "lb" ? 187 : 85;
+}
 
 interface PlannedLift {
   name: string;
@@ -58,7 +67,7 @@ const TEMPLATE: { dayOffset: number; lifts: string[] }[] = [
   { dayOffset: 4, lifts: ["Overhead Press", "Barbell Curl", "Hanging Leg Raise"] },
 ];
 
-export function buildSampleSets(now: Date = new Date()): TrainingSet[] {
+export function buildSampleSets(now: Date = new Date(), units: Units = "kg"): TrainingSet[] {
   const thisMonday = startOfWeek(now);
   const out: TrainingSet[] = [];
 
@@ -83,7 +92,7 @@ export function buildSampleSets(now: Date = new Date()): TrainingSet[] {
             muscleGroup: p.muscleGroup,
             isMajor: p.isMajor,
             reps: p.reps,
-            weight: p.weights[week],
+            weight: toUnit(p.weights[week], units),
             rpe: p.rpe[week],
           });
         }

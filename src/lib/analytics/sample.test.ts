@@ -17,6 +17,16 @@ describe("sample athlete (powers the public /demo)", () => {
     expect(report.triggeredCount).toBeGreaterThanOrEqual(2);
   });
 
+  it("converts to lb cleanly and still fires the deload", () => {
+    const lb = buildSampleSets(now, "lb");
+    const topSquat = Math.max(
+      ...lb.filter((s) => s.exerciseName === "Barbell Back Squat").map((s) => s.weight),
+    );
+    expect(topSquat).toBeGreaterThan(250); // ~260 lb, unmistakably lb not kg
+    expect(topSquat % 5).toBe(0); // clean plate numbers
+    expect(detectDeload(lb, now).recommended).toBe(true);
+  });
+
   it("includes recovery check-ins that dip recently", () => {
     const ci = buildSampleCheckins(now);
     expect(ci.length).toBe(28);
