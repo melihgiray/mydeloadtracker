@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getTrainingSets } from "@/lib/data";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -64,6 +65,20 @@ export async function POST(req: Request) {
   const data = m[2];
   if (data.length > 8_000_000) return NextResponse.json({ error: "Image too large." }, { status: 413 });
 
+  // Bias the exercise guess toward what this athlete actually trains — a still
+  // photo is often ambiguous (a racked bar could be squat / front squat / press),
+  // and their history is a strong prior that disambiguates.
+  const recent = await getTrainingSets(supabase, 8).catch(() => []);
+  const freq = new Map<string, number>();
+  for (const s of recent) freq.set(s.exerciseName, (freq.get(s.exerciseName) ?? 0) + 1);
+  const usual = [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([n]) => n);
+  const hint = usual.length
+    ? `\n\nThis athlete most often trains: ${usual.join(", ")}. When the exercise is ambiguous from the photo, prefer one of these and set confidence to medium.`
+    : "";
+
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const res = await anthropic.messages.create({
@@ -76,7 +91,7 @@ export async function POST(req: Request) {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data } },
-            { type: "text", text: PROMPT },
+            { type: "text", text: PROMPT + hint },
           ],
         },
       ],
