@@ -33,3 +33,10 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# private strategy/fundraising docs — kept local, never pushed
+docs/FUNDRAISING.md
+docs/GLASSES_TECH_PLAN.md
+docs/LAUNCH.md
+docs/RAISE_PLAYBOOK.md
+docs/YC_APPLICATION.md
