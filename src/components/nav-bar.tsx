@@ -16,12 +16,12 @@ import {
 import { createClient } from "@/lib/supabase/client";
 
 const LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/log", label: "Log workout", icon: Dumbbell },
-  { href: "/scan", label: "Scan", icon: ScanLine },
-  { href: "/history", label: "History", icon: History },
-  { href: "/progress", label: "Progress", icon: LineChart },
-  { href: "/coach", label: "AI coach", icon: Brain },
+  { href: "/dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard },
+  { href: "/log", label: "Log workout", short: "Log", icon: Dumbbell },
+  { href: "/scan", label: "Scan", short: "Scan", icon: ScanLine },
+  { href: "/history", label: "History", short: "History", icon: History },
+  { href: "/progress", label: "Progress", short: "Progress", icon: LineChart },
+  { href: "/coach", label: "AI coach", short: "Coach", icon: Brain },
 ];
 
 export function NavBar({ email }: { email: string | null }) {
@@ -92,22 +92,35 @@ export function NavBar({ email }: { email: string | null }) {
 export function MobileNav() {
   const pathname = usePathname();
   return (
-    <nav className="sticky bottom-0 z-10 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-      {LINKS.map((link) => {
-        const active = pathname === link.href;
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] ${
-              active ? "text-brand" : "text-muted"
-            }`}
-          >
-            <link.icon className="h-5 w-5" />
-            {link.label.split(" ")[0]}
-          </Link>
-        );
-      })}
+    <nav className="sticky bottom-0 z-20 border-t border-border bg-surface/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+      <div className="flex px-1">
+        {LINKS.map((link) => {
+          const active = pathname === link.href;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={active ? "page" : undefined}
+              className="flex flex-1 flex-col items-center gap-1 py-2"
+            >
+              <span
+                className={`grid h-8 w-12 place-items-center rounded-full transition-colors ${
+                  active ? "bg-brand/15 text-brand" : "text-muted"
+                }`}
+              >
+                <link.icon className="h-[18px] w-[18px]" />
+              </span>
+              <span
+                className={`text-[10px] leading-none transition-colors ${
+                  active ? "font-medium text-brand" : "text-muted"
+                }`}
+              >
+                {link.short}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

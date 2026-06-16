@@ -193,11 +193,11 @@ export interface DeloadCadence {
 }
 
 const CADENCE: Record<StrengthLevelId, DeloadCadence> = {
-  beginner: { lowWeeks: 8, highWeeks: 14, note: "rarely needs a structured deload — push and recover as needed" },
+  beginner: { lowWeeks: 8, highWeeks: 14, note: "rarely needs a structured deload, push and recover as needed" },
   novice: { lowWeeks: 7, highWeeks: 12, note: "a deload every ~7-9 weeks of hard training is plenty" },
   intermediate: { lowWeeks: 5, highWeeks: 9, note: "deload roughly every 4-6 weeks of hard training" },
   advanced: { lowWeeks: 4, highWeeks: 7, note: "deload roughly every 3-5 weeks of hard training" },
-  elite: { lowWeeks: 3, highWeeks: 6, note: "deload often — every 3-4 weeks of hard training" },
+  elite: { lowWeeks: 3, highWeeks: 6, note: "deload often, every 3 to 4 weeks of hard training" },
 };
 
 /** Deload cadence for a level; defaults to intermediate when level is unknown. */

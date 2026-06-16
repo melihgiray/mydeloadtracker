@@ -11,8 +11,9 @@ import { buildProgressReport } from "@/lib/analytics/progress";
 import { buildNextSessions } from "@/lib/analytics/progression";
 import { isStandardLift } from "@/lib/analytics/standards";
 import { localDateKey } from "@/lib/analytics/dates";
-import { buildTodaysCall } from "@/lib/ui";
+import { buildTodaysCall, buildActivity } from "@/lib/ui";
 import { TodaysCall } from "@/components/todays-call";
+import { ActivityStrip } from "@/components/activity-strip";
 import { DeloadAlert } from "@/components/deload-alert";
 import { ReadinessGauge } from "@/components/readiness-gauge";
 import { VolumeChart } from "@/components/volume-chart";
@@ -66,6 +67,9 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
     readinessTrend.push(computeReadiness(sUpTo, cUpTo, asOf, opts).score);
   }
   if (readinessTrend.length === 0) readinessTrend.push(readiness.score);
+
+  const trainedKeys = new Set(sets.map((s) => localDateKey(new Date(s.date))));
+  const activity = buildActivity(trainedKeys, now);
 
   const volume = buildVolumeReport(sets, 8, now);
   const setVolume = buildSetVolume(sets, 4, 8, now);
@@ -154,6 +158,8 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
           <DeloadAlert report={deload} />
           <ReadinessGauge report={readiness} />
         </div>
+
+        <ActivityStrip activity={activity} />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((s) => (

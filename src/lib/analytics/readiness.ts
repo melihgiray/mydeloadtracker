@@ -280,7 +280,7 @@ function factorTimeUnderLoad(
     value,
     streak >= cadence.lowWeeks
       ? `${streak} consecutive hard weeks logged without a lighter week (${cadence.note}).`
-      : `${streak} consecutive hard week${streak === 1 ? "" : "s"} — plenty of runway (${cadence.note}).`,
+      : `${streak} consecutive hard week${streak === 1 ? "" : "s"}, plenty of runway (${cadence.note}).`,
   );
 }
 
@@ -435,9 +435,9 @@ function factorHrv(checkins: DailyCheckin[], now: Date): ReadinessFactor {
 }
 
 const BANDS: ReadinessBand[] = [
-  { id: "fresh", label: "Fresh — primed to push", tone: "good" },
-  { id: "solid", label: "Solid — keep progressing", tone: "good" },
-  { id: "caution", label: "Caution — monitor fatigue", tone: "caution" },
+  { id: "fresh", label: "Fresh, primed to push", tone: "good" },
+  { id: "solid", label: "Solid, keep progressing", tone: "good" },
+  { id: "caution", label: "Caution, monitor fatigue", tone: "caution" },
   { id: "deload", label: "Deload recommended", tone: "bad" },
 ];
 

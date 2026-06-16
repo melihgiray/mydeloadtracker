@@ -53,10 +53,10 @@ export const OPTIMAL_MAX = 20;
 const HIGH = 22;
 
 function classify(setsPerWeek: number): { status: SetVolumeStatus; note: string } {
-  if (setsPerWeek < LOW) return { status: "low", note: "maintenance — below the growth range" };
-  if (setsPerWeek < OPTIMAL_MIN) return { status: "building", note: "approaching the 10–20 set range" };
-  if (setsPerWeek <= HIGH) return { status: "optimal", note: "in the 10–20 set hypertrophy range" };
-  return { status: "high", note: "above 22 sets — watch recovery" };
+  if (setsPerWeek < LOW) return { status: "low", note: "maintenance, below the growth range" };
+  if (setsPerWeek < OPTIMAL_MIN) return { status: "building", note: "approaching the 10 to 20 set range" };
+  if (setsPerWeek <= HIGH) return { status: "optimal", note: "in the 10 to 20 set hypertrophy range" };
+  return { status: "high", note: "above 22 sets, watch recovery" };
 }
 
 /** A working ("hard") set: counted unless explicitly logged below RPE 7. */

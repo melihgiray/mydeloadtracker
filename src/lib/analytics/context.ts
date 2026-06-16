@@ -69,7 +69,7 @@ export function buildCoachContext(
   lines.push("");
 
   // Graded readiness model (0-100, higher = fresher)
-  lines.push(`TRAINING READINESS: ${readiness.score}/100 — ${readiness.band.label}.`);
+  lines.push(`TRAINING READINESS: ${readiness.score}/100, ${readiness.band.label}.`);
   if (readiness.topDrivers.length) {
     lines.push("  Top fatigue drivers:");
     for (const d of readiness.topDrivers) lines.push(`    - ${d}`);
@@ -90,7 +90,7 @@ export function buildCoachContext(
     }
   } else {
     lines.push(
-      "STRENGTH LEVEL: not available — athlete has not set bodyweight/sex, so deload cadence uses intermediate defaults.",
+      "STRENGTH LEVEL: not available, athlete has not set bodyweight/sex, so deload cadence uses intermediate defaults.",
     );
   }
   lines.push("");
@@ -116,7 +116,7 @@ export function buildCoachContext(
   const nextSessions = buildNextSessions(sets, { units, deload: deload.recommended });
   const majorNext = nextSessions.filter((n) => n.isMajor);
   if (majorNext.length) {
-    lines.push("SUGGESTED NEXT SESSIONS (auto-progression — refine these):");
+    lines.push("SUGGESTED NEXT SESSIONS (auto-progression, refine these):");
     for (const n of majorNext) {
       lines.push(
         `  ${n.exerciseName}: last ${n.last.weight}${units}x${n.last.reps}${n.last.rpe != null ? ` @RPE${n.last.rpe}` : ""} -> ${n.action.toUpperCase()} ${n.target.weight}${units}x${n.target.reps}x${n.target.sets}`,
@@ -152,7 +152,7 @@ export function buildCoachContext(
   // Hard sets per muscle/week — the hypertrophy dose (target ~10-20).
   lines.push("WEEKLY HARD SETS PER MUSCLE (avg last 4 wks; target 10-20 for growth):");
   for (const m of setVolume.muscles) {
-    lines.push(`  ${m.muscleGroup}: ${m.setsPerWeek}/wk [${m.status}] — ${m.note}.`);
+    lines.push(`  ${m.muscleGroup}: ${m.setsPerWeek}/wk [${m.status}], ${m.note}.`);
   }
   lines.push("");
 

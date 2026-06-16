@@ -83,23 +83,23 @@ export function buildNextSessions(
         reps: top.reps,
         sets: Math.max(1, Math.ceil(setCount / 2)),
       };
-      note = "Deload week — ~15% lighter, keep it ≤ RPE 6, half the sets. Recover, then rebuild.";
+      note = "Deload week, about 15% lighter, keep it at RPE 6 or below, half the sets. Recover, then rebuild.";
     } else if (rpe == null) {
       action = "progress";
       target = { weight: roundTo(top.weight + incr, step), reps: top.reps, sets: setCount };
-      note = `No RPE logged — a small bump. Log RPE next time for sharper targets.`;
+      note = `No RPE logged, a small bump. Log RPE next time for sharper targets.`;
     } else if (rpe <= 7.5) {
       action = "progress";
       target = { weight: roundTo(top.weight + incr, step), reps: top.reps, sets: setCount };
-      note = `Felt easy (RPE ${round1(rpe)}) — add ${incr}${units}.`;
+      note = `Felt easy (RPE ${round1(rpe)}), add ${incr}${units}.`;
     } else if (rpe <= 8.5) {
       action = "hold";
       target = { weight: top.weight, reps: top.reps + 1, sets: setCount };
-      note = `Solid (RPE ${round1(rpe)}) — repeat the weight, chase +1 rep.`;
+      note = `Solid (RPE ${round1(rpe)}), repeat the weight, chase +1 rep.`;
     } else {
       action = "back_off";
       target = { weight: top.weight, reps: top.reps, sets: setCount };
-      note = `Near-maximal (RPE ${round1(rpe)}) — hold here until it moves faster.`;
+      note = `Near-maximal (RPE ${round1(rpe)}), hold here until it moves faster.`;
     }
 
     out.push({

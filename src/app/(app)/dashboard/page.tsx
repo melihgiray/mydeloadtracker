@@ -10,8 +10,9 @@ import { buildSetVolume } from "@/lib/analytics/setVolume";
 import { buildRecords } from "@/lib/analytics/records";
 import { buildProgressReport } from "@/lib/analytics/progress";
 import { buildNextSessions } from "@/lib/analytics/progression";
-import { buildTodaysCall } from "@/lib/ui";
+import { buildTodaysCall, buildActivity } from "@/lib/ui";
 import { TodaysCall } from "@/components/todays-call";
+import { ActivityStrip } from "@/components/activity-strip";
 import { DeloadAlert } from "@/components/deload-alert";
 import { ReadinessGauge } from "@/components/readiness-gauge";
 import { VolumeChart } from "@/components/volume-chart";
@@ -85,6 +86,9 @@ export default async function DashboardPage() {
   }
   if (readinessTrend.length === 0) readinessTrend.push(readiness.score);
 
+  const trainedKeys = new Set(sets.map((s) => localDateKey(new Date(s.date))));
+  const activity = buildActivity(trainedKeys, now);
+
   const volume = buildVolumeReport(sets, 8);
   const setVolume = buildSetVolume(sets, 4, 8);
 
@@ -153,6 +157,8 @@ export default async function DashboardPage() {
         <DeloadAlert report={deload} />
         <ReadinessGauge report={readiness} />
       </div>
+
+      <ActivityStrip activity={activity} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
