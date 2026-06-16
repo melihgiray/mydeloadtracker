@@ -54,8 +54,8 @@ export function SetVolumePanel({ report }: { report: SetVolumeReport }) {
         );
       })}
       <p className="pt-1 text-xs text-muted">
-        Hard sets per muscle/week (avg of last {report.windowWeeks} wks). Shaded band = the 10–20 set
-        hypertrophy range. Compound lifts count toward their primary muscle only.
+        Hard sets per muscle each week (avg of last {report.windowWeeks} wks). The shaded band marks
+        the 10 to 20 set hypertrophy range. Compound lifts count toward their primary muscle only.
       </p>
     </div>
   );

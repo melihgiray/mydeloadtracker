@@ -20,7 +20,7 @@ export function WearableConnect({
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<string | null>(
     status === "connected"
-      ? "Oura connected — recovery data synced into your readiness score."
+      ? "Oura connected. Recovery data synced into your readiness score."
       : status === "error"
         ? "Couldn't connect Oura. Please try again."
         : null,

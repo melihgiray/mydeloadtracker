@@ -223,7 +223,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
     stopLive(); // clears the interval + stops the camera
     setPreview(frames[frames.length - 1] ?? null);
     if (frames.length >= 2) void analyze(frames);
-    else setError("Didn't catch enough of the set — try again in better light.");
+    else setError("Didn't catch enough of the set. Try again in better light.");
   }
 
   async function logSet() {
@@ -297,7 +297,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
           )}
           {recording && countdown === 0 && (
             <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-danger/90 px-2.5 py-1 text-xs font-medium text-white tabular-nums">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> recording {elapsed}s — do your set
+              <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> recording {elapsed}s, do your set
             </div>
           )}
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-3">
@@ -376,7 +376,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
                 <div>
                   <p className="font-medium">{reading.note}</p>
                   <p className={`text-xs ${CONF[reading.confidence]}`}>
-                    {reading.confidence} confidence — check it before logging
+                    {reading.confidence} confidence, check it before logging
                   </p>
                 </div>
               </div>
@@ -428,7 +428,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
             </>
           ) : (
             <p className="text-sm text-muted">
-              {reading.note || "Couldn't spot a loaded bar — try a clearer shot of the plates."}
+              {reading.note || "Couldn't spot a loaded bar. Try a clearer shot of the plates."}
             </p>
           )}
         </div>

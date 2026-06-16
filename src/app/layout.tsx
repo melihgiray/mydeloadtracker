@@ -1,10 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 import { PostHogInit } from "@/components/analytics";
 
+// Body: clean, highly legible. Display/headings: Space Grotesk (technical
+// character). Instrument readouts (scores, weights): IBM Plex Mono, tabular,
+// reads like a measuring-instrument display.
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" });
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+});
 
 const DESCRIPTION =
   "Log your training and get a daily readiness score, deload alerts, StrengthLevel-style standards, and an AI coach that reasons from your real numbers.";
@@ -12,11 +21,11 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL("https://mydeloadtracker.vercel.app"),
   applicationName: "MyDeloadTracker",
-  title: "MyDeloadTracker — AI strength coach that knows when to deload",
+  title: "MyDeloadTracker, the AI strength coach that knows when to deload",
   description: DESCRIPTION,
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "MyDeloadTracker — AI strength coach that knows when to deload",
+    title: "MyDeloadTracker, the AI strength coach that knows when to deload",
     description: DESCRIPTION,
     url: "/",
     siteName: "MyDeloadTracker",
@@ -24,7 +33,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "MyDeloadTracker — AI strength coach that knows when to deload",
+    title: "MyDeloadTracker, the AI strength coach that knows when to deload",
     description: DESCRIPTION,
   },
   appleWebApp: {
@@ -43,7 +52,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e1016",
+  themeColor: "#0b0d12",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -52,7 +61,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans`}>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${plexMono.variable} font-sans`}>
         {children}
         <PwaRegister />
         <PostHogInit />

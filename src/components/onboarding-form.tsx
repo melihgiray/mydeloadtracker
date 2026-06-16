@@ -52,7 +52,7 @@ export function OnboardingForm({
   async function finish() {
     setError(null);
     const bw = Number(bodyweight);
-    if (!sex) return setError("Pick your sex — it's needed for strength standards.");
+    if (!sex) return setError("Pick your sex, it's needed for strength standards.");
     if (!(bw > 0)) return setError("Enter your bodyweight.");
 
     const chosen = exercises
@@ -175,7 +175,7 @@ export function OnboardingForm({
       <div className="card">
         <h2 className="font-semibold">Your main lifts</h2>
         <p className="mb-4 text-xs text-muted">
-          Add a recent working set for each — we&apos;ll rank it and set your next target.
+          Add a recent working set for each, and we&apos;ll rank it and set your next target.
         </p>
         <div className="space-y-2">
           {exercises.map((e) => {
@@ -220,7 +220,7 @@ export function OnboardingForm({
 
       {/* Optional recovery */}
       <div className="card">
-        <h2 className="font-semibold">This morning&apos;s recovery <span className="text-xs font-normal text-muted">— optional</span></h2>
+        <h2 className="font-semibold">This morning&apos;s recovery <span className="text-xs font-normal text-muted">(optional)</span></h2>
         <p className="mb-4 text-xs text-muted">From a wearable, if you have one. You can connect Oura later for auto-sync.</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -236,9 +236,9 @@ export function OnboardingForm({
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <button onClick={finish} disabled={saving} className="btn-brand w-full py-2.5">
+      <button onClick={finish} disabled={saving} className="btn-brand w-full">
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-        Finish setup — see my plan
+        Finish setup and see my plan
       </button>
     </div>
   );

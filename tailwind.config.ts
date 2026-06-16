@@ -12,10 +12,14 @@ const config: Config = {
       colors: {
         background: "hsl(var(--background))",
         surface: "hsl(var(--surface))",
+        "surface-2": "hsl(var(--surface-2))",
         "surface-hover": "hsl(var(--surface-hover))",
         border: "hsl(var(--border))",
+        "border-strong": "hsl(var(--border-strong))",
         foreground: "hsl(var(--foreground))",
         muted: "hsl(var(--muted))",
+        faint: "hsl(var(--faint))",
+        accent: "hsl(var(--accent))",
         brand: {
           DEFAULT: "hsl(var(--brand))",
           foreground: "hsl(var(--brand-foreground))",
@@ -30,6 +34,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
     },
   },

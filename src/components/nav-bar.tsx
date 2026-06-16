@@ -37,7 +37,7 @@ export function NavBar({ email }: { email: string | null }) {
 
   return (
     <aside className="sticky top-0 flex h-screen w-60 flex-shrink-0 flex-col border-r border-border bg-surface/50 px-4 py-5 max-md:hidden">
-      <Link href="/dashboard" className="mb-8 flex items-center gap-2 px-2 font-semibold">
+      <Link href="/dashboard" className="mb-8 flex items-center gap-2 px-2 font-display text-[15px] font-semibold tracking-tight">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-brand-foreground">
           <Activity className="h-5 w-5" />
         </span>

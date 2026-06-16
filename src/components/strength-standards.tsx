@@ -167,8 +167,8 @@ export function StrengthStandards({
 
       {!ready ? (
         <p className="mt-4 text-sm text-muted">
-          Enter your bodyweight and sex to see how each main lift stacks up — Beginner through
-          Elite — and to tune deload timing to your experience level.
+          Enter your bodyweight and sex to see how each main lift stacks up, Beginner through
+          Elite, and to tune deload timing to your experience level.
         </p>
       ) : (
         <>
@@ -210,7 +210,7 @@ export function StrengthStandards({
                     <p className="mt-1 text-[11px] text-muted">
                       {s.nextLevel
                         ? `${Math.round(s.progressToNext * 100)}% to ${s.nextLevel.label} · ~${s.nextLevelE1RM} ${units} e1RM`
-                        : "Top band — Elite"}
+                        : "Top band, Elite"}
                     </p>
                   </li>
                 );

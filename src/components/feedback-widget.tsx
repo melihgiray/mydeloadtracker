@@ -49,7 +49,7 @@ export function FeedbackWidget() {
             </div>
             {state === "done" ? (
               <p className="flex items-center gap-1.5 py-3 text-sm text-success">
-                <Check className="h-4 w-4" /> Thank you — this really helps.
+                <Check className="h-4 w-4" /> Thank you, this really helps.
               </p>
             ) : (
               <>
@@ -61,7 +61,7 @@ export function FeedbackWidget() {
                   className="input resize-none"
                 />
                 {state === "error" && (
-                  <p className="mt-1 text-xs text-danger">Couldn&apos;t send — try again in a moment.</p>
+                  <p className="mt-1 text-xs text-danger">Couldn&apos;t send. Try again in a moment.</p>
                 )}
                 <button
                   onClick={submit}

@@ -3,23 +3,37 @@
 @tailwind utilities;
 
 :root {
-  /* Dark, modern palette (HSL channels consumed by tailwind.config.ts) */
-  --background: 222 24% 7%;
-  --surface: 222 20% 11%;
-  --surface-hover: 222 18% 15%;
-  --border: 222 16% 20%;
-  --foreground: 210 20% 96%;
-  --muted: 215 14% 58%;
+  /* Instrument palette: a cool-ink base (never pure black), near-monochrome
+     chrome, and a single restrained azure for non-semantic accents. All HSL
+     channels are consumed by tailwind.config.ts. */
+  --background: 222 28% 6%;
+  --surface: 220 22% 9.5%;
+  --surface-2: 219 20% 13%;
+  --surface-hover: 219 18% 16%;
+  --border: 220 16% 18%;
+  --border-strong: 218 15% 27%;
+  --foreground: 210 30% 97%;
+  --muted: 218 14% 63%;
+  --faint: 219 12% 44%;
 
-  --brand: 152 62% 45%;
-  --brand-foreground: 152 60% 8%;
+  /* Chrome accent (no meaning, identity only): a clean azure. */
+  --brand: 222 80% 64%;
+  --brand-foreground: 222 45% 99%;
 
-  --success: 152 62% 45%;
-  --warning: 38 92% 55%;
-  --danger: 0 72% 58%;
+  /* Semantic state accents. Color MEANS something here, never decoration:
+       success = a sophisticated teal (push), not neon green
+       warning = amber (hold)
+       danger  = coral (back off), warmer than a hard error red */
+  --success: 172 64% 44%;
+  --warning: 40 92% 56%;
+  --danger: 8 78% 62%;
 
-  --font-sans: "Inter", system-ui, sans-serif;
+  /* The active readiness state accent. Components set --accent contextually
+     (good/caution/bad); falls back to the teal "good" tone. */
+  --accent: var(--success);
 }
+/* --font-sans / --font-display / --font-mono are injected on <body> by
+   next/font (see layout.tsx); tailwind.config and the classes below read them. */
 
 * {
   border-color: hsl(var(--border));
@@ -29,46 +43,110 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   /* Respect the notch / Dynamic Island when installed as a full-screen PWA.
-     These insets are 0 in a normal browser and on desktop, so this only nudges
-     content clear of the island/home-indicator on standalone iOS. */
+     These insets are 0 in a normal browser and on desktop. */
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
 
-/* Subtle radial glow on the app background */
+/* Quiet instrument background: a faint cool vignette plus a very subtle dot
+   grid, so the surface reads like a panel rather than a flat default. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(60rem 40rem at 15% -10%, hsl(152 62% 45% / 0.07), transparent),
-    radial-gradient(50rem 40rem at 100% 0%, hsl(210 80% 50% / 0.05), transparent);
+    radial-gradient(70rem 50rem at 50% -20%, hsl(222 40% 16% / 0.5), transparent 70%),
+    radial-gradient(40rem 40rem at 100% 0%, hsl(222 60% 30% / 0.06), transparent 70%);
   pointer-events: none;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(hsl(220 16% 30% / 0.18) 0.5px, transparent 0.5px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(80rem 60rem at 50% 0%, black, transparent 80%);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@layer base {
+  /* Visible keyboard focus everywhere, instrument-azure. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--brand));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-surface p-5 shadow-sm;
+    @apply rounded-2xl border border-border bg-surface p-5;
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.03),
+      0 12px 32px -20px hsl(0 0% 0% / 0.7);
+  }
+  /* An elevated "instrument panel" for hero/primary surfaces. */
+  .panel {
+    @apply rounded-2xl border bg-surface-2 p-5;
+    border-color: hsl(var(--border-strong));
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.04),
+      0 20px 50px -28px hsl(0 0% 0% / 0.8);
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
-      transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium
+      transition-[background-color,opacity,transform] active:scale-[0.98]
+      disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+    min-height: 2.75rem; /* 44px: comfortable, sweaty-thumb tap target */
   }
+  /* Primary action: a high-contrast "key". Distinct, premium, instrument-like. */
   .btn-brand {
+    @apply btn bg-foreground text-background hover:opacity-90;
+  }
+  /* Branded-azure action, for secondary emphasis that still reads as a control. */
+  .btn-accent {
     @apply btn bg-brand text-brand-foreground hover:opacity-90;
   }
   .btn-ghost {
     @apply btn border border-border bg-surface text-foreground hover:bg-surface-hover;
   }
   .input {
-    @apply w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground
-      outline-none placeholder:text-muted focus:border-brand/60 focus:ring-2 focus:ring-brand/20;
+    @apply w-full rounded-xl border border-border bg-background px-3.5 text-foreground
+      outline-none transition-colors placeholder:text-faint focus:border-brand/70 focus:ring-2 focus:ring-brand/25;
+    min-height: 2.75rem;
   }
   .label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted;
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-muted;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    letter-spacing: 0.08em;
+  }
+  /* Instrument readout: tabular mono for the hero numbers (score, weights). */
+  .readout {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-feature-settings: "tnum" 1, "zero" 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  /* Micro technical label, e.g. "TODAY'S CALL", "READINESS". */
+  .micro {
+    @apply text-[0.65rem] uppercase text-muted;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    letter-spacing: 0.14em;
+  }
+  .text-faint {
+    color: hsl(var(--faint));
   }
 }
 
@@ -77,6 +155,47 @@ body::before {
   width: 8px;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: hsl(var(--border-strong));
   border-radius: 8px;
+}
+
+/* One orchestrated entrance: the readiness number settling and the pulse
+   drawing. Gated entirely behind motion preference. */
+@keyframes pulse-draw {
+  from {
+    stroke-dashoffset: var(--pulse-len, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.animate-pulse-draw {
+  stroke-dasharray: var(--pulse-len, 1000);
+  animation: pulse-draw 1.1s cubic-bezier(0.4, 0, 0.1, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .animate-pulse-draw {
+    stroke-dashoffset: 0;
+  }
 }
