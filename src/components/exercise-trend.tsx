@@ -13,7 +13,7 @@ export function ExerciseTrend({ weeks }: { weeks: WeeklyExercisePoint[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={120}>
-      <LineChart data={data} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+      <LineChart data={data} margin={{ top: 6, right: 6, left: -2, bottom: 0 }}>
         <XAxis
           dataKey="label"
           tick={{ fill: "hsl(215 14% 58%)", fontSize: 11 }}
@@ -25,7 +25,7 @@ export function ExerciseTrend({ weeks }: { weeks: WeeklyExercisePoint[] }) {
           tick={{ fill: "hsl(215 14% 58%)", fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          width={40}
+          width={52}
         />
         <Tooltip
           contentStyle={{

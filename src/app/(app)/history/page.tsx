@@ -3,7 +3,7 @@ import { ArrowLeft, CalendarDays, Dumbbell, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, getSessionsWithSets } from "@/lib/data";
 import { round1 } from "@/lib/analytics/epley";
-import { exerciseColor, exerciseIcon } from "@/lib/exercise-visual";
+import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { IconBadge } from "@/components/icon-badge";
 import { DeleteSessionButton } from "@/components/delete-session-button";
 
@@ -48,12 +48,13 @@ export default async function HistoryPage() {
             // Group sets by exercise for a compact, visual summary.
             const byEx = new Map<
               string,
-              { name: string; muscle: string; count: number; top: number }
+              { name: string; muscle: string; movement: string | null; count: number; top: number }
             >();
             for (const x of s.sets) {
               const e = byEx.get(x.exerciseId) ?? {
                 name: x.exerciseName,
                 muscle: x.muscleGroup,
+                movement: x.movementPattern,
                 count: 0,
                 top: 0,
               };
@@ -68,12 +69,14 @@ export default async function HistoryPage() {
               month: "short",
               day: "numeric",
             });
-            const headColor = exerciseColor(exercises[0]?.muscle);
+            const head = exercises[0];
+            const headColor = exerciseColor(head?.muscle);
+            const HeadGlyph = exerciseGlyph({ movement_pattern: head?.movement, muscle_group: head?.muscle });
 
             return (
               <div key={s.id} className="card">
                 <div className="flex items-center gap-3">
-                  <IconBadge icon={Dumbbell} color={headColor} size="md" />
+                  <IconBadge icon={HeadGlyph} color={headColor} size="md" />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold leading-tight">{dateLabel}</p>
                     <p className="text-xs text-muted">
@@ -96,7 +99,11 @@ export default async function HistoryPage() {
                 <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3">
                   {exercises.map((e) => (
                     <div key={e.name} className="flex items-center gap-2.5">
-                      <IconBadge icon={exerciseIcon(null)} color={exerciseColor(e.muscle)} size="sm" />
+                      <IconBadge
+                        icon={exerciseGlyph({ movement_pattern: e.movement, muscle_group: e.muscle })}
+                        color={exerciseColor(e.muscle)}
+                        size="sm"
+                      />
                       <span className="min-w-0 flex-1 truncate text-sm">{e.name}</span>
                       <span className="readout flex-shrink-0 text-xs text-muted">
                         {e.count} × {round1(e.top)} {units}

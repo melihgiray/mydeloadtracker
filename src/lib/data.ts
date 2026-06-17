@@ -124,6 +124,7 @@ export interface SessionWithSets {
     exerciseId: string;
     exerciseName: string;
     muscleGroup: string;
+    movementPattern: string | null;
     isMajor: boolean;
   }[];
 }
@@ -139,7 +140,13 @@ interface SessionRow {
         weight: number;
         rpe: number | null;
         set_number: number;
-        exercises: { id: string; name: string; muscle_group: string; is_major: boolean } | null;
+        exercises: {
+          id: string;
+          name: string;
+          muscle_group: string;
+          movement_pattern: string | null;
+          is_major: boolean;
+        } | null;
       }[]
     | null;
 }
@@ -152,7 +159,7 @@ export async function getSessionsWithSets(
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(
-      "id, performed_at, notes, workout_sets(id, reps, weight, rpe, set_number, exercises(id, name, muscle_group, is_major))",
+      "id, performed_at, notes, workout_sets(id, reps, weight, rpe, set_number, exercises(id, name, muscle_group, movement_pattern, is_major))",
     )
     .order("performed_at", { ascending: false })
     .limit(limit);
@@ -175,6 +182,7 @@ export async function getSessionsWithSets(
         exerciseId: s.exercises!.id,
         exerciseName: s.exercises!.name,
         muscleGroup: s.exercises!.muscle_group,
+        movementPattern: s.exercises!.movement_pattern,
         isMajor: s.exercises!.is_major,
       })),
   }));
@@ -188,7 +196,7 @@ export async function getSessionWithSets(
   const { data, error } = await supabase
     .from("workout_sessions")
     .select(
-      "id, performed_at, notes, workout_sets(id, reps, weight, rpe, set_number, exercises(id, name, muscle_group, is_major))",
+      "id, performed_at, notes, workout_sets(id, reps, weight, rpe, set_number, exercises(id, name, muscle_group, movement_pattern, is_major))",
     )
     .eq("id", sessionId)
     .single();
@@ -211,6 +219,7 @@ export async function getSessionWithSets(
         exerciseId: s.exercises!.id,
         exerciseName: s.exercises!.name,
         muscleGroup: s.exercises!.muscle_group,
+        movementPattern: s.exercises!.movement_pattern,
         isMajor: s.exercises!.is_major,
       })),
   };

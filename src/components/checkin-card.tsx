@@ -16,7 +16,13 @@ const METRICS: { key: MetricKey; label: string; hint: string; icon: typeof Moon 
   { key: "energy", label: "Energy", hint: "1 drained · 5 fresh", icon: Battery },
 ];
 
-export function CheckinCard({ today }: { today: DailyCheckin | null }) {
+export function CheckinCard({
+  today,
+  onSaved,
+}: {
+  today: DailyCheckin | null;
+  onSaved?: () => void;
+}) {
   const router = useRouter();
   const todayStr = todayKey();
   const [values, setValues] = useState<Record<MetricKey, number | null>>({
@@ -60,6 +66,7 @@ export function CheckinCard({ today }: { today: DailyCheckin | null }) {
       if (error) throw error;
       setSaved(true);
       router.refresh();
+      onSaved?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not save check-in.";
       setError(

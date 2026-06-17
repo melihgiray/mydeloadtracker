@@ -1,17 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, Dumbbell, History, LineChart, Target, Trophy } from "lucide-react";
+import { ArrowRight, History, LineChart, Target } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile, getTrainingSets } from "@/lib/data";
+import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
 import { buildProgressReport } from "@/lib/analytics/progress";
 import { buildRecords } from "@/lib/analytics/records";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
 import { isStandardLift } from "@/lib/analytics/standards";
-import { StatusBadge } from "@/components/status-badge";
-import { ExerciseTrend } from "@/components/exercise-trend";
 import { StrengthStandards } from "@/components/strength-standards";
 import { VolumeChart } from "@/components/volume-chart";
 import { SetVolumePanel } from "@/components/set-volume";
-import { RecordsTable } from "@/components/records-table";
+import { LiftLookup, type LiftDetail } from "@/components/lift-lookup";
 import { IconBadge } from "@/components/icon-badge";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +18,7 @@ export default async function ProgressPage() {
   const supabase = createClient();
   const profile = await getProfile(supabase);
   const units = profile?.units ?? "kg";
-  const sets = await getTrainingSets(supabase, units, 8);
+  const [sets, exercises] = await Promise.all([getTrainingSets(supabase, units, 8), getExercises(supabase)]);
 
   if (sets.length === 0) {
     return (
@@ -43,12 +41,33 @@ export default async function ProgressPage() {
 
   const trends = buildProgressReport(sets, 8);
   const status4 = new Map(buildProgressReport(sets, 4).map((p) => [p.exerciseId, p]));
-  const setVolume = buildSetVolume(sets, 4, 8);
   const records = buildRecords(sets);
+  const recMap = new Map(records.map((r) => [r.exerciseName, r]));
+  const moveMap = new Map(exercises.map((e) => [e.id, e.movement_pattern]));
+  const setVolume = buildSetVolume(sets, 4, 8);
+  const sessionCount = new Set(sets.map((s) => s.sessionId)).size;
+
   const standardLifts = records
     .filter((r) => isStandardLift(r.exerciseName))
     .map((r) => ({ name: r.exerciseName, e1rm: r.bestE1RM }));
-  const sessionCount = new Set(sets.map((s) => s.sessionId)).size;
+
+  const lifts: LiftDetail[] = trends.map((t) => {
+    const s4 = status4.get(t.exerciseId);
+    const rec = recMap.get(t.exerciseName);
+    return {
+      exerciseId: t.exerciseId,
+      name: t.exerciseName,
+      muscleGroup: t.muscleGroup,
+      movementPattern: moveMap.get(t.exerciseId) ?? null,
+      isMajor: t.isMajor,
+      status: s4?.status ?? t.status,
+      changePct: s4?.e1rmChangePct ?? t.e1rmChangePct,
+      currentE1RM: t.currentE1RM,
+      weeks: t.weeks,
+      prE1RM: rec?.bestE1RM ?? t.currentE1RM,
+      maxWeight: rec?.maxWeight ?? 0,
+    };
+  });
 
   return (
     <div className="space-y-5">
@@ -74,6 +93,8 @@ export default async function ProgressPage() {
         initialSex={profile?.sex ?? null}
       />
 
+      <LiftLookup lifts={lifts} units={units} />
+
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="card lg:col-span-3">
           <div className="mb-1 flex items-center gap-2.5">
@@ -97,54 +118,6 @@ export default async function ProgressPage() {
           </p>
           <SetVolumePanel report={setVolume} />
         </div>
-      </div>
-
-      <div>
-        <div className="mb-3 flex items-center gap-2.5 px-1">
-          <IconBadge icon={Dumbbell} color="indigo" size="sm" />
-          <h2 className="font-semibold">Estimated 1RM by lift</h2>
-          <span className="micro ml-auto">8 weeks</span>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {trends.map((t) => {
-            const s = status4.get(t.exerciseId);
-            const status = s?.status ?? t.status;
-            const changePct = s?.e1rmChangePct ?? t.e1rmChangePct;
-            return (
-              <div key={t.exerciseId} className="card">
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">
-                      {t.exerciseName}
-                      {t.isMajor && (
-                        <span className="ml-2 rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-medium text-brand">
-                          MAJOR
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xs text-muted">{t.muscleGroup}</p>
-                  </div>
-                  <StatusBadge status={status} changePct={changePct} />
-                </div>
-
-                <div className="mb-3 flex items-baseline gap-1">
-                  <span className="readout text-2xl font-semibold">{t.currentE1RM}</span>
-                  <span className="text-sm text-muted">{units} est. 1RM</span>
-                </div>
-
-                <ExerciseTrend weeks={t.weeks} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="mb-4 flex items-center gap-2.5">
-          <IconBadge icon={Trophy} color="rose" size="sm" />
-          <h2 className="font-semibold">Personal records</h2>
-        </div>
-        <RecordsTable records={records} units={units} />
       </div>
     </div>
   );

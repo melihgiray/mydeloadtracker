@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCheckins, getProfile, getTrainingSets } from "@/lib/data";
-import { localDateKey, todayKey } from "@/lib/analytics/dates";
+import { localDateKey } from "@/lib/analytics/dates";
 import { detectDeload } from "@/lib/analytics/deload";
 import { computeReadiness } from "@/lib/analytics/readiness";
 import { buildNextSessions } from "@/lib/analytics/progression";
@@ -11,7 +11,6 @@ import { TodaysCall } from "@/components/todays-call";
 import { DeloadAlert } from "@/components/deload-alert";
 import { ReadinessGauge } from "@/components/readiness-gauge";
 import { NextSessionCard } from "@/components/next-session";
-import { CheckinCard } from "@/components/checkin-card";
 import { IconBadge } from "@/components/icon-badge";
 
 export const dynamic = "force-dynamic";
@@ -81,8 +80,6 @@ export default async function InsightsPage() {
         primaryHref="/log"
         primaryLabel="Log today's session"
       />
-
-      <CheckinCard today={checkins.find((c) => c.date === todayKey()) ?? null} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <DeloadAlert report={deload} />

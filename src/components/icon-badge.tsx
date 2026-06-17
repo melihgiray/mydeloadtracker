@@ -1,4 +1,7 @@
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
+
+/** Any lucide icon or custom glyph that accepts a className. */
+type IconLike = ComponentType<{ className?: string }>;
 
 // Vibrant gradient icon tiles, the "fresh" iconography this app's category and
 // stat surfaces use (in the spirit of MyFitnessPal / Strava). The readiness
@@ -36,7 +39,7 @@ export function IconBadge({
   color,
   size = "md",
 }: {
-  icon: LucideIcon;
+  icon: IconLike;
   color: BadgeColor;
   size?: "sm" | "md" | "lg";
 }) {
@@ -49,7 +52,7 @@ export function IconBadge({
         boxShadow: `0 8px 18px -8px hsl(${a} / 0.55), inset 0 1px 0 0 hsl(0 0% 100% / 0.18)`,
       }}
     >
-      <Icon className={GLYPH[size]} strokeWidth={2.2} />
+      <Icon className={GLYPH[size]} />
     </span>
   );
 }

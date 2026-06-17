@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Plus, Search, Trash2, Trophy, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { capture } from "@/lib/track";
 import { estimate1RM } from "@/lib/analytics/epley";
 import { toKg } from "@/lib/units";
-import { exerciseColor, exerciseIcon } from "@/lib/exercise-visual";
+import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
 import type { Exercise, Units } from "@/lib/types";
+
+const DRAFT_KEY = "mdt_workout_draft_v1";
 
 interface SetEntry {
   reps: string;
@@ -70,8 +72,52 @@ export function LogForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [prs, setPrs] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
+
+  // Restore an in-progress workout (new sessions only) so switching tabs or
+  // closing the app never loses what you were entering.
+  useEffect(() => {
+    if (isEdit) {
+      setLoaded(true);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (Array.isArray(d.entries) && d.entries.length) setEntries(d.entries);
+        if (typeof d.date === "string") setDate(d.date);
+        if (typeof d.notes === "string") setNotes(d.notes);
+      }
+    } catch {
+      /* ignore a corrupt draft */
+    }
+    setLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the draft on every change.
+  useEffect(() => {
+    if (isEdit || !loaded) return;
+    try {
+      if (entries.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, notes, entries }));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* storage might be unavailable; the workout still works in-memory */
+    }
+  }, [entries, date, notes, loaded, isEdit]);
+
+  function discardDraft() {
+    setEntries([]);
+    setNotes("");
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* no-op */
+    }
+  }
 
   // Typeahead: closest matches first, capped. Empty query shows nothing, so the
   // field does not dump the whole library the moment you tap it.
@@ -210,6 +256,11 @@ export function LogForm({
       }
 
       capture("workout_logged", { sets: rows.length, exercises: entries.length, edit: isEdit, prs: prNames.length });
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* no-op */
+      }
       setSaved(true);
       setTimeout(() => router.push(isEdit ? "/history" : "/dashboard"), prNames.length ? 2000 : 700);
       router.refresh();
@@ -264,7 +315,7 @@ export function LogForm({
                   onClick={() => addExerciseById(ex.id)}
                   className="flex w-full items-center gap-3 border-b border-border/60 px-3 py-2.5 text-left transition-colors last:border-0 hover:bg-surface-hover"
                 >
-                  <IconBadge icon={exerciseIcon(ex.equipment)} color={exerciseColor(ex.muscle_group)} size="sm" />
+                  <IconBadge icon={exerciseGlyph(ex)} color={exerciseColor(ex.muscle_group)} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 truncate text-sm font-medium">
                       {ex.name}
@@ -285,10 +336,18 @@ export function LogForm({
 
       <RestTimer />
 
-      {/* Session builder */}
-      {entries.length === 0 && !query.trim() && (
-        <div className="card text-center">
-          <p className="text-sm text-muted">Search above to add your first exercise.</p>
+      {/* Session builder: one ongoing workout, saved as a draft as you go. */}
+      {entries.length > 0 && (
+        <div className="flex items-center justify-between px-1 pt-1">
+          <p className="text-sm font-medium">
+            This workout · {entries.length} {entries.length === 1 ? "exercise" : "exercises"}
+          </p>
+          <button
+            onClick={discardDraft}
+            className="text-xs text-muted transition-colors hover:text-danger"
+          >
+            Discard
+          </button>
         </div>
       )}
 
@@ -297,7 +356,7 @@ export function LogForm({
         return (
           <div key={entry.key} className="card">
             <div className="mb-4 flex items-center gap-3">
-              <IconBadge icon={exerciseIcon(ex?.equipment)} color={exerciseColor(ex?.muscle_group)} size="md" />
+              <IconBadge icon={exerciseGlyph(ex ?? {})} color={exerciseColor(ex?.muscle_group)} size="md" />
               <div className="min-w-0 flex-1">
                 <h3 className="font-semibold leading-tight">{ex?.name}</h3>
                 <p className="truncate text-xs text-muted">

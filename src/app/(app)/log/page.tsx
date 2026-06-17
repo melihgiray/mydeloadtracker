@@ -1,14 +1,21 @@
 import Link from "next/link";
 import { ScanLine } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getExercises, getProfile } from "@/lib/data";
+import { getCheckins, getExercises, getProfile } from "@/lib/data";
+import { todayKey } from "@/lib/analytics/dates";
 import { LogForm } from "@/components/log-form";
+import { CheckinSection } from "@/components/checkin-section";
 
 export const dynamic = "force-dynamic";
 
 export default async function LogPage() {
   const supabase = createClient();
-  const [exercises, profile] = await Promise.all([getExercises(supabase), getProfile(supabase)]);
+  const [exercises, profile, checkins] = await Promise.all([
+    getExercises(supabase),
+    getProfile(supabase),
+    getCheckins(supabase, 2),
+  ]);
+  const todayCheckin = checkins.find((c) => c.date === todayKey()) ?? null;
 
   return (
     <div className="space-y-4">
@@ -22,6 +29,8 @@ export default async function LogPage() {
       </div>
 
       <LogForm exercises={exercises} units={profile?.units ?? "kg"} />
+
+      <CheckinSection today={todayCheckin} />
     </div>
   );
 }
