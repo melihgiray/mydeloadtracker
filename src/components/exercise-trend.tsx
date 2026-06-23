@@ -4,12 +4,30 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { weekLabel } from "@/lib/analytics/dates";
 import type { WeeklyExercisePoint } from "@/lib/analytics/progress";
 
+const LINE = "#6f9bff";
+
 export function ExerciseTrend({ weeks }: { weeks: WeeklyExercisePoint[] }) {
   // Recharts skips nulls, leaving gaps for weeks with no data.
   const data = weeks.map((w) => ({
     label: weekLabel(w.week),
     e1rm: w.bestE1RM > 0 ? w.bestE1RM : null,
   }));
+
+  // Compute the axis domain ourselves. A string domain like "dataMin - 5" breaks
+  // when every point is null (recharts then renders a garbage axis value).
+  const vals = data.map((d) => d.e1rm).filter((v): v is number => v != null);
+  if (vals.length === 0) {
+    return (
+      <div className="grid h-[120px] place-items-center text-xs text-muted">
+        Not enough data to chart yet.
+      </div>
+    );
+  }
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const pad = Math.max(2, Math.round((max - min) * 0.2));
+  const lo = Math.max(0, Math.floor(min - pad));
+  const hi = Math.ceil(max + pad);
 
   return (
     <ResponsiveContainer width="100%" height={120}>
@@ -21,7 +39,8 @@ export function ExerciseTrend({ weeks }: { weeks: WeeklyExercisePoint[] }) {
           axisLine={false}
         />
         <YAxis
-          domain={["dataMin - 5", "dataMax + 5"]}
+          domain={[lo, hi]}
+          allowDecimals={false}
           tick={{ fill: "hsl(215 14% 58%)", fontSize: 11 }}
           tickLine={false}
           axisLine={false}
@@ -40,9 +59,9 @@ export function ExerciseTrend({ weeks }: { weeks: WeeklyExercisePoint[] }) {
         <Line
           type="monotone"
           dataKey="e1rm"
-          stroke="hsl(152 62% 45%)"
-          strokeWidth={2}
-          dot={{ r: 3, fill: "hsl(152 62% 45%)" }}
+          stroke={LINE}
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: LINE }}
           connectNulls
         />
       </LineChart>
