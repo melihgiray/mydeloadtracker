@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import type { ProgressStatus, Units } from "@/lib/types";
 import type { WeeklyExercisePoint } from "@/lib/analytics/progress";
+import { aliasesFor } from "@/lib/exercise-aliases";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { IconBadge } from "@/components/icon-badge";
 import { StatusBadge } from "@/components/status-badge";
@@ -38,11 +39,13 @@ export function LiftLookup({ lifts, units }: { lifts: LiftDetail[]; units: Units
     if (!q) return [];
     return lifts
       .map((l) => {
-        const name = l.name.toLowerCase();
         let score = -1;
-        if (name.startsWith(q)) score = 80;
-        else if (name.includes(q)) score = 60;
-        else if (l.muscleGroup.toLowerCase().includes(q)) score = 40;
+        for (const term of [l.name, ...aliasesFor(l.name)]) {
+          const t = term.toLowerCase();
+          if (t.startsWith(q)) score = Math.max(score, 80);
+          else if (t.includes(q)) score = Math.max(score, 60);
+        }
+        if (score < 0 && l.muscleGroup.toLowerCase().includes(q)) score = 40;
         return { l, score };
       })
       .filter((s) => s.score >= 0)

@@ -8,6 +8,7 @@ import { capture } from "@/lib/track";
 import { estimate1RM } from "@/lib/analytics/epley";
 import { toKg } from "@/lib/units";
 import { weightSemantics } from "@/lib/weight-semantics";
+import { aliasesFor } from "@/lib/exercise-aliases";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
@@ -121,19 +122,25 @@ export function LogForm({
   }
 
   // Typeahead: closest matches first, capped. Empty query shows nothing, so the
-  // field does not dump the whole library the moment you tap it.
+  // field does not dump the whole library the moment you tap it. Matching runs
+  // over the canonical name AND the slang lifters actually type ("skull
+  // crusher", "rdl", "pec deck"), via the alias map.
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return exercises
       .map((ex) => {
-        const name = ex.name.toLowerCase();
         let score = -1;
-        if (name === q) score = 100;
-        else if (name.startsWith(q)) score = 80;
-        else if (name.includes(q)) score = 60;
-        else if (ex.muscle_group.toLowerCase().includes(q)) score = 40;
-        else if ((ex.equipment ?? "").toLowerCase().includes(q)) score = 30;
+        for (const term of [ex.name, ...aliasesFor(ex.name)]) {
+          const t = term.toLowerCase();
+          if (t === q) score = Math.max(score, 100);
+          else if (t.startsWith(q)) score = Math.max(score, 80);
+          else if (t.includes(q)) score = Math.max(score, 60);
+        }
+        if (score < 0) {
+          if (ex.muscle_group.toLowerCase().includes(q)) score = 40;
+          else if ((ex.equipment ?? "").toLowerCase().includes(q)) score = 30;
+        }
         return { ex, score };
       })
       .filter((s) => s.score >= 0)
