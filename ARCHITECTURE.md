@@ -58,9 +58,12 @@ All in `src/lib/analytics`, all pure:
   strengthlevel's dumbbell standards are per dumbbell.
 - **The exercise library is curated.** The 64 standards lifts from
   strength-standards.json plus a curated set of popular PPL / Upper-Lower
-  accessories (migration 0013). Accessories log and trend normally but get no
-  Beginner-Elite banding, since no population standards exist for them.
-  Retired exercises are hidden, not deleted, so history resolves.
+  accessories (migrations 0013-0015, selected by strengthlevel.com
+  logged-lift counts). Accessories log and trend normally; they are not
+  banded yet because their standards tables have not been scraped into
+  strength-standards.json, though the site publishes them (see
+  docs/EXERCISE_DATA_NOTES.md). Retired exercises are hidden, not deleted,
+  so history resolves.
 - **RLS everywhere.** Every table is row-level-secured to the owner. The one
   deliberate exception is `ingest_health_metrics` (migration 0012), a
   SECURITY DEFINER function that validates a per-user token so an

@@ -82,8 +82,13 @@ const ALIAS: Record<string, string> = {
   "Barbell Row": "Bent Over Row",
   "Trap Bar Deadlift": "Hex Bar Deadlift",
   "Skull Crusher": "Lying Tricep Extension",
-  "Bulgarian Split Squat": "Dumbbell Bulgarian Split Squat",
-  "Leg Press": "Horizontal Leg Press",
+  // NOTE: a plain "Bulgarian Split Squat" is deliberately NOT aliased to the
+  // dumbbell table. The site keeps a separate barbell entity (total bar weight)
+  // and grading a barbell lifter against per-dumbbell numbers would inflate
+  // them by roughly a full band.
+  // Most gyms' generic "leg press" is the 45-degree sled (3x more logged on the
+  // site than the horizontal machine), so the generic name resolves there.
+  "Leg Press": "Sled Leg Press",
   "Machine Chest Press": "Chest Press",
   "Hip Adduction Machine": "Hip Adduction",
   "Triceps Pushdown": "Tricep Pushdown",
@@ -96,6 +101,28 @@ const ALIAS: Record<string, string> = {
   "Single-Arm Dumbbell Row": "Dumbbell Row",
   "Pec Deck": "Machine Chest Fly",
   "Standing Calf Raise": "Machine Calf Raise",
+
+  // Future-proofing: our accessory names mapped to strengthlevel.com's
+  // canonical names. These targets are not in strength-standards.json yet, so
+  // resolveLift returns null for them today; the moment accessory standards are
+  // ingested under the site's names, banding starts working automatically.
+  "Cable Curl": "Cable Bicep Curl",
+  "Concentration Curl": "Dumbbell Concentration Curl",
+  "Rear Delt Fly": "Dumbbell Reverse Fly",
+  "Triceps Kickback": "Dumbbell Tricep Kickback",
+  "Chest-Supported Row": "Chest Supported Dumbbell Row",
+  "Rope Pushdown": "Tricep Rope Pushdown",
+  "Straight-Arm Pulldown": "Straight Arm Pulldown",
+  "Nordic Curl": "Nordic Hamstring Curl",
+  "Step-Up": "Step Up",
+  "Front Raise": "Dumbbell Front Raise",
+  "Overhead Triceps Extension": "Dumbbell Tricep Extension",
+  "Seal Row": "Bench Pull",
+  "Leg Press Calf Raise": "Sled Press Calf Raise",
+  "Machine Preacher Curl": "Machine Bicep Curl",
+  "Decline Dumbbell Press": "Decline Dumbbell Bench Press",
+  "Stiff-Leg Deadlift": "Stiff Leg Deadlift",
+  "Cable Pull-Through": "Cable Pull Through",
 };
 
 /** Resolve an exercise name (file name or old alias) to the file's lift name. */

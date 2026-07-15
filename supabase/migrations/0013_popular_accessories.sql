@@ -2,9 +2,14 @@
 --
 -- Migration 0011 narrowed the picker to the 64 strengthlevel.com lifts, which
 -- cut staples like Cable Fly, Face Pull, and Plank. This unhides a curated set
--- of 38 accessories (they simply do not get Beginner-Elite banding, since no
--- population standards exist for them), fixes two missing equipment tags, and
--- inserts the one staple that never existed (Hip Abduction). Idempotent.
+-- of 38 accessories, fixes two missing equipment tags, and inserts the one
+-- staple that never existed (Hip Abduction). Idempotent.
+--
+-- CORRECTION (post-audit): the original header claimed no population standards
+-- exist for these accessories. That was wrong; strengthlevel.com publishes
+-- full Beginner-Elite tables for most of them. They stay unbanded only until
+-- those tables are scraped into strength-standards.json. See
+-- docs/EXERCISE_DATA_NOTES.md.
 
 update public.exercises set hidden = false
   where user_id is null and name in (
