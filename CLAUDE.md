@@ -96,6 +96,14 @@ code.
 - `src/lib/scan-mapping.ts`: pure scan-to-set mapping, fully tested.
 - `src/lib/weight-semantics.ts`: what "weight" means per equipment.
 
+## Commit rhythm
+
+Commit small and often, and push after every commit. One commit per
+coherent step: a fix, a doc, a test, a migration each stand alone. Every
+commit must build and pass tests on its own, since any commit can become
+a deploy. Never pad the history with empty or artificially split
+commits; frequency comes from working in small real steps.
+
 ## Cost consciousness
 
 The founder pays per token now. Batch independent tool calls, read file
