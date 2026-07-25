@@ -3,7 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Loader2, RefreshCw, ScanLine, Trophy, Video, X } from "lucide-react";
+import {
+  Camera,
+  Check,
+  Loader2,
+  RefreshCw,
+  ScanLine,
+  SwitchCamera,
+  Trophy,
+  Video,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { capture } from "@/lib/track";
 import { estimate1RM } from "@/lib/analytics/epley";
@@ -169,6 +179,19 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
   const [reading, setReading] = useState<ScanReading | null>(null);
   const [frameCount, setFrameCount] = useState(1);
 
+  // The live stream is state, not just a ref, so attaching it can wait for the
+  // render that actually puts <video> in the DOM (see the effect below).
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
+  const [camLabel, setCamLabel] = useState("");
+  const [needsTap, setNeedsTap] = useState(false);
+  const [slowStart, setSlowStart] = useState(false);
+  // Installed-to-home-screen iOS runs a different WebKit context than Safari,
+  // and camera access there has historically been restricted, so the recovery
+  // advice differs. Set after mount to avoid an SSR mismatch.
+  const [standalone, setStandalone] = useState(false);
+
   const [exerciseId, setExerciseId] = useState("");
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
@@ -186,6 +209,37 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
 
   useEffect(() => () => teardown(), []); // release the camera on unmount
 
+  useEffect(() => {
+    setStandalone(
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true,
+    );
+  }, []);
+
+  /**
+   * Attach the stream AFTER React has committed the <video> element.
+   *
+   * This used to run inline behind a setTimeout(0) right after the state
+   * update, which raced the render: videoRef.current was often still null, the
+   * null guard skipped silently, and the preview stayed black with no error at
+   * all. An effect runs after commit, so the element is guaranteed to exist.
+   */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (phase !== "live" || !stream || !v) return;
+    if (v.srcObject !== stream) v.srcObject = stream;
+    let cancelled = false;
+    v.play().then(
+      () => !cancelled && setNeedsTap(false),
+      // Autoplay refused (iOS Low Power Mode is the usual cause). A tap is a
+      // fresh user gesture, which always satisfies the policy.
+      () => !cancelled && setNeedsTap(true),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, stream]);
+
   function clearTimers() {
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
@@ -201,6 +255,9 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
     clearTimers();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    setStream(null);
+    setVideoReady(false);
+    setNeedsTap(false);
   }
 
   function stopLive() {
@@ -230,25 +287,35 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
 
   // ---- capture ------------------------------------------------------------
 
-  async function startLive() {
+  async function startLive(want: "environment" | "user" = facing) {
     setReading(null);
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       return fail("no_camera", 0);
     }
     setPhase("permission");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+      // facingMode is a preference, not a guarantee, so we read back which
+      // camera we actually got rather than assuming we got what we asked for.
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: want } },
         audio: false,
       });
-      streamRef.current = stream;
+      streamRef.current?.getTracks().forEach((t) => t.stop()); // flipping
+      streamRef.current = s;
+      const track = s.getVideoTracks()[0];
+      const actual = track?.getSettings().facingMode;
+      const resolved: "environment" | "user" =
+        actual === "user" || actual === "environment"
+          ? actual
+          : /front|user|face/i.test(track?.label ?? "")
+            ? "user"
+            : want;
+      setFacing(resolved);
+      setCamLabel(resolved === "user" ? "Front camera" : "Back camera");
+      setVideoReady(false);
+      setNeedsTap(false);
+      setStream(s); // the effect above attaches it once <video> is committed
       setPhase("live");
-      await sleep(0); // let the <video> mount before attaching
-      const v = videoRef.current;
-      if (v) {
-        v.srcObject = stream;
-        await v.play().catch(() => {});
-      }
     } catch (err) {
       teardown();
       const name = err instanceof Error ? err.name : "";
@@ -257,6 +324,21 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
       capture("scan_failed", { reason: "permission_denied", frames: 0 });
     }
   }
+
+  function flipCamera() {
+    void startLive(facing === "environment" ? "user" : "environment");
+  }
+
+  // If the preview has not produced a frame after a few seconds, say so instead
+  // of showing an unexplained black rectangle.
+  useEffect(() => {
+    if (phase !== "live" || videoReady) {
+      setSlowStart(false);
+      return;
+    }
+    const t = window.setTimeout(() => setSlowStart(true), 3000);
+    return () => window.clearTimeout(t);
+  }, [phase, videoReady]);
 
   // Sample frames continuously but keep a BOUNDED, evenly-spaced buffer (<=16)
   // that always spans the whole recording, so a 5-second single and a 60-second
@@ -507,7 +589,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
               <span className="text-xs text-muted">Reads the weight</span>
             </button>
             <button
-              onClick={startLive}
+              onClick={() => void startLive()}
               className="card flex flex-col items-center gap-2 border-dashed py-8 text-center transition-colors hover:bg-surface-hover"
             >
               <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand/15 text-brand">
@@ -541,12 +623,21 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
       {phase === "denied" && (
         <div className="card space-y-3">
           <p className="font-medium">Camera access is off</p>
-          <p className="text-sm leading-relaxed text-muted">
-            To turn it on, tap the icon at the left of the address bar, allow the camera, then
-            reload. On iPhone it is also under Settings, Safari, Camera.
-          </p>
+          {standalone ? (
+            <p className="text-sm leading-relaxed text-muted">
+              This is the app installed on your home screen, and iPhone keeps its camera
+              permission separate from Safari. Open mydeloadtracker.vercel.app in Safari and
+              allow the camera there, or check Settings, Apps, Safari, Camera. Taking a photo
+              works here either way.
+            </p>
+          ) : (
+            <p className="text-sm leading-relaxed text-muted">
+              To turn it on, tap the icon at the left of the address bar, allow the camera, then
+              reload. On iPhone it is also under Settings, Apps, Safari, Camera.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <button onClick={startLive} className="btn-brand">
+            <button onClick={() => void startLive()} className="btn-brand">
               <RefreshCw className="h-4 w-4" />
               Try again
             </button>
@@ -569,18 +660,56 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
             muted
             playsInline
             autoPlay
+            onLoadedMetadata={() => setVideoReady(true)}
+            onPlaying={() => {
+              setVideoReady(true);
+              setNeedsTap(false);
+            }}
             className="aspect-[3/4] w-full bg-black object-cover sm:aspect-video"
           />
+
+          {/* Autoplay was refused, usually iOS Low Power Mode. A tap is a fresh
+              user gesture, which the policy always allows. */}
+          {needsTap && (
+            <button
+              onClick={() => void videoRef.current?.play().catch(() => {})}
+              className="absolute inset-0 grid place-items-center bg-black/60 text-sm font-medium text-white"
+            >
+              Tap to start the camera
+            </button>
+          )}
+
+          {!needsTap && !videoReady && slowStart && (
+            <div className="absolute inset-0 grid place-items-center bg-black/70 p-6 text-center">
+              <div>
+                <p className="text-sm font-medium text-white">The preview is not starting</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/70">
+                  Close any other app using the camera, or take a photo instead.
+                </p>
+              </div>
+            </div>
+          )}
+
           {countdown > 0 && (
             <div className="absolute inset-0 grid place-items-center bg-black/40 text-6xl font-bold tabular-nums text-white">
               {countdown}
             </div>
           )}
+
+          {/* Which camera is actually live, read back from the track, plus a
+              way to switch. iOS can ignore the facingMode preference. */}
           {!recording && countdown === 0 && (
-            <div className="absolute inset-x-0 top-0 p-3">
-              <p className="mx-auto w-fit rounded-full bg-black/55 px-3 py-1.5 text-center text-xs text-white">
-                Bar and plates in frame, filmed from the side
+            <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+              <p className="rounded-full bg-black/55 px-3 py-1.5 text-xs text-white">
+                Bar and plates in frame, from the side
               </p>
+              <button
+                onClick={flipCamera}
+                className="flex flex-shrink-0 items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs text-white"
+              >
+                <SwitchCamera className="h-3.5 w-3.5" />
+                {camLabel || "Camera"}
+              </button>
             </div>
           )}
           {recording && countdown === 0 && (
