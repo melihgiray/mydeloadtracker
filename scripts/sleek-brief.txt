@@ -1,0 +1,65 @@
+MyDeloadTracker is an AI strength coach for serious lifters. It answers the
+one question workout apps never answer: should I push today, or back off?
+It reads your logged sets and your recovery data, scores your readiness out
+of 100, and tells you when to deload.
+
+Design it like a precision instrument, not a lifestyle app. Dark by
+default, near-black cool ink rather than pure black, confident typography,
+generous space, calm. Numbers are the hero: big, tabular, immediately
+readable at arm's length in a gym. This gets filmed on a phone for
+investors, so every screen must look composed in a vertical 393x852 frame.
+Avoid neon green on black, avoid cream and terracotta wellness palettes.
+One restrained accent colour for identity, plus three semantic states that
+must stay clearly distinguishable: good, caution, and back off.
+
+Design these nine screens:
+
+1. Login. Email, password, sign in, a sign up link, and the brand mark.
+   Quiet and fast.
+
+2. Onboarding. Bodyweight, sex, and units, then pick your main lifts and
+   enter a recent working set for each. Should feel like calibrating an
+   instrument, about sixty seconds of work.
+
+3. Home. The hero is today's readiness: a large score out of 100, a small
+   waveform sparkline of the last eight weeks, a one-line verdict such as
+   "Push today" or "Back off", and one sentence of reasoning. Below it, a
+   compact activity strip of the last two weeks of training days, then four
+   large tappable tiles that open Log, Progress, History, and the AI coach.
+   This screen must fit one phone screen with no scrolling.
+
+4. Insights. The readiness breakdown: each fatigue factor as a labelled row
+   with its contribution, a deload alert card listing the specific reasons
+   it fired, and the plan for the coming week.
+
+5. Log. A search field pinned at the top with instant typeahead results
+   showing exercise name, muscle group, and equipment. Below it the current
+   workout: each exercise as a card with a grid of sets, each set a row of
+   reps, weight, and an optional effort rating. A rest timer and a daily
+   check-in card at the bottom. Every weight input needs room for a short
+   sentence above it explaining what to enter, for example the weight of a
+   single dumbbell, or the total on the bar.
+
+6. Scan, the camera flow, in three states. First, a live camera view with a
+   framing hint and a record button. Second, a processing state that names
+   what is happening in stages: reading the plates, identifying the lift,
+   counting the reps. Third, and most important, the result card: the lift
+   name, then the weight and the rep count as two very large readouts side
+   by side, each tappable to correct, one primary button to log the set.
+   Some fields may be uncertain and need to be visibly flagged for review
+   without looking like an error.
+
+7. Progress. A strength standards card that bands each lift from Beginner
+   to Elite with a progress bar toward the next band, a lift lookup with a
+   line chart of estimated one rep max over time, and personal records.
+
+8. History. Past sessions as cards, each showing the date, the exercises,
+   and the sets, scannable at a glance.
+
+9. Coach. A chat with the AI coach: the athlete's messages and the coach's
+   longer formatted answers with headings and bullet points.
+
+Use a bottom tab bar with exactly four tabs: Home, Log, Progress, and
+Coach. Settings lives behind a gear icon in the top bar, not in the tab
+bar. Tap targets at least 44 pixels. Copy should be calm and short, with no
+exclamation points.

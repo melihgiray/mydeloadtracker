@@ -46,3 +46,7 @@ docs/YC_APPLICATION.md
 .claude/launch.json
 .env*
 CLAUDE.local.md
+
+# Sleek design artifacts
+docs/design/*.png
+docs/design/run.json
