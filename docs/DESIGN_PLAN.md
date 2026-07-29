@@ -138,3 +138,31 @@ commit per step per the commit rhythm rule, tests green at each.
   so they inherit most of the improvement free.
 - No component library swap. We restyle what exists; we do not adopt a
   new framework for this.
+
+## Run 1 outcome (2026-07-24)
+
+Reference chosen by the founder: Neon Strength (hHQlYGPkhJf), over the
+recommended Cobalt Dashboard. Sleek named the result "Neon Brutalist":
+near-black #1A1A1A, electric lime accent, heavy industrial condensed
+capitals, hard-offset shadows.
+
+Project eZRqNRacT8U. Run EPrw5GpApNm produced 4 of the 9 screens plus the
+theme: Home, Login, Onboarding, Insights. Sleek establishes identity and
+primary screens first, so Log, Scan, Progress, History, and Coach still
+need a second run. Scan and Log are the two screens that get filmed, so
+that second run matters more than the first.
+
+Kept from the brief, verified in the Home screenshot: the four-tab bottom
+bar, the Settings gear in the top bar, the readiness score as hero, the
+verdict line, the activity strip, the four category tiles.
+
+Fix during implementation, do not copy blindly:
+1. The activity strip overflows the right edge. That is our recurring
+   393px overflow bug; it must wrap or scroll inside its own container.
+2. The category tile icons use blue, orange, and purple decoratively.
+   That breaks the rule that colour means something. Restrict decorative
+   colour, keep lime for push, amber for hold, warm red for back off.
+3. The bottom tiles are clipped by the tab bar. Home must fit one screen.
+4. Copy is shouting ("SYSTEMIC RECOVERY IS OPTIMAL. SLEEP VOLUME EXCEEDS
+   7-DAY ROLLING BASELINE."). Rewrite everything to our voice: calm,
+   short, sentence case where it is a sentence, no exclamation points.

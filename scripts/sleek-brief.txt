@@ -8,9 +8,15 @@ default, near-black cool ink rather than pure black, confident typography,
 generous space, calm. Numbers are the hero: big, tabular, immediately
 readable at arm's length in a gym. This gets filmed on a phone for
 investors, so every screen must look composed in a vertical 393x852 frame.
-Avoid neon green on black, avoid cream and terracotta wellness palettes.
-One restrained accent colour for identity, plus three semantic states that
-must stay clearly distinguishable: good, caution, and back off.
+Electric lime on near-black, with heavy condensed capitals for headings,
+so it reads unmistakably as a strength training app. Spend the lime
+deliberately rather than everywhere, so it keeps its weight.
+
+Colour carries meaning in this app, so three states must stay obviously
+distinguishable at a glance: push today (the lime), hold (amber), and back
+off (a warm red). Never use the lime on something that is not positive, or
+the signal stops working. No other decorative colours competing with those
+three.
 
 Design these nine screens:
 
