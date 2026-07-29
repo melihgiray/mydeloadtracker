@@ -5,6 +5,30 @@ Written 2026-07-29 by Claude (Fable) as the planning and audit pass. Read
 document supersedes the build order in PLANNER_DESIGN.md, for the reason in
 the next section.
 
+## Status, updated 2026-07-29
+
+| Step | State | Owner |
+|------|-------|-------|
+| 1. Migration 0016 | DONE, applied and verified by REST | founder |
+| 2. Plan data layer plus seed | DONE, on main | Claude |
+| 3. Log integration | DONE, on main, verified at 393x852 | Claude |
+| 4. Intake plus /api/plan | **OPEN, unclaimed** | Terra |
+| 5. plan-validation.ts | not started, ships with step 4 | Claude |
+| 6. Deload adaptation | not started | Claude |
+
+**Read this table before dispatching anyone.** Steps 2 and 3 were both built
+twice, once by Claude on main and once by Terra in PR #2, because the Step 2
+brief stayed live after Claude took the work. Two implementations of one file
+is the shared-state failure this document warns about, produced by this
+document. The table is the fix: it is the single owner-of-record, and it gets
+updated the moment a step is claimed.
+
+PR #2 is closed rather than merged. Not because it was worse: it caught a real
+missing rollback in `createPlan`, which is now on main at `e848bda` with the
+compensation approach and test harness credited to it. It is closed because
+step 3 depends on four API decisions main makes differently, so merging would
+break the working Log screen.
+
 ## Why the order changed
 
 PLANNER_DESIGN.md builds AI generation first and Log integration sixth. That
