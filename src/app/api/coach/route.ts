@@ -5,13 +5,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { COACH_MODEL } from "@/lib/ai-model";
 import { getCheckins, getProfile, getTrainingSets } from "@/lib/data";
 import { buildCoachContext } from "@/lib/analytics/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+
 
 const COACH_INSTRUCTIONS = `You are an expert strength & hypertrophy coach embedded in a training app called MyDeloadTracker. You specialize in progressive overload, fatigue management, and deload timing.
 
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const stream = anthropic.messages.stream({
-    model: MODEL,
+    model: COACH_MODEL,
     max_tokens: 1024,
     system: [
       { type: "text", text: COACH_INSTRUCTIONS },

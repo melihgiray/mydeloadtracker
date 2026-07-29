@@ -8,11 +8,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTrainingSets } from "@/lib/data";
+import { SCAN_MODEL, toUsageReport } from "@/lib/ai-model";
+import { MAX_SCAN_FRAMES, evenlySample } from "@/lib/scan-mapping";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+
 
 const PROMPT = `You are a computer-vision module in a strength-training app. The user pointed their camera at their setup. Read it and report what's loaded, using the report_lift tool.
 
@@ -67,7 +69,9 @@ export async function POST(req: Request) {
   const raw = Array.isArray(body.images) ? body.images : body.image ? [body.image] : [];
   const frames: { media_type: MediaType; data: string }[] = [];
   let totalBytes = 0;
-  for (const img of raw.slice(0, 10)) {
+  // Evenly sampled, not truncated: keeping the first ten of a longer buffer
+  // would hide the end of the set from a prompt that claims full coverage.
+  for (const img of evenlySample(raw, MAX_SCAN_FRAMES)) {
     const m = typeof img === "string" ? img.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/) : null;
     if (!m) continue;
     totalBytes += m[2].length;
@@ -102,7 +106,7 @@ export async function POST(req: Request) {
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const res = await anthropic.messages.create({
-      model: MODEL,
+      model: SCAN_MODEL,
       max_tokens: 512,
       tools: [TOOL],
       tool_choice: { type: "tool", name: "report_lift" },
@@ -121,7 +125,11 @@ export async function POST(req: Request) {
     });
     const toolUse = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (!toolUse) return NextResponse.json({ error: "Couldn't read the image. Try a clearer shot." }, { status: 502 });
-    return NextResponse.json({ reading: toolUse.input });
+    // Usage rides along so the client can report real cost to PostHog.
+    return NextResponse.json({
+      reading: toolUse.input,
+      usage: toUsageReport(SCAN_MODEL, res.usage),
+    });
   } catch (err) {
     console.error("Scan error:", err);
     return NextResponse.json({ error: "Vision request failed. Try again." }, { status: 502 });
