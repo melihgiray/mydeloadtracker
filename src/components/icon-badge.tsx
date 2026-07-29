@@ -3,29 +3,30 @@ import type { ComponentType } from "react";
 /** Any lucide icon or custom glyph that accepts a className. */
 type IconLike = ComponentType<{ className?: string }>;
 
-// Neon Brutalist icon tiles: flat, hard-edged, and deliberately colour-poor.
+// Category and stat icons. These are wayfinding, not state, so they are allowed
+// to be colourful: a white-on-grey row of tiles reads dead, and the app should
+// have some life to it.
 //
-// Colour has to keep its meaning in this app (lime is push, amber is hold,
-// coral is back off), so the old vibrant gradient palette collapses here. The
-// decorative hues render as neutral chrome, and only the genuinely semantic
-// ones stay coloured, which keeps the lime meaning exactly one thing.
-type Tone = "accent" | "warn" | "bad" | "chrome";
-
-const TONE: Record<string, Tone> = {
-  blue: "chrome",
-  indigo: "chrome",
-  violet: "chrome",
-  cyan: "chrome",
-  teal: "chrome",
-  green: "accent",
-  lime: "accent",
-  amber: "warn",
-  orange: "warn",
-  rose: "bad",
-  red: "bad",
+// The one rule they must respect is that they cannot impersonate a readiness
+// verdict. So the hues here are mid-tone and drawn from a curated set that
+// stays clear of the semantic trio's exact tones, and the readiness surfaces
+// keep using --success / --warning / --danger directly. Mid-500 weights were
+// chosen because they hold up on both the cream and the near-black base.
+const INK: Record<string, string> = {
+  blue: "text-blue-500",
+  indigo: "text-indigo-500",
+  violet: "text-violet-500",
+  cyan: "text-cyan-500",
+  teal: "text-teal-500",
+  green: "text-emerald-500",
+  lime: "text-emerald-500", // no lime in either theme, by request
+  amber: "text-amber-500",
+  orange: "text-orange-500",
+  rose: "text-rose-500",
+  red: "text-red-500",
 };
 
-export type BadgeColor = keyof typeof TONE;
+export type BadgeColor = keyof typeof INK;
 
 const TILE: Record<string, string> = {
   sm: "h-9 w-9 rounded-lg",
@@ -37,14 +38,6 @@ const GLYPH: Record<string, string> = {
   md: "h-6 w-6",
   lg: "h-7 w-7",
 };
-const INK: Record<Tone, string> = {
-  // The positive tone is the SUCCESS mint, not the brand blue: brand is
-  // identity and actions, and must not read as a readiness verdict.
-  accent: "text-success",
-  warn: "text-warning",
-  bad: "text-danger",
-  chrome: "text-foreground",
-};
 
 export function IconBadge({
   icon: Icon,
@@ -55,10 +48,11 @@ export function IconBadge({
   color: BadgeColor;
   size?: "sm" | "md" | "lg";
 }) {
-  const tone = TONE[color] ?? "chrome";
   return (
     <span
-      className={`grid flex-shrink-0 place-items-center border border-border bg-surface-2 ${TILE[size]} ${INK[tone]}`}
+      className={`grid flex-shrink-0 place-items-center border border-border bg-surface-2 ${TILE[size]} ${
+        INK[color] ?? INK.blue
+      }`}
     >
       <Icon className={GLYPH[size]} />
     </span>

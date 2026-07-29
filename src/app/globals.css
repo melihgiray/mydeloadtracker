@@ -2,7 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Two themes, chosen by the phone's own appearance setting.
+   Dark is "Midnight Dashboard", light is "Pulse Performance" (its warm cream
+   and hot orange, without the lime it pairs them with). Both were sampled
+   from the sleek.design references rather than eyeballed. */
+
 :root {
+  color-scheme: dark;
+
   /* Midnight palette, sampled pixel by pixel from the sleek.design reference
      "Midnight Dashboard". Near-black neutrals carry a faint violet tint (hue
      240-260 at 4-6% saturation), which is what makes it read midnight rather
@@ -27,14 +34,47 @@
        success = mint (push)
        warning = yellow (hold)
        danger  = coral (back off)
-     All three are light, so anything sitting ON them needs black text. */
+     All three are light in this theme, so text sitting ON them is black. */
   --success: 141 69% 59%; /* #4dde7f */
+  --success-foreground: 0 0% 0%;
   --warning: 51 95% 71%; /* #fbe56f */
+  --warning-foreground: 0 0% 0%;
   --danger: 359 84% 81%; /* #f7a5a6 */
+  --danger-foreground: 0 0% 0%;
 
   /* The active readiness state accent. Components set --accent contextually
-     (good/caution/bad); falls back to the teal "good" tone. */
+     (good/caution/bad); falls back to the "good" tone. */
   --accent: var(--success);
+}
+
+/* Light: "Pulse Performance", a warm cream base with a hot orange key. The
+   reference pairs that orange with a lime, which we drop. Semantic accents are
+   deepened here because they sit on cream and have to stay readable as text,
+   which also means the ink on top of them flips to white. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --background: 52 27% 94%; /* #f4f3ec */
+    --surface: 48 33% 97%;
+    --surface-2: 44 22% 90%; /* #ebe8e0 */
+    --surface-hover: 44 20% 86%;
+    --border: 44 16% 83%;
+    --border-strong: 44 14% 70%;
+    --foreground: 60 8% 8%; /* #0e0e0c */
+    --muted: 45 7% 36%;
+    --faint: 45 7% 54%;
+
+    --brand: 16 90% 48%; /* #ff5a1e, deepened so white text clears contrast */
+    --brand-foreground: 0 0% 100%;
+
+    --success: 152 62% 32%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 92% 40%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 358 72% 47%;
+    --danger-foreground: 0 0% 100%;
+  }
 }
 /* --font-sans / --font-display / --font-mono are injected on <body> by
    next/font (see layout.tsx); tailwind.config and the classes below read them. */
@@ -168,6 +208,29 @@ body::after {
 .scroll-thin::-webkit-scrollbar-thumb {
   background: hsl(var(--border-strong));
   border-radius: 8px;
+}
+
+/* Light-theme surface corrections. Pulse's base is flat cream, so the midnight
+   vignette and the heavy black card shadows have to soften or they read as
+   dirt. Placed last so they win over the component layer above. */
+@media (prefers-color-scheme: light) {
+  body::before {
+    background: radial-gradient(70rem 50rem at 50% -20%, hsl(16 90% 48% / 0.06), transparent 70%);
+  }
+  body::after {
+    opacity: 0.3;
+    background-image: radial-gradient(hsl(45 12% 45% / 0.2) 0.5px, transparent 0.5px);
+  }
+  .card {
+    box-shadow:
+      0 1px 2px 0 hsl(45 20% 25% / 0.07),
+      0 10px 26px -20px hsl(45 20% 20% / 0.3);
+  }
+  .panel {
+    box-shadow:
+      0 1px 2px 0 hsl(45 20% 25% / 0.09),
+      0 16px 36px -26px hsl(45 20% 20% / 0.35);
+  }
 }
 
 /* One orchestrated entrance: the readiness number settling and the pulse

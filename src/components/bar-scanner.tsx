@@ -713,8 +713,8 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
             </div>
           )}
           {recording && countdown === 0 && (
-            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-danger/90 px-2.5 py-1 text-xs font-medium tabular-nums text-black">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-black" />
+            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-danger/90 px-2.5 py-1 text-xs font-medium tabular-nums text-danger-foreground">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-danger-foreground" />
               recording {elapsed}s, do your set
             </div>
           )}
@@ -729,7 +729,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
             {recording && countdown === 0 ? (
               <button
                 onClick={finishRecording}
-                className="rounded-xl bg-danger px-5 py-2.5 text-sm font-semibold text-black"
+                className="rounded-xl bg-danger px-5 py-2.5 text-sm font-semibold text-danger-foreground"
               >
                 Stop and read
               </button>
