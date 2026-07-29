@@ -3,35 +3,45 @@ import type { ComponentType } from "react";
 /** Any lucide icon or custom glyph that accepts a className. */
 type IconLike = ComponentType<{ className?: string }>;
 
-// Vibrant gradient icon tiles, the "fresh" iconography this app's category and
-// stat surfaces use (in the spirit of MyFitnessPal / Strava). The readiness
-// instrument keeps its semantic colors; these are for navigation and identity,
-// where color is allowed to be friendly.
-const PALETTE: Record<string, [string, string]> = {
-  blue: ["222 86% 60%", "228 84% 54%"],
-  indigo: ["248 80% 66%", "256 82% 60%"],
-  violet: ["270 80% 67%", "278 80% 60%"],
-  teal: ["172 70% 45%", "166 72% 40%"],
-  cyan: ["190 85% 52%", "198 86% 47%"],
-  green: ["150 68% 47%", "146 70% 41%"],
-  lime: ["96 62% 50%", "110 60% 44%"],
-  amber: ["40 95% 56%", "34 95% 51%"],
-  orange: ["26 92% 57%", "18 90% 52%"],
-  rose: ["340 82% 64%", "348 84% 58%"],
-  red: ["6 82% 62%", "2 80% 56%"],
+// Neon Brutalist icon tiles: flat, hard-edged, and deliberately colour-poor.
+//
+// Colour has to keep its meaning in this app (lime is push, amber is hold,
+// coral is back off), so the old vibrant gradient palette collapses here. The
+// decorative hues render as neutral chrome, and only the genuinely semantic
+// ones stay coloured, which keeps the lime meaning exactly one thing.
+type Tone = "accent" | "warn" | "bad" | "chrome";
+
+const TONE: Record<string, Tone> = {
+  blue: "chrome",
+  indigo: "chrome",
+  violet: "chrome",
+  cyan: "chrome",
+  teal: "chrome",
+  green: "accent",
+  lime: "accent",
+  amber: "warn",
+  orange: "warn",
+  rose: "bad",
+  red: "bad",
 };
 
-export type BadgeColor = keyof typeof PALETTE;
+export type BadgeColor = keyof typeof TONE;
 
 const TILE: Record<string, string> = {
-  sm: "h-9 w-9 rounded-xl",
-  md: "h-11 w-11 rounded-[0.9rem]",
-  lg: "h-14 w-14 rounded-2xl",
+  sm: "h-9 w-9 rounded-lg",
+  md: "h-11 w-11 rounded-xl",
+  lg: "h-14 w-14 rounded-xl",
 };
 const GLYPH: Record<string, string> = {
   sm: "h-5 w-5",
   md: "h-6 w-6",
   lg: "h-7 w-7",
+};
+const INK: Record<Tone, string> = {
+  accent: "text-brand",
+  warn: "text-warning",
+  bad: "text-danger",
+  chrome: "text-foreground",
 };
 
 export function IconBadge({
@@ -43,14 +53,10 @@ export function IconBadge({
   color: BadgeColor;
   size?: "sm" | "md" | "lg";
 }) {
-  const [a, b] = PALETTE[color] ?? PALETTE.blue;
+  const tone = TONE[color] ?? "chrome";
   return (
     <span
-      className={`grid flex-shrink-0 place-items-center text-white ${TILE[size]}`}
-      style={{
-        backgroundImage: `linear-gradient(140deg, hsl(${a}), hsl(${b}))`,
-        boxShadow: `0 8px 18px -8px hsl(${a} / 0.55), inset 0 1px 0 0 hsl(0 0% 100% / 0.18)`,
-      }}
+      className={`grid flex-shrink-0 place-items-center border border-border bg-surface-2 ${TILE[size]} ${INK[tone]}`}
     >
       <Icon className={GLYPH[size]} />
     </span>

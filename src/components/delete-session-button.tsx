@@ -24,7 +24,7 @@ export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
         <button
           onClick={remove}
           disabled={deleting}
-          className="btn inline-flex bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90"
+          className="btn inline-flex bg-danger px-3 py-1.5 text-xs text-black hover:opacity-90"
         >
           {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Delete"}
         </button>

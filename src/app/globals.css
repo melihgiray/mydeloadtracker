@@ -6,27 +6,28 @@
   /* Instrument palette: a cool-ink base (never pure black), near-monochrome
      chrome, and a single restrained azure for non-semantic accents. All HSL
      channels are consumed by tailwind.config.ts. */
-  --background: 222 28% 6%;
-  --surface: 220 22% 9.5%;
-  --surface-2: 219 20% 13%;
-  --surface-hover: 219 18% 16%;
-  --border: 220 16% 18%;
-  --border-strong: 218 15% 27%;
-  --foreground: 210 30% 97%;
-  --muted: 218 14% 63%;
-  --faint: 219 12% 44%;
+  --background: 0 0% 10%; /* #1a1a1a */
+  --surface: 0 0% 13%; /* #222222, Sleek "card" */
+  --surface-2: 0 0% 16%; /* #2a2a2a, Sleek "accent" */
+  --surface-hover: 0 0% 20%;
+  --border: 0 0% 20%; /* #333333 */
+  --border-strong: 0 0% 28%;
+  --foreground: 0 0% 100%;
+  --muted: 0 0% 63%; /* #a1a1a1 */
+  --faint: 0 0% 42%;
 
-  /* Chrome accent (no meaning, identity only): a clean azure. */
-  --brand: 222 80% 64%;
-  --brand-foreground: 222 45% 99%;
+  /* The identity accent and the "push" state are deliberately the SAME
+     electric lime, so the brightest thing on screen always means go. */
+  --brand: 73 100% 50%; /* #c6ff00 */
+  --brand-foreground: 0 0% 0%; /* lime is far too bright to carry white text */
 
   /* Semantic state accents. Color MEANS something here, never decoration:
-       success = a sophisticated teal (push), not neon green
+       success = the lime (push)
        warning = amber (hold)
-       danger  = coral (back off), warmer than a hard error red */
-  --success: 172 64% 44%;
-  --warning: 40 92% 56%;
-  --danger: 8 78% 62%;
+       danger  = coral (back off) */
+  --success: 73 100% 50%; /* #c6ff00 */
+  --warning: 36 100% 65%; /* #ffb84d */
+  --danger: 0 100% 71%; /* #ff6b6b */
 
   /* The active readiness state accent. Components set --accent contextually
      (good/caution/bad); falls back to the teal "good" tone. */
@@ -59,8 +60,8 @@ body::before {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(70rem 50rem at 50% -20%, hsl(222 40% 16% / 0.5), transparent 70%),
-    radial-gradient(40rem 40rem at 100% 0%, hsl(222 60% 30% / 0.06), transparent 70%);
+    radial-gradient(70rem 50rem at 50% -20%, hsl(0 0% 100% / 0.035), transparent 70%),
+    radial-gradient(40rem 40rem at 100% 0%, hsl(73 100% 50% / 0.035), transparent 70%);
   pointer-events: none;
 }
 body::after {
@@ -68,7 +69,7 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-image: radial-gradient(hsl(220 16% 30% / 0.18) 0.5px, transparent 0.5px);
+  background-image: radial-gradient(hsl(0 0% 40% / 0.16) 0.5px, transparent 0.5px);
   background-size: 22px 22px;
   mask-image: radial-gradient(80rem 60rem at 50% 0%, black, transparent 80%);
   opacity: 0.4;
@@ -82,11 +83,16 @@ body::after {
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* Industrial headings: heavy, tight, uppercase. This is the loudest part
+     of the Neon Brutalist language, so it lives in one place and can be
+     turned off in one place. */
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.01em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -111,11 +117,12 @@ body::after {
       disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
     min-height: 2.75rem; /* 44px: comfortable, sweaty-thumb tap target */
   }
-  /* Primary action: a vibrant azure to indigo key. Fresh and unmistakable. */
+  /* Primary action: flat lime, black label, hard offset shadow. The offset
+     shadow is the signature of this design language, and black on lime is
+     non-negotiable since white on lime is unreadable. */
   .btn-brand {
-    @apply btn text-white hover:brightness-110;
-    background-image: linear-gradient(135deg, hsl(222 86% 58%), hsl(250 82% 63%));
-    box-shadow: 0 10px 24px -10px hsl(232 82% 56% / 0.65);
+    @apply btn bg-brand text-brand-foreground hover:brightness-105;
+    box-shadow: 3px 3px 0 0 hsl(0 0% 0% / 0.9);
   }
   /* Branded-azure action, for secondary emphasis that still reads as a control. */
   .btn-accent {
