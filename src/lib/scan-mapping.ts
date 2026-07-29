@@ -97,3 +97,24 @@ export function captureHintFor(reading: ScanReading, frameCount: number): string
   }
   return null;
 }
+
+/**
+ * The most frames a single scan sends to the model. The client used to buffer
+ * up to 16 and the route kept `slice(0, 10)`, so on a long set the extra frames
+ * were compressed and uploaded for nothing, and worse, the ten the model saw
+ * were the FIRST ten, covering only the opening of the set while the prompt
+ * told it they spanned start to finish. One constant now, used on both sides.
+ */
+export const MAX_SCAN_FRAMES = 10;
+
+/**
+ * Trim a list to at most `max` items while keeping the first, the last, and an
+ * even spread between them. Truncation would drop the end of the set, which is
+ * where the last reps are.
+ */
+export function evenlySample<T>(items: T[], max = MAX_SCAN_FRAMES): T[] {
+  if (items.length <= max) return items;
+  if (max <= 1) return items.slice(0, Math.max(0, max));
+  const step = (items.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => items[Math.round(i * step)]);
+}

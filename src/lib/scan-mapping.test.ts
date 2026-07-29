@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  MAX_SCAN_FRAMES,
   captureHintFor,
+  evenlySample,
   fieldsNeedingReview,
   readingWeightForDisplay,
   scanToSetRow,
@@ -106,5 +108,34 @@ describe("scan mapping: honest uncertainty", () => {
     expect(captureHintFor(reading({ reps: null }), 8)).toMatch(/side/i);
     // A single photo is not expected to yield reps, so it gets no rep nag.
     expect(captureHintFor(reading({ reps: null }), 1)).toBeNull();
+  });
+});
+
+describe("evenlySample", () => {
+  it("leaves a short list alone", () => {
+    expect(evenlySample([1, 2, 3], 10)).toEqual([1, 2, 3]);
+  });
+
+  it("keeps the first and last frame, so the end of the set is never dropped", () => {
+    const frames = Array.from({ length: 16 }, (_, i) => i);
+    const got = evenlySample(frames, 10);
+    expect(got).toHaveLength(10);
+    expect(got[0]).toBe(0);
+    expect(got[got.length - 1]).toBe(15);
+  });
+
+  it("spreads evenly rather than truncating", () => {
+    const frames = Array.from({ length: 16 }, (_, i) => i);
+    expect(evenlySample(frames, 10)).toEqual([0, 2, 3, 5, 7, 8, 10, 12, 13, 15]);
+  });
+
+  it("never returns duplicates when trimming", () => {
+    const frames = Array.from({ length: 16 }, (_, i) => i);
+    const got = evenlySample(frames, 10);
+    expect(new Set(got).size).toBe(got.length);
+  });
+
+  it("pins the client buffer and the route to the same cap", () => {
+    expect(MAX_SCAN_FRAMES).toBe(10);
   });
 });
