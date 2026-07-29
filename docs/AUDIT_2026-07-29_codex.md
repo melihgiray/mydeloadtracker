@@ -6,6 +6,12 @@ Scope: the reported migration of the AI coach (`/api/coach`) and the bar
 scanner (`/api/scan`) from the Anthropic API to a locally hosted LLM.
 Repo state audited: `e5c79f4` plus an untracked working tree.
 
+> **Correction, same day.** The summary below was wrong on its central claim.
+> The migration does exist, on a remote branch (`agent/local-ollama-coach-scanner`,
+> draft PR #1) that my checks never looked at. See "Correction" at the end of
+> this document for what was wrong, why the method missed it, and what still
+> holds. The original text is left unedited so the error is legible.
+
 ## Summary
 
 **The migration was not performed.** No source file was changed. Both AI
@@ -155,3 +161,105 @@ this audit. No test was run, because no code changed.
 - The research output for the program planner (`planner-research.json`)
   arrived in the same message as this audit request and has not yet been
   committed. It should be saved before it is lost.
+
+---
+
+# Correction
+
+Added after Codex pointed out the gap. Everything above is the original
+document; nothing in it was rewritten.
+
+## What I got wrong
+
+F1 said no migration occurred. It does exist, as 9 changed files on the
+remote branch `agent/local-ollama-coach-scanner`, open as draft PR #1:
+
+```
+ .env.local.example            |  16 +++-
+ README.md                     |  22 +++--
+ docs/LOCAL_AI_ARCHITECTURE.md | 214 +++++++++++++++++++++++++++++++++++++
+ package-lock.json             |  63 -------------
+ package.json                  |   1 -
+ src/app/api/coach/route.ts    |  51 +++++-----
+ src/app/api/health/route.ts   |   4 +-
+ src/app/api/scan/route.ts     | 127 ++++++++++++++++---------
+ src/lib/ollama.ts             |  76 +++++++++++++++
+```
+
+The coach moves to Qwen, the scanner to Gemma, both through a new
+`src/lib/ollama.ts` adapter. The adapter is good code: no new dependency,
+server-side only, gateway token never reaches the browser, and it handles
+Ollama's newline-delimited JSON stream properly including the trailing
+partial line. `AGENTS.md` is NOT part of that PR, so F2 through F4 describe
+an untracked local file of separate origin, not the PR's work.
+
+## Why the method missed it
+
+Check 3 used `git branch -a`. That lists local branches plus
+**remote-tracking refs that have already been fetched**. This clone had
+never fetched that branch, so there was no ref to list, and an empty result
+read as "nothing exists" when it actually meant "nothing local knows about."
+`git reflog` has the same blind spot: it only records this clone's history.
+
+The check that would have caught it queries the remote directly:
+
+```
+git ls-remote --heads <remote>
+```
+
+which returns both `main` and `agent/local-ollama-coach-scanner`. The
+general lesson, worth more than this one finding: **a negative result from
+a local-only git command is not evidence about a remote.** Any future audit
+that asks "did anyone do X" must query the remote before concluding no.
+
+## What still holds
+
+- **The architectural blocker is unchanged, and Codex agrees.** Vercel
+  serverless functions cannot reach a Mac at `127.0.0.1`. The PR documents
+  an authenticated gateway but does not implement one, so the branch is not
+  deployable as it stands. Codex says the same and asks that PR #1 stay a
+  draft. Agreed.
+- **The scanner is still the risky half.** Forced-tool structured output
+  can be validated, but multi-frame accuracy and latency against real gym
+  footage are unmeasured. The production baseline to beat is in
+  `docs/SCANNER_FLOW.md`: p50 8.4s and p95 10.7s for 16 frames.
+
+## New finding: the PR is all-or-nothing
+
+### F5. The PR removes `@anthropic-ai/sdk` from `package.json`. Severity: medium.
+
+```
+-    "@anthropic-ai/sdk": "^0.100.1",
+```
+
+This makes the change a full cutover. It contradicts the hybrid rollout
+Codex itself recommends (local coach first, Claude scanner retained until
+benchmarked), because a hybrid needs both clients present at once. It also
+removes prompt caching from the coach with no replacement, which
+`docs/LOCAL_AI_ARCHITECTURE.md` should state as a cost consequence rather
+than a latency one.
+
+If the hybrid is the plan, the dependency must stay and the branch needs a
+per-route provider switch instead of a global one.
+
+## The decision
+
+The founder's answer to the open question was **cost**, so goal 1: keep the
+cloud architecture and route models per surface rather than force local
+inference. The reasoning and the arithmetic are in `docs/AI_COST.md`.
+
+That does not close the local-model question, it just separates it from
+this one. Privacy and offline capability are real, different goals, and PR
+#1 is a reasonable starting point for them once the gateway exists.
+
+## What was verified and how, for this correction
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Does the branch exist on the remote | `git ls-remote --heads` | yes, alongside `main` |
+| What the branch actually changes | `git fetch` then `git diff --stat main...` | the 9 files above |
+| Does it drop the Anthropic SDK | `git diff main... -- package.json` | yes, dependency removed |
+| Is the adapter sound | read `src/lib/ollama.ts` in full | yes, see above |
+
+No file on that branch was modified, and the branch was fetched to a
+throwaway ref (`refs/remotes/audit/ollama`) rather than checked out.
