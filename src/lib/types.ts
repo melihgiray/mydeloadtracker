@@ -49,6 +49,47 @@ export interface WorkoutSet {
   created_at: string;
 }
 
+export interface TrainingPlan {
+  id: string;
+  user_id: string;
+  name: string;
+  goal: string;
+  split: string;
+  days_per_week: number;
+  session_minutes: number | null;
+  equipment: string[];
+  avoid: string[];
+  mesocycle_weeks: number;
+  deload_week: number | null;
+  notes: string | null;
+  active: boolean;
+  started_on: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanDay {
+  id: string;
+  plan_id: string;
+  day_index: number;
+  name: string;
+  focus: string | null;
+}
+
+export interface PlanExercise {
+  id: string;
+  plan_day_id: string;
+  exercise_id: string;
+  position: number;
+  sets: number;
+  rep_low: number;
+  rep_high: number;
+  rpe_target: number | null;
+  rest_seconds: number | null;
+  role: string | null;
+  note: string | null;
+}
+
 /**
  * A single logged set flattened with the metadata the analytics layer needs.
  * This is the canonical input shape for every function in lib/analytics.
