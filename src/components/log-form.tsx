@@ -12,6 +12,7 @@ import { aliasesFor } from "@/lib/exercise-aliases";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
+import { targetLabel, type PlannedExercise } from "@/lib/plan-session";
 import type { Exercise, Units } from "@/lib/types";
 
 const DRAFT_KEY = "mdt_workout_draft_v1";
@@ -44,6 +45,7 @@ export function LogForm({
   initialDate,
   initialNotes,
   initialEntries,
+  planned,
 }: {
   exercises: Exercise[];
   units: Units;
@@ -51,6 +53,12 @@ export function LogForm({
   initialDate?: string;
   initialNotes?: string;
   initialEntries?: InitialEntry[];
+  /**
+   * Today's planned session, already prefilled from the athlete's history by
+   * plan-session.ts. When present the form starts populated, so logging is
+   * confirming rather than searching and typing.
+   */
+  planned?: PlannedExercise[];
 }) {
   const router = useRouter();
   const isEdit = Boolean(sessionId);
@@ -58,25 +66,43 @@ export function LogForm({
 
   const [date, setDate] = useState(initialDate ?? today);
   const [notes, setNotes] = useState(initialNotes ?? "");
-  const [entries, setEntries] = useState<ExerciseEntry[]>(() =>
-    (initialEntries ?? []).map((e, i) => ({
-      key: `${e.exerciseId}-init-${i}`,
-      exerciseId: e.exerciseId,
-      sets: e.sets.map((s) => ({
-        reps: String(s.reps),
-        weight: String(s.weight),
-        rpe: s.rpe == null ? "" : String(s.rpe),
-      })),
-    })),
-  );
+  const [entries, setEntries] = useState<ExerciseEntry[]>(() => {
+    if (initialEntries?.length) {
+      return initialEntries.map((e, i) => ({
+        key: `${e.exerciseId}-init-${i}`,
+        exerciseId: e.exerciseId,
+        sets: e.sets.map((s) => ({
+          reps: String(s.reps),
+          weight: String(s.weight),
+          rpe: s.rpe == null ? "" : String(s.rpe),
+        })),
+      }));
+    }
+    // Start from today's plan. A restored draft overwrites this in the effect
+    // below, because work already in progress beats a fresh prescription.
+    return (planned ?? []).map((p, i) => ({
+      key: `${p.exerciseId}-plan-${i}`,
+      exerciseId: p.exerciseId,
+      sets: p.sets.map((s) => ({ ...s })),
+    }));
+  });
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [prs, setPrs] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Only meaningful when a plan prefilled the session; without one the search
+  // box is the primary control and stays open.
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
+  // Targets survive a draft restore because they come from the plan on every
+  // render, not from the stored draft.
+  const plannedById = useMemo(
+    () => new Map((planned ?? []).map((p) => [p.exerciseId, p])),
+    [planned],
+  );
 
   // Restore an in-progress workout (new sessions only) so switching tabs or
   // closing the app never loses what you were entering.
@@ -280,10 +306,27 @@ export function LogForm({
     }
   }
 
+  const hasPlan = (planned?.length ?? 0) > 0;
+
   return (
     <div className="space-y-4">
+      {/* With a plan the workout is already built, so search collapses to a slim
+          control and the exercises get the top of the screen. Measured: the open
+          search plus the RPE explainer pushed the first input to y=776 on a
+          393x852 phone, which is behind the bottom nav. */}
+      {hasPlan && !searchOpen && (
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="flex w-full items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm text-muted transition-colors hover:border-brand/40 hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" />
+          Add an exercise
+        </button>
+      )}
+
       {/* Search, pinned at the top so the keyboard never covers it. */}
-      <div className="card">
+      <div className={`card ${hasPlan && !searchOpen ? "hidden" : ""}`}>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
@@ -360,16 +403,19 @@ export function LogForm({
               Discard
             </button>
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-muted">
-            RPE is optional effort, 1 to 10. Think reps left in the tank: RPE 8 means you had 2
-            more in you, RPE 10 means none. Skip it if you are not sure.
-          </p>
+          {!hasPlan && (
+            <p className="mt-1 text-[11px] leading-snug text-muted">
+              RPE is optional effort, 1 to 10. Think reps left in the tank: RPE 8 means you had 2
+              more in you, RPE 10 means none. Skip it if you are not sure.
+            </p>
+          )}
         </div>
       )}
 
       {entries.map((entry) => {
         const ex = exerciseById.get(entry.exerciseId);
         const sem = weightSemantics(ex?.equipment);
+        const plan = plannedById.get(entry.exerciseId);
         return (
           <div key={entry.key} className="card">
             <div className="mb-4 flex items-center gap-3">
@@ -390,6 +436,35 @@ export function LogForm({
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
+
+            {/* The plan's prescription, plus why the weight is prefilled the way
+                it is. Only rendered for a planned lift. */}
+            {plan && (
+              <div className="mb-3 rounded-lg border border-border bg-surface-2 px-2.5 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="micro">Target</span>
+                  <span className="readout text-sm font-semibold">{targetLabel(plan.target)}</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-muted">
+                  {plan.weightBasis === "no_history"
+                    ? "First time logging this one. Enter the weight you use."
+                    : (plan.note ?? "Weight carried over from your last session.")}
+                </p>
+                {/* The plan and the athlete's measured performance disagree.
+                    Stated rather than silently resolved, and styled as a
+                    warning because raising reps on a near-maximal lift is the
+                    case that matters. */}
+                {plan.conflict && (
+                  <p
+                    className={`mt-1.5 text-[11px] leading-snug ${
+                      plan.repsAdjusted === "raised_to_floor" ? "text-warning" : "text-muted"
+                    }`}
+                  >
+                    {plan.conflict}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* What "weight" means for this movement — one dumbbell, total bar, added, etc. */}
             <p className="mb-3 rounded-lg bg-brand/10 px-2.5 py-1.5 text-[11px] leading-snug text-brand">
