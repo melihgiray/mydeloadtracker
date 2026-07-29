@@ -9,7 +9,7 @@ An AI strength training coach that tells you when to deload.
 ![Next.js 14](https://img.shields.io/badge/Next.js_14-000000?logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
-![Claude](https://img.shields.io/badge/Claude_API-CC785C?logo=anthropic&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
 
@@ -26,7 +26,7 @@ MyDeloadTracker answers it. From the sets you'd log anyway, it figures out when 
 - **Strength standards.** Every main lift is ranked from Beginner to Elite based on what you lift relative to your bodyweight, by sex. Your overall level even sets your deload timing, since advanced lifters need to back off sooner than beginners.
 - **Auto progression.** Concrete targets for your next session using double progression that reads your RPE and knows when you're in a deload.
 - **Two ways to see volume.** Classic tonnage, plus hard sets per muscle per week measured against the 10 to 20 set range the research points to for growth. Tonnage flatters your heavy lifts, so sets are the fairer way to compare muscles.
-- **An AI coach that actually knows your numbers.** A streaming chat built on Claude, with your last eight weeks of training and your readiness folded into its context and cached to keep it fast. It cites your real lifts, weeks, and trends instead of handing you generic advice.
+- **An AI coach that actually knows your numbers.** A locally hosted Qwen coach receives your last eight weeks of training and readiness context. It cites real lifts, weeks, and trends instead of handing you generic advice.
 - **Wearable sync.** Connect an Oura ring and it pulls your HRV, resting heart rate, and sleep on its own.
 - **Everything else you'd expect.** Daily recovery logging (sleep, soreness, motivation, energy), PR celebrations, a rest timer, a searchable library of 200 plus exercises, kg or lb, and an installable app that respects the iPhone's Dynamic Island.
 
@@ -40,7 +40,7 @@ The public demo runs on a sample athlete who is overreaching: a deload alert wit
 
 This is the one that makes people lean in.
 
-Point your phone at a loaded barbell, either as a photo or a few seconds of live video. Claude's vision reads the plates, adds up the total weight, works out which lift it is, counts your reps, and logs the set for you.
+Point your phone at a loaded barbell, either as a photo or a few seconds of live video. A locally hosted Gemma vision model reads the plates, adds up the total weight, works out which lift it is, counts your reps, and logs the set for you.
 
 Two things make it hold up in a real gym:
 
@@ -56,7 +56,7 @@ The brain of the app is a pure analytics layer in `src/lib/analytics`. Every cal
 - **Pure, testable functions.** Estimated 1RM (Epley), progression, deload, readiness, standards, and volume are each their own predictable module, all covered by 21 Vitest tests.
 - **A readiness model you can see into.** The score comes from a noisy OR over weighted fatigue factors, run as a single scoring step. It's deterministic and explainable on purpose, so you always know why your number changed.
 - **Server first.** Next.js 14 App Router with React Server Components keeps the client bundle small. Data lives in Supabase Postgres behind Row Level Security, so every athlete only ever sees their own training.
-- **Reliable vision output.** The bar scanner calls Claude with a forced tool, so the model always hands back clean structured JSON the UI can use directly.
+- **Reliable vision output.** The bar scanner uses a JSON schema and a second server-side validation pass, so only clean structured readings reach the UI.
 
 ## The science, and the plan for ML
 
@@ -70,7 +70,7 @@ Right now it's a deterministic model grounded in current strength and recovery r
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **Database and auth:** Supabase (Postgres and Auth, with Row Level Security)
-- **AI and vision:** Anthropic Claude API
+- **AI and vision:** Local Ollama (`qwen3:14b` and `gemma3:12b`)
 - **Charts:** Recharts
 - **Product analytics:** PostHog
 - **Hosting:** Vercel
@@ -84,12 +84,17 @@ Meta recently opened its smart glasses to outside developers, with a toolkit tha
 ## Running it locally
 
 ```bash
-git clone https://github.com/melih-cin/mydeloadtracker.git
+git clone https://github.com/melihgiray/mydeloadtracker.git
 cd mydeloadtracker
 npm install
 ```
 
-Copy `.env.local.example` to `.env.local` and fill in your Supabase and Anthropic keys (Oura and PostHog are optional).
+Copy `.env.local.example` to `.env.local` and fill in your Supabase keys (Oura and PostHog are optional). Install Ollama and pull the two local models first:
+
+```bash
+ollama pull qwen3:14b
+ollama pull gemma3:12b
+```
 
 Set up the database by running the SQL files in `supabase/migrations` against your Supabase project, in order. You can paste them into the Supabase SQL editor or use the Supabase CLI.
 
@@ -100,6 +105,9 @@ npm run dev
 ```
 
 Run the test suite with `npm test`.
+
+For the full local-AI architecture, security boundary, gateway deployment path,
+and verification checklist, read [docs/LOCAL_AI_ARCHITECTURE.md](docs/LOCAL_AI_ARCHITECTURE.md).
 
 ## Status
 

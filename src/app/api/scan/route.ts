@@ -1,20 +1,17 @@
-// Bar scanner — the Phase-1 computer-vision feature. Takes a photo of a loaded
-// barbell / dumbbell / machine and uses Claude's vision to read the exercise and
-// the weight (counting plates and doing the math). This is the "buy, don't build"
-// MVP from docs/GLASSES_TECH_PLAN.md: a frontier VLM gets us a working demo today;
-// a specialized on-device model comes later.
+// Bar scanner — takes a photo of a loaded barbell / dumbbell / machine and uses
+// the local Gemma vision model to read the exercise and weight.
 
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTrainingSets } from "@/lib/data";
+import { ollamaChat } from "@/lib/ollama";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+const MODEL = process.env.OLLAMA_SCAN_MODEL ?? "gemma3:12b";
 
-const PROMPT = `You are a computer-vision module in a strength-training app. The user pointed their camera at their setup. Read it and report what's loaded, using the report_lift tool.
+const PROMPT = `You are a computer-vision module in a strength-training app. The user pointed their camera at their setup. Read it and return a structured report of what's loaded.
 
 How to identify the exercise:
 - Use environmental context (squat rack, bench, lat-pulldown machine), the lifter's body position and grip, and — if multiple frames are provided — the MOTION between frames.
@@ -28,36 +25,79 @@ How to read the weight:
 - Identify the exercise from context (squat rack, bench, lat pulldown, the person's position, grip).
 - Be honest about confidence. If plates/numbers aren't legible, say so and give your best estimate with low confidence. Never invent precise numbers you can't see.`;
 
-const TOOL: Anthropic.Tool = {
-  name: "report_lift",
-  description: "Report the exercise and loaded weight read from the photo.",
-  input_schema: {
-    type: "object",
-    properties: {
-      detected: { type: "boolean", description: "true if a barbell/dumbbell/machine with weight is visible" },
-      exercise: { type: "string", description: "best-guess exercise name, e.g. 'Barbell Back Squat'. Empty string if unclear." },
-      equipment: { type: "string", enum: ["barbell", "dumbbell", "machine", "bodyweight", "other", "unknown"] },
-      total_weight_kg: { type: ["number", "null"], description: "total loaded weight in kg incl. bar, or null if unreadable" },
-      per_side_plates_kg: { type: "array", items: { type: "number" }, description: "plate weights on ONE side in kg (empty if n/a)" },
-      reps: { type: ["integer", "null"], description: "reps if a full set is countable in the image, else null" },
-      confidence: { type: "string", enum: ["high", "medium", "low"] },
-      note: { type: "string", description: "one short sentence explaining the read, e.g. '20kg + 10kg per side on a 20kg bar = 80kg.'" },
-    },
-    required: ["detected", "equipment", "confidence", "note"],
+const LIFT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    detected: { type: "boolean", description: "true if a barbell, dumbbell, or machine is visible" },
+    exercise: { type: "string", description: "best-guess exercise name; empty string if unclear" },
+    equipment: { type: "string", enum: ["barbell", "dumbbell", "machine", "bodyweight", "other", "unknown"] },
+    total_weight_kg: { type: ["number", "null"], description: "total loaded weight in kg including the bar, or null" },
+    per_side_plates_kg: { type: "array", items: { type: "number" }, description: "plate weights on one side in kg" },
+    reps: { type: ["integer", "null"], description: "counted repetitions, or null" },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    note: { type: "string", description: "one short sentence explaining the read" },
   },
+  required: ["detected", "exercise", "equipment", "total_weight_kg", "per_side_plates_kg", "reps", "confidence", "note"],
+} as const;
+
+type ScanReading = {
+  detected: boolean;
+  exercise: string;
+  equipment: string;
+  total_weight_kg: number | null;
+  per_side_plates_kg: number[];
+  reps: number | null;
+  confidence: "high" | "medium" | "low";
+  note: string;
 };
 
-export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "Scanning isn't configured on this server." }, { status: 503 });
+const EQUIPMENT = new Set(["barbell", "dumbbell", "machine", "bodyweight", "other", "unknown"]);
+const CONFIDENCE = new Set(["high", "medium", "low"]);
+
+function parseReading(content: unknown): ScanReading | null {
+  if (typeof content !== "string") return null;
+  try {
+    const value = JSON.parse(content) as Record<string, unknown>;
+    const confidence = value.confidence;
+    const total = value.total_weight_kg;
+    const reps = value.reps;
+    if (
+      typeof value.detected !== "boolean" ||
+      typeof value.exercise !== "string" ||
+      typeof value.equipment !== "string" ||
+      !EQUIPMENT.has(value.equipment) ||
+      typeof confidence !== "string" ||
+      !CONFIDENCE.has(confidence) ||
+      typeof value.note !== "string" ||
+      !Array.isArray(value.per_side_plates_kg) ||
+      !value.per_side_plates_kg.every((plate) => typeof plate === "number" && Number.isFinite(plate)) ||
+      !(total === null || (typeof total === "number" && Number.isFinite(total))) ||
+      !(reps === null || (typeof reps === "number" && Number.isInteger(reps)))
+    ) return null;
+
+    return {
+      detected: value.detected,
+      exercise: value.exercise,
+      equipment: value.equipment,
+      total_weight_kg: total,
+      per_side_plates_kg: value.per_side_plates_kg,
+      reps,
+      confidence: confidence as ScanReading["confidence"],
+      note: value.note,
+    };
+  } catch {
+    return null;
   }
+}
+
+export async function POST(req: Request) {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
-  type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
   let body: { image?: string; images?: string[] };
   try {
     body = await req.json();
@@ -65,13 +105,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   const raw = Array.isArray(body.images) ? body.images : body.image ? [body.image] : [];
-  const frames: { media_type: MediaType; data: string }[] = [];
+  const frames: string[] = [];
   let totalBytes = 0;
   for (const img of raw.slice(0, 10)) {
     const m = typeof img === "string" ? img.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/) : null;
     if (!m) continue;
     totalBytes += m[2].length;
-    frames.push({ media_type: m[1] as MediaType, data: m[2] });
+    frames.push(m[2]); // Ollama's REST API accepts base64 image bytes.
   }
   if (frames.length === 0) {
     return NextResponse.json({ error: "Send a JPEG/PNG/WebP image." }, { status: 400 });
@@ -100,28 +140,25 @@ export async function POST(req: Request) {
       : "";
 
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const res = await anthropic.messages.create({
+    const res = await ollamaChat({
       model: MODEL,
-      max_tokens: 512,
-      tools: [TOOL],
-      tool_choice: { type: "tool", name: "report_lift" },
+      stream: false,
+      format: LIFT_SCHEMA,
+      think: false,
+      keep_alive: process.env.OLLAMA_KEEP_ALIVE ?? "10m",
+      options: { temperature: 0, num_ctx: Number(process.env.OLLAMA_CONTEXT_WINDOW ?? 16384) },
       messages: [
         {
           role: "user",
-          content: [
-            ...frames.map((f) => ({
-              type: "image" as const,
-              source: { type: "base64" as const, media_type: f.media_type, data: f.data },
-            })),
-            { type: "text" as const, text: PROMPT + hint + frameNote },
-          ],
+          content: `${PROMPT}${hint}${frameNote}\n\nReturn only JSON matching this schema:\n${JSON.stringify(LIFT_SCHEMA)}`,
+          images: frames,
         },
       ],
     });
-    const toolUse = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!toolUse) return NextResponse.json({ error: "Couldn't read the image. Try a clearer shot." }, { status: 502 });
-    return NextResponse.json({ reading: toolUse.input });
+    const body = (await res.json()) as { message?: { content?: unknown } };
+    const reading = parseReading(body.message?.content);
+    if (!reading) return NextResponse.json({ error: "Couldn't read the image. Try a clearer shot." }, { status: 502 });
+    return NextResponse.json({ reading });
   } catch (err) {
     console.error("Scan error:", err);
     return NextResponse.json({ error: "Vision request failed. Try again." }, { status: 502 });

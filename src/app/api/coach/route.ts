@@ -1,17 +1,18 @@
-// AI coach endpoint. Streams a Claude response that has the athlete's last
+// AI coach endpoint. Streams a local Qwen response that has the athlete's last
 // 8 weeks of training data baked into the system prompt, so it reasons from
 // real numbers (e1RM trends, the deload analysis, volume, PRs).
 
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCheckins, getProfile, getTrainingSets } from "@/lib/data";
 import { buildCoachContext } from "@/lib/analytics/context";
+import { ollamaChat, ollamaTextChunks } from "@/lib/ollama";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+const MODEL = process.env.OLLAMA_COACH_MODEL ?? "qwen3:14b";
+const MAX_HISTORY_MESSAGES = 12;
 
 const COACH_INSTRUCTIONS = `You are an expert strength & hypertrophy coach embedded in a training app called MyDeloadTracker. You specialize in progressive overload, fatigue management, and deload timing.
 
@@ -28,13 +29,6 @@ interface ChatMessage {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY is not configured on the server." },
-      { status: 500 },
-    );
-  }
-
   const supabase = createClient();
   const {
     data: { user },
@@ -64,36 +58,33 @@ export async function POST(req: Request) {
   ]);
   const context = buildCoachContext(sets, profile, checkins);
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const stream = anthropic.messages.stream({
+  const stream = await ollamaChat({
     model: MODEL,
-    max_tokens: 1024,
-    system: [
-      { type: "text", text: COACH_INSTRUCTIONS },
+    stream: true,
+    // A coach should answer directly; the UI is not a reasoning-trace viewer.
+    think: false,
+    keep_alive: process.env.OLLAMA_KEEP_ALIVE ?? "10m",
+    options: {
+      temperature: 0.25,
+      num_ctx: Number(process.env.OLLAMA_CONTEXT_WINDOW ?? 16384),
+      num_predict: 1024,
+    },
+    messages: [
       {
-        // The training data block is large and stable within a session, so we
-        // cache it to cut tokens/latency on follow-up turns.
-        type: "text",
-        text: `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
-        cache_control: { type: "ephemeral" },
+        role: "system",
+        content: `${COACH_INSTRUCTIONS}\n\n=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
       },
+      // Bound history so one long chat cannot evict the athlete context from
+      // Qwen's window or exhaust the local machine's memory.
+      ...messages.slice(-MAX_HISTORY_MESSAGES),
     ],
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
-        }
+        for await (const text of ollamaTextChunks(stream)) controller.enqueue(encoder.encode(text));
       } catch (err) {
         controller.enqueue(
           encoder.encode("\n\n[The coach hit an error. Please try again.]"),
