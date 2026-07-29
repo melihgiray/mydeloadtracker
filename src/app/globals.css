@@ -3,31 +3,34 @@
 @tailwind utilities;
 
 :root {
-  /* Instrument palette: a cool-ink base (never pure black), near-monochrome
-     chrome, and a single restrained azure for non-semantic accents. All HSL
-     channels are consumed by tailwind.config.ts. */
-  --background: 0 0% 10%; /* #1a1a1a */
-  --surface: 0 0% 13%; /* #222222, Sleek "card" */
-  --surface-2: 0 0% 16%; /* #2a2a2a, Sleek "accent" */
-  --surface-hover: 0 0% 20%;
-  --border: 0 0% 20%; /* #333333 */
-  --border-strong: 0 0% 28%;
+  /* Midnight palette, sampled pixel by pixel from the sleek.design reference
+     "Midnight Dashboard". Near-black neutrals carry a faint violet tint (hue
+     240-260 at 4-6% saturation), which is what makes it read midnight rather
+     than plain grey. All HSL channels are consumed by tailwind.config.ts. */
+  --background: 240 6% 6%; /* #0f0f11 */
+  --surface: 260 5% 11%; /* #1b1a1d */
+  --surface-2: 260 4% 16%; /* #28272a */
+  --surface-hover: 260 4% 21%;
+  --border: 260 4% 20%;
+  --border-strong: 260 4% 30%;
   --foreground: 0 0% 100%;
-  --muted: 0 0% 63%; /* #a1a1a1 */
-  --faint: 0 0% 42%;
+  --muted: 250 6% 65%;
+  --faint: 250 5% 45%;
 
-  /* The identity accent and the "push" state are deliberately the SAME
-     electric lime, so the brightest thing on screen always means go. */
-  --brand: 73 100% 50%; /* #c6ff00 */
-  --brand-foreground: 0 0% 0%; /* lime is far too bright to carry white text */
+  /* Identity accent, used for actions and chrome. Unlike the lime it replaces,
+     this is NOT a semantic state, so a primary button never gets confused with
+     a readiness verdict. */
+  --brand: 217 90% 60%; /* #3c82f5 */
+  --brand-foreground: 0 0% 100%;
 
   /* Semantic state accents. Color MEANS something here, never decoration:
-       success = the lime (push)
-       warning = amber (hold)
-       danger  = coral (back off) */
-  --success: 73 100% 50%; /* #c6ff00 */
-  --warning: 36 100% 65%; /* #ffb84d */
-  --danger: 0 100% 71%; /* #ff6b6b */
+       success = mint (push)
+       warning = yellow (hold)
+       danger  = coral (back off)
+     All three are light, so anything sitting ON them needs black text. */
+  --success: 141 69% 59%; /* #4dde7f */
+  --warning: 51 95% 71%; /* #fbe56f */
+  --danger: 359 84% 81%; /* #f7a5a6 */
 
   /* The active readiness state accent. Components set --accent contextually
      (good/caution/bad); falls back to the teal "good" tone. */
@@ -60,8 +63,8 @@ body::before {
   inset: 0;
   z-index: -1;
   background:
-    radial-gradient(70rem 50rem at 50% -20%, hsl(0 0% 100% / 0.035), transparent 70%),
-    radial-gradient(40rem 40rem at 100% 0%, hsl(73 100% 50% / 0.035), transparent 70%);
+    radial-gradient(70rem 50rem at 50% -20%, hsl(250 40% 30% / 0.28), transparent 70%),
+    radial-gradient(40rem 40rem at 100% 0%, hsl(217 90% 60% / 0.05), transparent 70%);
   pointer-events: none;
 }
 body::after {
@@ -117,12 +120,11 @@ body::after {
       disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
     min-height: 2.75rem; /* 44px: comfortable, sweaty-thumb tap target */
   }
-  /* Primary action: flat lime, black label, hard offset shadow. The offset
-     shadow is the signature of this design language, and black on lime is
-     non-negotiable since white on lime is unreadable. */
+  /* Primary action: solid blue with a soft glow, the way the reference lifts
+     its own primary controls off the near-black. */
   .btn-brand {
-    @apply btn bg-brand text-brand-foreground hover:brightness-105;
-    box-shadow: 3px 3px 0 0 hsl(0 0% 0% / 0.9);
+    @apply btn bg-brand text-brand-foreground hover:brightness-110;
+    box-shadow: 0 10px 24px -10px hsl(var(--brand) / 0.6);
   }
   /* Branded-azure action, for secondary emphasis that still reads as a control. */
   .btn-accent {

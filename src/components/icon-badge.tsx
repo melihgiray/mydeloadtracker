@@ -38,7 +38,9 @@ const GLYPH: Record<string, string> = {
   lg: "h-7 w-7",
 };
 const INK: Record<Tone, string> = {
-  accent: "text-brand",
+  // The positive tone is the SUCCESS mint, not the brand blue: brand is
+  // identity and actions, and must not read as a readiness verdict.
+  accent: "text-success",
   warn: "text-warning",
   bad: "text-danger",
   chrome: "text-foreground",
