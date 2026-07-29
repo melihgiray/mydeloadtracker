@@ -31,7 +31,8 @@ export type TrackEvent =
   | "wearable_connected"
   | "demo_viewed"
   | "bar_scanned"
-  | "scan_failed";
+  | "scan_failed"
+  | "ai_usage";
 
 export function capture(event: TrackEvent, props?: Record<string, unknown>): void {
   if (!enabled()) return;
