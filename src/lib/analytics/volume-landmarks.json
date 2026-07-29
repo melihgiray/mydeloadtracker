@@ -1,0 +1,3381 @@
+{
+  "_meta": {
+    "generated": "2026-07-28",
+    "target_repo": "github.com/melih-cin/mydeloadtracker",
+    "intended_consumer": "src/lib/analytics/volume-landmarks.ts (PLANNER_DESIGN.md build order step 2)",
+    "unit": "hard sets per muscle per week, counted as direct sets only (prime mover / isolation), matching src/lib/analytics/setVolume.ts",
+    "confidence_scale": {
+      "high": "Multiple independent meta-analyses or meta-regressions agree, effect direction is stable, and the estimate is not an extrapolation beyond the observed data range.",
+      "medium": "A single meta-analysis, a small pooled sample, a preprint, or a well-reasoned derivation from published effects. Direction is probably right, magnitude is uncertain.",
+      "low": "Practitioner consensus, expert opinion, survey data, or an internal derivation with no direct empirical support. Treat the number as a starting hypothesis to be autoregulated, not a fact."
+    },
+    "honesty_notes_for_display": [
+      "There is no published, peer-reviewed, per-muscle MEV/MAV/MRV table. Every per-muscle number in volume_landmarks originates from Renaissance Periodization's Hypertrophy Guide series (Israetel et al.), which is expert opinion. RP themselves describe them as 'directions, not dogmas' and 'starting points, not gospel'. The app should display these as practitioner estimates, not evidence.",
+      "What IS well evidenced is the shape of the dose-response curve, not the location of any ceiling. Volume increases hypertrophy with diminishing returns and no identified upper limit in the current data (pelland2025).",
+      "Practitioners (RP) and the current best meta-regression (pelland2025) disagree directly about whether an MRV exists as a volume at which gains reverse. This spread is preserved throughout rather than averaged.",
+      "Deloads are the weakest-evidenced item in this file. The only direct RCT (coleman2024) found a one-week deload HURT lower-body strength and did nothing for hypertrophy. The practice is near-universal among coaches and athletes anyway. Both are reported."
+    ],
+    "conflicts_with_current_app_code": [
+      {
+        "id": "junk_volume_ceiling",
+        "app_behaviour": "setVolume.ts classify() flags >22 sets/week as 'high \u2014 above 22 sets, watch recovery', implying junk volume.",
+        "evidence": "pelland2025 found the posterior probability of the volume-hypertrophy slope exceeding zero was 100%, with diminishing but still positive returns across the observed range; the authors report no volume at which hypertrophy reverses. The practical efficiency tiers reported from the model extend to 30-42 fractional sets/week.",
+        "resolution": "The 22-set warning is defensible as a fatigue/recoverability heuristic sourced to RP, but it is NOT supported as a growth ceiling. If the app displays it, label it practitioner opinion.",
+        "confidence": "high",
+        "source": [
+          "pelland2025",
+          "rp_volume_article"
+        ]
+      },
+      {
+        "id": "direct_vs_fractional_counting",
+        "app_behaviour": "setVolume.ts counts a set toward its exercise's primary muscle_group ONLY. Bench press contributes 0 sets to Triceps and Shoulders.",
+        "evidence": "pelland2025 found the 'fractional' quantification method (indirect sets = 0.5) had the strongest relative evidence and used it for the primary models. Direct-only counting had weaker support.",
+        "impact": "The app systematically under-reports weekly volume for muscles that receive most of their stimulus indirectly: Triceps, Shoulders (front delt portion), Biceps, Glutes, Hamstrings, Traps, Forearms, Core.",
+        "resolution": "The RP landmarks in this file are ALSO direct-only and RP states they already discounted their numbers to account for indirect stimulus, so RP landmarks and setVolume.ts are internally consistent with each other. Do NOT mix RP landmarks with fractional counting, or you will double-count. Do not compare the app's set counts to any number sourced from pelland2025 without converting.",
+        "confidence": "high",
+        "source": [
+          "pelland2025",
+          "rp_volume_article",
+          "app_setvolume"
+        ]
+      },
+      {
+        "id": "hard_set_definition",
+        "app_behaviour": "isHardSet() counts a set unless rpe is explicitly < 7, so any set logged with a null RPE counts as hard.",
+        "evidence": "robinson2024 found hypertrophy increases as sets are terminated closer to failure (negative marginal slope for RIR, CI excluding null). RP's landmark numbers assume every counted set is at 0-4 RIR with load 30-85% 1RM and 5-30 reps.",
+        "impact": "Isometrics (Plank, Side Plank), ballistic/skill lifts (Snatch, Clean, Clean and Jerk, Power Clean, Power Snatch, Kettlebell Swing) and unlogged-RPE warm-ups all inflate the count against landmarks that assume near-failure hypertrophy sets.",
+        "resolution": "Either exclude the exercises tagged \"counts_as_hard_set\": false in exercise_roles from landmark comparison, or surface the caveat. This is a planner-side filter; it does not require touching setVolume.ts.",
+        "confidence": "medium",
+        "source": [
+          "robinson2024",
+          "rp_volume_article",
+          "app_setvolume"
+        ]
+      },
+      {
+        "id": "shoulders_is_one_bucket",
+        "app_behaviour": "The app has one 'Shoulders' muscle group. RP publishes separate landmarks for Front Delts and Rear/Side Delts, which differ by a factor of ~2-3.",
+        "impact": "Any single Shoulders number is an aggregation that will over-prescribe front delts or under-prescribe side/rear delts depending on which exercises the planner picks.",
+        "resolution": "Component figures are preserved in volume_landmarks.Shoulders.components. Prefer prescribing against the components and summing, rather than validating against the combined range.",
+        "confidence": "low",
+        "source": [
+          "rp_landmarks",
+          "derived"
+        ]
+      }
+    ],
+    "sources": {
+      "pelland2025": {
+        "citation": "Pelland JC, Robinson ZP, Remmert JF, Longstrom JM, Cerminaro RM, Bean B, Zourdos MC. The Resistance Training Dose Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gains. Sports Medicine, 2025.",
+        "doi": "10.1007/s40279-025-02344-w",
+        "pmid": "41343037",
+        "type": "meta-regression",
+        "n_studies": 67,
+        "n_participants": 2058,
+        "population": "79.1% male, 20.9% female, mean age 25.2 +/- 5.2 y, mixed training status (models adjusted for training status and intervention duration)",
+        "verified": "abstract read in full from publisher page; full text paywalled"
+      },
+      "pelland2024_preprint": {
+        "citation": "Pelland JC et al. The Resistance Training Dose-Response: Meta-Regressions Exploring the Effects of Weekly Volume and Frequency on Muscle Hypertrophy and Strength Gain. SportRxiv preprint 460, 2024.",
+        "url": "https://sportrxiv.org/index.php/server/preprint/view/460",
+        "type": "preprint (now published as pelland2025)",
+        "note": "Cited only for the practical efficiency tiers, which are reported in secondary coverage of the preprint rather than in the published abstract. Treated as medium confidence for that reason."
+      },
+      "persession2025": {
+        "citation": "Robinson ZP, Pelland JC, et al. Is There Too Much of a Good Thing? Meta-Regressions of the Effect of Per-Session Volume on Hypertrophy and Strength. SportRxiv preprint 537, 2025.",
+        "url": "https://sportrxiv.org/index.php/server/preprint/view/537",
+        "type": "meta-regression, preprint",
+        "verified": "abstract-level"
+      },
+      "schoenfeld2017": {
+        "citation": "Schoenfeld BJ, Ogborn D, Krieger JW. Dose-response relationship between weekly resistance training volume and increases in muscle mass: a systematic review and meta-analysis. Journal of Sports Sciences, 2017;35(11):1073-1082.",
+        "type": "meta-analysis",
+        "note": "Largely untrained or recreationally trained participants, short interventions. The ~10-set threshold is a categorical cut (<5 / 5-9 / 10+), not a continuous optimum."
+      },
+      "bazvalle2022": {
+        "citation": "Baz-Valle E, Balsalobre-Fernandez C, Alix-Fages C, Santos-Concejero J. A Systematic Review of the Effects of Different Resistance Training Volumes on Muscle Hypertrophy. Journal of Human Kinetics, 2022.",
+        "type": "systematic review",
+        "n_studies": 7,
+        "n_studies_quantitative": 6,
+        "population": "men aged 18-35 with >= 1 year resistance training experience, direct muscle thickness or CSA measurement, >= 6 weeks",
+        "note": "Small evidence base. This is the single most population-appropriate source for your users but rests on six studies."
+      },
+      "schoenfeld2016_freq": {
+        "citation": "Schoenfeld BJ, Ogborn D, Krieger JW. Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy: A Systematic Review and Meta-Analysis. Sports Medicine, 2016;46(11):1689-1697.",
+        "type": "meta-analysis",
+        "note": "NOT volume-equated. The 2x > 1x finding here is confounded with total volume."
+      },
+      "schoenfeld2019_freq": {
+        "citation": "Schoenfeld BJ, Grgic J, Krieger J. How many times per week should a muscle be trained to maximize muscle hypertrophy? A systematic review and meta-analysis of studies examining the effects of resistance training frequency. Journal of Sports Sciences, 2019;37(11):1286-1295.",
+        "type": "meta-analysis",
+        "n_studies": 25,
+        "note": "Volume-equated re-analysis of schoenfeld2016_freq. This is the one that matters for a planner."
+      },
+      "ralston2018": {
+        "citation": "Ralston GW, Kilgore L, Wyatt FB, Buchan D, Baker JS. Weekly Training Frequency Effects on Strength Gain: A Meta-Analysis. Sports Medicine - Open, 2018;4(1):36.",
+        "type": "meta-analysis"
+      },
+      "grgic2018_freq": {
+        "citation": "Grgic J, Schoenfeld BJ, Davies TB, Lazinica B, Krieger JW, Pedisic Z. Effect of Resistance Training Frequency on Gains in Muscular Strength: A Systematic Review and Meta-Analysis. Sports Medicine, 2018;48(5):1207-1220.",
+        "type": "meta-analysis"
+      },
+      "cuthbert2021": {
+        "citation": "Cuthbert M, Haff GG, Arent SM, Ripley N, McMahon JJ, Evans M, et al. Effects of Variations in Resistance Training Frequency on Strength Development in Well-Trained Populations. Sports Medicine, 2021;51(9):1967-1982.",
+        "type": "meta-analysis",
+        "note": "Well-trained populations specifically."
+      },
+      "refalo2023_failure": {
+        "citation": "Refalo MC, Helms ER, Trexler ET, Hamilton DL, Fyfe JJ. Influence of Resistance Training Proximity-to-Failure on Skeletal Muscle Hypertrophy: A Systematic Review with Meta-analysis. Sports Medicine, 2023.",
+        "pmcid": "PMC9935748",
+        "type": "meta-analysis",
+        "n_studies": 15
+      },
+      "robinson2024": {
+        "citation": "Robinson ZP, Pelland JC, Remmert JF, Refalo MC, Jukic I, Steele J, Zourdos MC. Exploring the Dose-Response Relationship Between Estimated Resistance Training Proximity to Failure, Strength Gain, and Muscle Hypertrophy: A Series of Meta-Regressions. Sports Medicine, 2024.",
+        "preprint_url": "https://sportrxiv.org/index.php/server/preprint/view/295",
+        "type": "exploratory meta-regression",
+        "note": "Authors explicitly label it exploratory with modest model fit and RIR values ESTIMATED from study descriptions rather than measured. Direction is trustworthy; exact RIR numbers are not."
+      },
+      "lopez2021_load": {
+        "citation": "Lopez P, Radaelli R, Taaffe DR, Newton RU, Galvao DA, Trajano GS, et al. Resistance Training Load Effects on Muscle Hypertrophy and Strength Gain: Systematic Review and Network Meta-analysis. Medicine & Science in Sports & Exercise, 2021;53(6):1206-1216.",
+        "pmid": "33433148",
+        "type": "network meta-analysis"
+      },
+      "refalo2021_load": {
+        "citation": "Refalo MC, Hamilton DL, Paval DR, Gallagher IJ, Feros SA, Fyfe JJ. Influence of resistance training load on measures of skeletal muscle hypertrophy and improvements in maximal strength and neuromuscular task performance. Journal of Sports Sciences, 2021;39(15):1723-1745.",
+        "type": "meta-analysis"
+      },
+      "schoenfeld2016_rest": {
+        "citation": "Schoenfeld BJ, Pope ZK, Benik FM, et al. Longer Interset Rest Periods Enhance Muscle Strength and Hypertrophy in Resistance-Trained Men. Journal of Strength and Conditioning Research, 2016.",
+        "type": "RCT",
+        "note": "3 min vs 1 min, 8 weeks, trained men. Single study."
+      },
+      "giveitarest2024": {
+        "citation": "Give it a rest: a systematic review with Bayesian meta-analysis on the effect of inter-set rest interval duration on muscle hypertrophy. Frontiers in Sports and Active Living, 2024;6:1429789.",
+        "pmcid": "PMC11349676",
+        "type": "Bayesian meta-analysis",
+        "note": "Supersedes single-study rest findings for hypertrophy. Found only trivial hypertrophy differences across rest durations."
+      },
+      "grgic2017_rest": {
+        "citation": "Grgic J, Schoenfeld BJ, Skrepnik M, Davies TB, Mikulic P. Effects of Rest Interval Duration in Resistance Training on Measures of Muscular Strength: A Systematic Review. Sports Medicine, 2017.",
+        "type": "systematic review"
+      },
+      "interset2025": {
+        "citation": "Investigating the impact of less than or greater than 60 seconds of inter-set rest on muscle hypertrophy and strength increases in males with >1 year of resistance training experience: systematic review with meta-analysis. medRxiv 2025.09.22.25336351.",
+        "type": "systematic review with meta-analysis, preprint",
+        "note": "Preprint, not peer reviewed. Trained males specifically."
+      },
+      "rp_landmarks": {
+        "citation": "Israetel M, Hoffmann J, et al. Renaissance Periodization Hypertrophy Training Guide series, per-muscle volume landmarks.",
+        "accessed_via": "https://volume-landmarks-rp-rals.vercel.app/ (community aggregator of the RP guide series; unaffiliated with RP)",
+        "type": "expert opinion / practitioner consensus",
+        "evidence_grade": "NOT peer reviewed. No published validation study exists for any per-muscle MEV/MAV/MRV value.",
+        "sourcing_caveat": "The numeric values were read from a third-party aggregation of the RP guides, not from RP's own pages, because RP's per-muscle guide numbers are distributed across video guides and the app. Values should be spot-checked against the RP Hypertrophy App or the guide series before shipping."
+      },
+      "rp_volume_article": {
+        "citation": "Renaissance Periodization. Training Volume Landmarks for Muscle Growth. rpstrength.com, published 2017-01-04, retrieved 2026-07-28.",
+        "url": "https://rpstrength.com/blogs/articles/training-volume-landmarks-muscle-growth",
+        "type": "expert opinion",
+        "verified": "read in full",
+        "key_definitions": "Working set assumed to be 30-85% 1RM, 5-30 reps, 0-4 RIR. Sets counted only where the target muscle is prime mover or the exercise is an isolation for it; RP states indirect stimulus is already discounted from their numbers. MV stated as ~6 sets/week for most muscles trained >= 2x/week."
+      },
+      "bell2024_survey": {
+        "citation": "Bell L, Nolan D, Immonen V, Helms E, Dallamore J, Wolf M, Rogerson D. Deloading Practices in Strength and Physique Sports: A Cross-sectional Survey. Sports Medicine - Open, 2024.",
+        "pmid": "38499934",
+        "type": "cross-sectional survey",
+        "n": 246,
+        "population": "competitive strength and physique athletes, 73.6% male, mean age 29.5 +/- 8.6 y"
+      },
+      "bell2023_delphi": {
+        "citation": "Bell L, Nolan D, et al. Integrating Deloading into Strength and Physique Sports Training Programmes: An International Delphi Consensus Approach. Sports Medicine - Open, 2023;9:87.",
+        "type": "Delphi expert consensus"
+      },
+      "bell2025_practical": {
+        "citation": "Bell L, Darragh IAJ, Travis SK, Rogerson D, Nolan D. A Practical Approach to Deloading: Recommendations and Considerations for Strength and Physique Sports. Strength and Conditioning Journal, 2025.",
+        "type": "narrative review / practitioner guidance"
+      },
+      "coleman2024_deload": {
+        "citation": "Coleman M, Burke R, Augustin F, Pinero A, Maldonado J, Fisher JP, Israetel M, Androulakis-Korakakis P, Swinton P, Oberlin D, Schoenfeld BJ. Gaining more from doing less? The effects of a one-week deload period during supervised resistance training on muscular adaptations. PeerJ, 2024;12:e16777.",
+        "doi": "10.7717/peerj.16777",
+        "type": "RCT",
+        "note": "The only direct experimental test of a one-week deload in a resistance training programme that this research pass located."
+      },
+      "deload2026_untrained": {
+        "citation": "Effects of deload periods in resistance training on muscle hypertrophy and strength endurance in untrained young men using a randomized within subject design. Scientific Reports, 2026.",
+        "url": "https://www.nature.com/articles/s41598-026-40612-5",
+        "type": "RCT",
+        "note": "Untrained participants. Population mismatch for this app's users; listed for completeness only, findings not used to set any number here."
+      },
+      "enes2024": {
+        "citation": "Enes A, De Souza EO, Souza-Junior TP. Effects of Different Weekly Set Progressions on Muscular Adaptations in Trained Males: Is There a Dose-Response Effect? Medicine & Science in Sports & Exercise, 2024.",
+        "pmid": "37796222",
+        "type": "RCT",
+        "population": "resistance-trained males, 12 weeks"
+      },
+      "enes2025_females": {
+        "citation": "Does increasing the resistance-training volume lead to greater gains? The effects of weekly set progressions on muscular adaptations in females.",
+        "pmid": "39869076",
+        "type": "RCT",
+        "note": "Located by title/PMID in this research pass; abstract not read in full. Cited only as existence of a female-population companion trial, no numbers drawn from it."
+      },
+      "japp2024_volume": {
+        "citation": "Training volume increases or maintenance based on previous volume: the effects on muscular adaptations in trained males. Journal of Applied Physiology, 2024.",
+        "pmid": "39665246",
+        "doi": "10.1152/japplphysiol.00476.2024",
+        "type": "RCT",
+        "note": "Located by title/PMID; abstract not read in full in this pass."
+      },
+      "app_setvolume": {
+        "citation": "melih-cin/mydeloadtracker, src/lib/analytics/setVolume.ts, retrieved 2026-07-28.",
+        "type": "internal"
+      },
+      "derived": {
+        "citation": "Internal derivation by the research pass. Not a literature source.",
+        "type": "internal",
+        "note": "Anything carrying this source is arithmetic or taxonomy, not evidence. Always paired with confidence low."
+      }
+    }
+  },
+  "volume_landmarks": {
+    "_schema": {
+      "maintenance": "weekly direct hard sets that preserve current size without driving growth",
+      "mev": "minimum effective volume, weekly direct hard sets",
+      "mav": "maximum adaptive volume, expressed as a range because it is a progression zone rather than a point",
+      "mrv": "maximum recoverable volume",
+      "range_semantics": "min/max given where the source expresses a range; where a source gives a single number, min == max and single_value is true",
+      "evidence_grade": "well_evidenced | practitioner_consensus | no_source",
+      "note": "Every per-muscle MEV/MAV/MRV below is practitioner_consensus. The only well_evidenced items in this section are the population-level ranges in _population_level."
+    },
+    "_population_level": {
+      "note": "These are the numbers that actually have data behind them. They are population-level, not per-muscle. Use them to sanity-check the per-muscle table, and prefer them when the app needs to make a defensible claim on screen.",
+      "productive_range_trained_men": {
+        "min": 12,
+        "max": 20,
+        "unit": "direct hard sets per muscle per week",
+        "source": "bazvalle2022",
+        "confidence": "medium",
+        "caveat": "Derived from 6 studies in quantitative analysis, men 18-35 with >= 1 y experience. bazvalle2022 also reported that >20 sets produced significantly more hypertrophy than 12-20 in triceps brachii, but NOT in biceps brachii or quadriceps femoris, so even this range has an unresolved upper edge."
+      },
+      "near_maximal_threshold_mixed_population": {
+        "value": 10,
+        "unit": "sets per muscle per week",
+        "source": "schoenfeld2017",
+        "confidence": "medium",
+        "caveat": "Categorical threshold (<5 / 5-9 / 10+), largely untrained or recreationally trained samples, short interventions. Do not read as an optimum."
+      },
+      "per_additional_set_effect": {
+        "value": 0.37,
+        "unit": "percent additional hypertrophy per additional weekly set",
+        "source": "schoenfeld2017",
+        "confidence": "medium",
+        "caveat": "A linear coefficient fitted over a limited volume range. Superseded in shape by pelland2025, which found the relationship is better described by a square-root (diminishing-returns) model."
+      },
+      "dose_response_shape": {
+        "claim": "Hypertrophy and strength both increase with weekly volume with 100% posterior probability of a positive slope, with diminishing returns; diminishing returns are considerably more pronounced for strength than for hypertrophy.",
+        "source": "pelland2025",
+        "confidence": "high",
+        "caveat": "Uses fractional set counting (indirect sets = 0.5). Not directly comparable to this app's direct-only counts."
+      },
+      "efficiency_tiers_fractional": {
+        "description": "Additional fractional sets per week required to gain one standardised effect-size increment, by volume band. Illustrates diminishing returns numerically.",
+        "tiers": [
+          {
+            "band_sets_per_week": "5-10",
+            "additional_sets_per_increment": 6
+          },
+          {
+            "band_sets_per_week": "11-18",
+            "additional_sets_per_increment": 8.5
+          },
+          {
+            "band_sets_per_week": "19-29",
+            "additional_sets_per_increment": 10.75
+          },
+          {
+            "band_sets_per_week": "30-42",
+            "additional_sets_per_increment": 12.5
+          }
+        ],
+        "source": "pelland2024_preprint",
+        "confidence": "medium",
+        "caveat": "These tier figures come from secondary coverage of the preprint, not from the published abstract, and use fractional counting. Verify against the full published paper before displaying."
+      },
+      "per_session_ceiling": {
+        "hypertrophy_puos_fractional_sets": 11,
+        "strength_puos_direct_sets": 2,
+        "unit": "sets per muscle per SESSION at the point of undetectable outcome superiority",
+        "source": "persession2025",
+        "confidence": "low",
+        "caveat": "Preprint. Authors state there is insufficient data at very high per-session volumes, so it is unclear whether more sets per session eventually attenuate adaptation or keep helping. This is nonetheless the most useful number in the file for split validation, because it is what makes low-frequency splits fail.",
+        "planner_use": "Use as a soft per-session cap when validating a generated plan. A split that requires more than ~10-11 direct sets for one muscle in one session is pushing past where the data can support additional benefit."
+      },
+      "maintenance_general": {
+        "value": 6,
+        "unit": "sets per muscle per week when the muscle is trained at least twice weekly",
+        "source": "rp_volume_article",
+        "confidence": "low",
+        "evidence_grade": "practitioner_consensus",
+        "caveat": "RP states this applies to beginners and advanced lifters alike. No meta-analysis has established a maintenance dose in trained lifters."
+      }
+    },
+    "Back": {
+      "maintenance": {
+        "min": 8,
+        "max": 8,
+        "single_value": true
+      },
+      "mev": {
+        "min": 10,
+        "max": 10,
+        "single_value": true
+      },
+      "mav": {
+        "min": 14,
+        "max": 22
+      },
+      "mrv": {
+        "min": 25,
+        "max": 25,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "cross_check": "Sits inside the 12-20 productive band from bazvalle2022 at its MAV floor and above it at the top. No conflict.",
+      "notes": "Highest MV of any muscle in the RP table. RP's Back category pools lats, mid-back and rhomboids, which your library also does (26 exercises). Rows sharing lower-back fatigue with deadlifts and squats is the practical constraint here, not the muscle's own recoverability.",
+      "library_depth": 26
+    },
+    "Quads": {
+      "maintenance": {
+        "min": 6,
+        "max": 6,
+        "single_value": true
+      },
+      "mev": {
+        "min": 8,
+        "max": 8,
+        "single_value": true
+      },
+      "mav": {
+        "min": 12,
+        "max": 18
+      },
+      "mrv": {
+        "min": 20,
+        "max": 20,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "cross_check": "bazvalle2022 found NO additional hypertrophy from >20 vs 12-20 sets in quadriceps femoris specifically. This is the one muscle where the practitioner MRV and a direct measurement happen to agree.",
+      "notes": "MRV is exercise-dependent to an unusual degree. RP explicitly notes that if 25 sets of leg press is your quad MRV, 25 sets of squats would exceed recovery. The planner should weight squat-pattern sets more heavily than machine sets when approaching MRV.",
+      "library_depth": 21
+    },
+    "Chest": {
+      "maintenance": {
+        "min": 4,
+        "max": 4,
+        "single_value": true
+      },
+      "mev": {
+        "min": 6,
+        "max": 6,
+        "single_value": true
+      },
+      "mav": {
+        "min": 12,
+        "max": 20
+      },
+      "mrv": {
+        "min": 22,
+        "max": 22,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "cross_check": "MAV range is identical to the bazvalle2022 productive band of 12-20. Coincidence rather than derivation, but it is the best-aligned muscle in the table.",
+      "notes": "This MRV of 22 is very likely the origin of the 22-set ceiling hard-coded in setVolume.ts HIGH. If so, a chest-specific practitioner number is currently being applied to all 13 muscle groups.",
+      "library_depth": 19
+    },
+    "Shoulders": {
+      "maintenance": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mev": {
+        "min": 8,
+        "max": 8,
+        "single_value": true
+      },
+      "mav": {
+        "min": 16,
+        "max": 26
+      },
+      "mrv": {
+        "min": 26,
+        "max": 30
+      },
+      "source": [
+        "rp_landmarks",
+        "derived"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "aggregation_warning": "RP does not publish a combined deltoid landmark. The combined figures above are an internal sum of two RP categories and are therefore weaker than the components. Prefer the components.",
+      "components": {
+        "front_delts": {
+          "maintenance": {
+            "min": 0,
+            "max": 0
+          },
+          "mev": {
+            "min": 0,
+            "max": 0
+          },
+          "mav": {
+            "min": 6,
+            "max": 8
+          },
+          "mrv": {
+            "min": 12,
+            "max": 12
+          },
+          "source": [
+            "rp_landmarks"
+          ],
+          "confidence": "low",
+          "notes": "MEV of 0 is deliberate: RP's position is that horizontal and vertical pressing already saturates the anterior deltoid, so direct front-raise work is rarely needed. In your app, overhead pressing IS logged to Shoulders, so a plan with 3 pressing exercises can hit front-delt MRV without a single lateral raise."
+        },
+        "side_and_rear_delts": {
+          "maintenance": {
+            "min": 0,
+            "max": 0
+          },
+          "mev": {
+            "min": 8,
+            "max": 8
+          },
+          "mav": {
+            "min": 16,
+            "max": 22
+          },
+          "mrv": {
+            "min": 26,
+            "max": 26
+          },
+          "source": [
+            "rp_landmarks"
+          ],
+          "confidence": "low",
+          "notes": "Among the highest MAV and MRV in the whole table. Side and rear delts tolerate very high frequency and volume because per-set loading and systemic cost are low."
+        }
+      },
+      "planner_guidance": "Because both press and raise variants log to Shoulders, validating a plan against the combined 16-26 range will pass plans that are 20 sets of pressing and 2 lateral raises. Split the check by exercise role: count vertical-push sets against front delts and lateral/rear-fly sets against side/rear delts.",
+      "library_depth": 17
+    },
+    "Core": {
+      "maintenance": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mev": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mav": {
+        "min": 16,
+        "max": 20
+      },
+      "mrv": {
+        "min": 25,
+        "max": 25,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "notes": "Mapped from RP's 'Abs' category. MEV 0 reflects the view that heavy squatting, pressing and deadlifting supply enough trunk stimulus to maintain. The MAV of 16-20 is high relative to how most lifters train abs and should be treated with more scepticism than the other rows.",
+      "counting_warning": "Several Core exercises in your library are isometric (Plank, Side Plank) or timed rather than rep-based. A 'set' of plank is not commensurable with a set of cable crunches, and RP's landmarks assume 5-30 rep dynamic sets at 0-4 RIR. See exercise_roles counts_as_hard_set.",
+      "library_depth": 11
+    },
+    "Biceps": {
+      "maintenance": {
+        "min": 5,
+        "max": 5,
+        "single_value": true
+      },
+      "mev": {
+        "min": 8,
+        "max": 8,
+        "single_value": true
+      },
+      "mav": {
+        "min": 14,
+        "max": 20
+      },
+      "mrv": {
+        "min": 26,
+        "max": 26,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "cross_check": "bazvalle2022 found NO additional hypertrophy from >20 vs 12-20 sets in biceps brachii, which argues against the practical usefulness of the 26-set MRV even if it is recoverable.",
+      "disagreement": "RP says biceps tolerate up to 26 sets; the only trained-population review to test the question directly found no benefit above 20. Both are shown deliberately.",
+      "library_depth": 10
+    },
+    "Triceps": {
+      "maintenance": {
+        "min": 4,
+        "max": 4,
+        "single_value": true
+      },
+      "mev": {
+        "min": 6,
+        "max": 6,
+        "single_value": true
+      },
+      "mav": {
+        "min": 10,
+        "max": 14
+      },
+      "mrv": {
+        "min": 18,
+        "max": 18,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "cross_check": "bazvalle2022 found >20 sets DID produce significantly more hypertrophy than 12-20 in triceps brachii. This directly contradicts an 18-set MRV.",
+      "disagreement": "This is the sharpest practitioner-versus-data conflict in the table. RP puts the triceps ceiling at 18 direct sets. The trained-population review found more growth beyond 20. RP's defence is that their number already discounts the indirect volume from all pressing, which your app does not count at all. Show both; do not average.",
+      "library_depth": 10
+    },
+    "Hamstrings": {
+      "maintenance": {
+        "min": 4,
+        "max": 4,
+        "single_value": true
+      },
+      "mev": {
+        "min": 6,
+        "max": 6,
+        "single_value": true
+      },
+      "mav": {
+        "min": 10,
+        "max": 16
+      },
+      "mrv": {
+        "min": 20,
+        "max": 20,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "notes": "Low MAV relative to Back or Quads. Hamstring work is unusually damaging per set, particularly eccentric-emphasis movements (Nordic Curl, Romanian Deadlift), so recovery rather than stimulus is the binding constraint.",
+      "library_depth": 8
+    },
+    "Glutes": {
+      "maintenance": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mev": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mav": {
+        "min": 4,
+        "max": 12
+      },
+      "mrv": {
+        "min": 16,
+        "max": 16,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "counting_warning": "MEV 0 is the most app-hostile number in the table. RP's rationale is that squats, deadlifts and lunges already supply the glute stimulus. But in your schema Squat logs to Quads and Deadlift logs to Back, so the planner will see 0 glute sets for a plan that RP would consider well past glute MEV. Do not flag a plan as under-dosing glutes purely on direct sets.",
+      "library_depth": 6
+    },
+    "Calves": {
+      "maintenance": {
+        "min": 6,
+        "max": 6,
+        "single_value": true
+      },
+      "mev": {
+        "min": 8,
+        "max": 8,
+        "single_value": true
+      },
+      "mav": {
+        "min": 12,
+        "max": 16
+      },
+      "mrv": {
+        "min": 20,
+        "max": 20,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "notes": "Only 4 exercises in your library, so hitting a 12-16 MAV requires 3-4 sets per exercise across 2-3 sessions. Feasible but repetitive.",
+      "library_depth": 4
+    },
+    "Forearms": {
+      "maintenance": null,
+      "mev": null,
+      "mav": null,
+      "mrv": null,
+      "source": [
+        "no_source"
+      ],
+      "confidence": "low",
+      "evidence_grade": "no_source",
+      "honest_statement": "No source. Renaissance Periodization does not publish a forearm guide in the Hypertrophy Guide series, and no meta-analysis has examined forearm-specific volume. Any number here would be invented.",
+      "planner_guidance": "Do not validate forearm volume against a landmark. Either exclude Forearms from landmark validation entirely, or fall back to the population-level 12-20 band with an explicit 'no muscle-specific evidence' label in the UI. With only 2 exercises in the library (Wrist Curl, Reverse Wrist Curl) the planner cannot construct meaningful forearm volume anyway.",
+      "library_depth": 2
+    },
+    "Traps": {
+      "maintenance": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mev": {
+        "min": 0,
+        "max": 0,
+        "single_value": true
+      },
+      "mav": {
+        "min": 12,
+        "max": 20
+      },
+      "mrv": {
+        "min": 26,
+        "max": 26,
+        "single_value": true
+      },
+      "source": [
+        "rp_landmarks"
+      ],
+      "confidence": "low",
+      "evidence_grade": "practitioner_consensus",
+      "notes": "MEV 0 for the same reason as Glutes: deadlifts, rows and overhead pressing are assumed to cover it. With only 2 direct exercises in your library (Barbell Shrug, Dumbbell Shrug) the 12-20 MAV is not reachable with variety.",
+      "library_depth": 2
+    },
+    "Adductors": {
+      "maintenance": null,
+      "mev": null,
+      "mav": null,
+      "mrv": null,
+      "source": [
+        "no_source"
+      ],
+      "confidence": "low",
+      "evidence_grade": "no_source",
+      "honest_statement": "No source. RP publishes no adductor guide and there is no adductor-specific volume literature. Adductors receive substantial stimulus from wide-stance squatting, sumo deadlifting and lunging, none of which log to Adductors in your schema.",
+      "planner_guidance": "With exactly one exercise in the library (Hip Adduction), exclude Adductors from landmark validation. Flagging a plan for missing adductor volume would be a false positive in almost every case.",
+      "library_depth": 1
+    }
+  },
+  "frequency": {
+    "_headline": {
+      "claim": "Once weekly volume is held constant, training frequency has little or no independent effect on hypertrophy. It has a real but diminishing positive effect on strength. Frequency is therefore primarily a tool for distributing volume under a per-session ceiling, not a growth variable in its own right.",
+      "source": [
+        "schoenfeld2019_freq",
+        "pelland2025"
+      ],
+      "confidence": "high"
+    },
+    "evidence": [
+      {
+        "finding": "Non-volume-equated analysis found training a muscle 2x/week superior to 1x/week for hypertrophy.",
+        "source": "schoenfeld2016_freq",
+        "confidence": "medium",
+        "caveat": "Higher-frequency groups also did more total volume. This result is widely mis-cited as evidence that frequency itself matters. It is not."
+      },
+      {
+        "finding": "Re-analysis restricted to volume-equated studies (25 studies) found frequency did not significantly influence hypertrophy. Training a muscle once or three times weekly produced similar growth when weekly volume was matched.",
+        "source": "schoenfeld2019_freq",
+        "confidence": "high",
+        "note": "This supersedes schoenfeld2016_freq for programming purposes."
+      },
+      {
+        "finding": "Posterior probability of frequency's marginal slope exceeding zero for hypertrophy was less than 100%, i.e. compatible with negligible effects. For strength it was 100%, indicating strength gains increase with frequency, with diminishing returns.",
+        "source": "pelland2025",
+        "confidence": "high"
+      },
+      {
+        "finding": "Higher weekly frequency associated with greater strength gains.",
+        "source": [
+          "ralston2018",
+          "grgic2018_freq"
+        ],
+        "confidence": "medium",
+        "caveat": "Both are partly confounded with volume in the same way schoenfeld2016_freq is. The direction agrees with pelland2025, which did control for volume, so the direction is more trustworthy than the magnitude."
+      },
+      {
+        "finding": "In well-trained populations specifically, variations in frequency had limited effect on strength development.",
+        "source": "cuthbert2021",
+        "confidence": "medium",
+        "note": "Relevant because your users are trained. The frequency-helps-strength effect may be smaller in this population than the general meta-analyses suggest."
+      },
+      {
+        "finding": "Per-session point of undetectable outcome superiority is approximately 11 fractional sets for hypertrophy and approximately 2 direct sets for strength.",
+        "source": "persession2025",
+        "confidence": "low",
+        "planner_implication": "This is the mechanism by which frequency matters in practice. If a muscle needs 18 weekly sets and roughly 10-11 per session is the point past which more sets in that session stop demonstrably adding, then 18 sets cannot be productively delivered once per week. Frequency requirements fall out of volume targets divided by the session ceiling, rather than being prescribed independently."
+      }
+    ],
+    "per_muscle": {
+      "_derivation": "Recommended frequency = ceil(target weekly sets / per-session practical ceiling), where the per-session ceiling is lower for high-fatigue muscles. The weekly targets come from volume_landmarks (practitioner consensus, low confidence) and the ceiling logic from persession2025 (preprint, low confidence). Every row below is therefore an internal derivation, NOT a sourced recommendation. Confidence low throughout.",
+      "_source": [
+        "derived",
+        "persession2025",
+        "rp_landmarks"
+      ],
+      "_confidence": "low",
+      "_also_valid": "Any frequency from 1x to 4x will produce equivalent hypertrophy if weekly volume is matched and per-session volume stays under the ceiling (schoenfeld2019_freq). Treat these as defaults for volume distribution, not requirements.",
+      "Back": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 10,
+        "rationale": "High weekly target (14-22) requires at least 2 sessions. Grip and lower back limit per-session productive sets more than the lats do."
+      },
+      "Quads": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Squat-pattern sets carry high systemic and connective-tissue cost. Splitting across sessions is more important here than for upper body."
+      },
+      "Chest": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 10,
+        "rationale": "Standard. 2x covers MAV comfortably."
+      },
+      "Shoulders": {
+        "recommended": {
+          "min": 2,
+          "max": 4
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Side and rear delts recover fast and tolerate the highest frequency in the table. Front delts are usually already saturated by pressing frequency."
+      },
+      "Core": {
+        "recommended": {
+          "min": 2,
+          "max": 4
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Low per-set fatigue, high stated MAV. Frequency is the only realistic way to reach 16-20 weekly sets."
+      },
+      "Biceps": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Small muscle, low systemic cost, recovers quickly."
+      },
+      "Triceps": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Elbow joint stress is the limiter on high per-session extension volume more than muscular recovery."
+      },
+      "Hamstrings": {
+        "recommended": {
+          "min": 2,
+          "max": 2
+        },
+        "practical_session_ceiling": 6,
+        "rationale": "Highest muscle damage per set of any group. More than ~6 hard sets in one session commonly impairs the next lower-body session."
+      },
+      "Glutes": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Recovers well; frequency is cheap here."
+      },
+      "Calves": {
+        "recommended": {
+          "min": 2,
+          "max": 4
+        },
+        "practical_session_ceiling": 6,
+        "rationale": "Very low systemic cost, small library (4 exercises), so spreading across sessions is the only way to reach MAV without excessive per-session repetition."
+      },
+      "Forearms": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 6,
+        "rationale": "No landmark exists, so no volume target to divide. Frequency here is a guess and should be labelled as such in the UI."
+      },
+      "Traps": {
+        "recommended": {
+          "min": 2,
+          "max": 3
+        },
+        "practical_session_ceiling": 8,
+        "rationale": "Shrugs are low-fatigue; the constraint is library depth (2 exercises), not recovery."
+      },
+      "Adductors": {
+        "recommended": {
+          "min": 1,
+          "max": 2
+        },
+        "practical_session_ceiling": 6,
+        "rationale": "One exercise in the library. Frequency is effectively arbitrary."
+      }
+    }
+  },
+  "splits": {
+    "_session_length_method": {
+      "formula": "minutes = warmup + sum over exercises of (sets * (set_duration + rest)) + inter-exercise transition",
+      "assumptions": {
+        "warmup_minutes": 10,
+        "set_duration_seconds": 45,
+        "rest_primary_compound_seconds": 180,
+        "rest_secondary_compound_seconds": 120,
+        "rest_isolation_seconds": 90,
+        "transition_minutes_per_exercise": 2
+      },
+      "source": "derived",
+      "confidence": "low",
+      "honest_statement": "No literature reports session duration for these splits. Every session_length_minutes value below is arithmetic from the assumptions above, using rest periods that are themselves only medium-confidence. Treat them as order-of-magnitude estimates for intake validation, not as facts."
+    },
+    "_landmark_feasibility_method": {
+      "description": "A split is marked difficult where reaching the MAV floor from volume_landmarks would require more sets in one session for a muscle than the per-session ceiling in frequency.per_muscle.",
+      "source": [
+        "derived",
+        "persession2025",
+        "rp_landmarks"
+      ],
+      "confidence": "low"
+    },
+    "variants": [
+      {
+        "id": "ppl_3day",
+        "name": "Push Pull Legs, 3 day",
+        "days_per_week": 3,
+        "frequency_per_muscle": 1,
+        "structure": [
+          {
+            "day": "Push",
+            "muscle_groups": [
+              "Chest",
+              "Shoulders",
+              "Triceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 18
+          },
+          {
+            "day": "Pull",
+            "muscle_groups": [
+              "Back",
+              "Biceps",
+              "Traps",
+              "Forearms"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 18
+          },
+          {
+            "day": "Legs",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          }
+        ],
+        "session_length_minutes": {
+          "min": 65,
+          "max": 85,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "Lifters with only three training days, or lifters running this alongside a sport. Common as an entry PPL but rarely the choice of a serious hypertrophy-focused lifter.",
+        "landmark_feasibility": {
+          "verdict": "difficult",
+          "problems": [
+            "Every muscle is trained once per week. To reach Chest MAV floor of 12, all 12 sets land in one Push session, above the ~10 practical ceiling and above the ~11 fractional per-session PUOS from persession2025.",
+            "Back MAV floor of 14 in a single Pull session is clearly past the point where added sets stop demonstrably helping.",
+            "Quads MAV floor of 12 plus Hamstrings 10 plus Glutes 4 plus Calves 12 in one Legs day is roughly 38 sets, which is not a realistic session.",
+            "In practice this split delivers roughly MEV-level volume for most muscles and cannot reach MAV for any of the large ones."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "persession2025",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "ppl_6day",
+        "name": "Push Pull Legs, 6 day",
+        "days_per_week": 6,
+        "frequency_per_muscle": 2,
+        "structure": [
+          {
+            "day": "Push A",
+            "muscle_groups": [
+              "Chest",
+              "Shoulders",
+              "Triceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "heavy horizontal press"
+          },
+          {
+            "day": "Pull A",
+            "muscle_groups": [
+              "Back",
+              "Biceps",
+              "Traps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "heavy row"
+          },
+          {
+            "day": "Legs A",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "squat pattern"
+          },
+          {
+            "day": "Push B",
+            "muscle_groups": [
+              "Chest",
+              "Shoulders",
+              "Triceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "incline/vertical press, more isolation"
+          },
+          {
+            "day": "Pull B",
+            "muscle_groups": [
+              "Back",
+              "Biceps",
+              "Forearms"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "vertical pull"
+          },
+          {
+            "day": "Legs B",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Quads",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 16,
+            "emphasis": "hinge pattern"
+          }
+        ],
+        "session_length_minutes": {
+          "min": 60,
+          "max": 80,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "The default for serious hypertrophy-focused lifters with six available days and no competing athletic demands. Highest volume ceiling of the common splits.",
+        "landmark_feasibility": {
+          "verdict": "good",
+          "notes": [
+            "2x frequency per muscle group means MAV for every muscle is reachable at 6-11 sets per session, inside the practical ceilings.",
+            "Main risk is the opposite failure: it is easy to overshoot Triceps and Shoulders, because both get direct work on Push days and substantial indirect work that the app does not count.",
+            "Calves, Forearms, Traps and Adductors get squeezed out unless deliberately slotted, since none has a natural home day."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "upper_lower_4day",
+        "name": "Upper / Lower, 4 day",
+        "days_per_week": 4,
+        "frequency_per_muscle": 2,
+        "structure": [
+          {
+            "day": "Upper A",
+            "muscle_groups": [
+              "Chest",
+              "Back",
+              "Shoulders",
+              "Triceps",
+              "Biceps"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20,
+            "emphasis": "horizontal press and row, heavier"
+          },
+          {
+            "day": "Lower A",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17,
+            "emphasis": "squat pattern"
+          },
+          {
+            "day": "Upper B",
+            "muscle_groups": [
+              "Back",
+              "Shoulders",
+              "Chest",
+              "Biceps",
+              "Triceps"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20,
+            "emphasis": "vertical pull and press"
+          },
+          {
+            "day": "Lower B",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Quads",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17,
+            "emphasis": "hinge pattern"
+          }
+        ],
+        "session_length_minutes": {
+          "min": 70,
+          "max": 95,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "The best volume-per-day-committed ratio of the common splits, and the most robust to a missed session. Suits lifters balancing training with work and family, and lifters running a strength focus, since it accommodates two heavy squat/bench/deadlift exposures per week.",
+        "landmark_feasibility": {
+          "verdict": "workable_with_tradeoffs",
+          "problems": [
+            "Upper days must serve Chest, Back, Shoulders, Biceps and Triceps simultaneously. At 2x frequency, hitting even the MAV floor for all five (12+14+16+14+10 = 66 weekly sets) means 33 sets per Upper session, which is a 2+ hour session.",
+            "In practice Upper/Lower forces prioritisation: usually two muscles get MAV and the rest get MEV to lower-MAV.",
+            "Calves, Traps, Forearms and Adductors are the first to be dropped."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "full_body_3day",
+        "name": "Full Body, 3 day",
+        "days_per_week": 3,
+        "frequency_per_muscle": 3,
+        "structure": [
+          {
+            "day": "Full Body A",
+            "muscle_groups": [
+              "Quads",
+              "Chest",
+              "Back",
+              "Shoulders",
+              "Core"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 18,
+            "emphasis": "squat, horizontal press, vertical pull"
+          },
+          {
+            "day": "Full Body B",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Back",
+              "Shoulders",
+              "Triceps"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 18,
+            "emphasis": "hinge, vertical press, horizontal row"
+          },
+          {
+            "day": "Full Body C",
+            "muscle_groups": [
+              "Quads",
+              "Chest",
+              "Back",
+              "Biceps",
+              "Calves"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 18,
+            "emphasis": "single-leg or machine squat pattern, incline press"
+          }
+        ],
+        "session_length_minutes": {
+          "min": 65,
+          "max": 85,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "Time-constrained lifters, lifters who want maximum frequency per muscle on minimum days, and strength-focused lifters who want three exposures to the competition lifts. Also the most forgiving split if sessions are unpredictable.",
+        "landmark_feasibility": {
+          "verdict": "difficult",
+          "problems": [
+            "Highest frequency but lowest total weekly slots. Roughly 54 total weekly sets across 13 muscle groups means an average of ~4 sets per muscle per week if spread evenly, which is below MEV for almost everything.",
+            "Only works if the athlete accepts that 3-4 muscles get MEV-to-MAV volume and the rest get maintenance or nothing.",
+            "Per the volume-equated frequency evidence (schoenfeld2019_freq), the 3x frequency confers no hypertrophy advantage on its own, so the frequency is not compensating for the low volume."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "schoenfeld2019_freq",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "arnold_6day",
+        "name": "Arnold split, 6 day",
+        "days_per_week": 6,
+        "frequency_per_muscle": 2,
+        "structure": [
+          {
+            "day": "Chest + Back A",
+            "muscle_groups": [
+              "Chest",
+              "Back"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 22,
+            "emphasis": "often supersetted press/row pairs"
+          },
+          {
+            "day": "Shoulders + Arms A",
+            "muscle_groups": [
+              "Shoulders",
+              "Biceps",
+              "Triceps",
+              "Traps",
+              "Forearms"
+            ],
+            "typical_exercises": 7,
+            "typical_sets": 22
+          },
+          {
+            "day": "Legs + Core A",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          },
+          {
+            "day": "Chest + Back B",
+            "muscle_groups": [
+              "Chest",
+              "Back"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 22
+          },
+          {
+            "day": "Shoulders + Arms B",
+            "muscle_groups": [
+              "Shoulders",
+              "Biceps",
+              "Triceps",
+              "Traps"
+            ],
+            "typical_exercises": 7,
+            "typical_sets": 22
+          },
+          {
+            "day": "Legs + Core B",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Quads",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          }
+        ],
+        "session_length_minutes": {
+          "min": 75,
+          "max": 105,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "Physique-focused lifters who like antagonist pairing and long arm sessions. Historically associated with Arnold Schwarzenegger's Golden Era training. Still popular but generally as a preference choice rather than an optimisation.",
+        "landmark_feasibility": {
+          "verdict": "workable_with_tradeoffs",
+          "problems": [
+            "Chest + Back days are the highest-volume sessions in any common split. Reaching Chest MAV floor (12) and Back MAV floor (14) at 2x frequency means 13 sets in one session across the two, which is fine, but lifters running this split typically do far more, pushing well past the per-session PUOS for both.",
+            "Legs is trained twice but shares the day with Core and Calves, so quad and hamstring volume tends to land at the MAV floor rather than mid-range.",
+            "Arms get an entire dedicated slot twice weekly, which makes overshooting Biceps and Triceps MRV easy: 2 sessions x 8 sets is already at Triceps MRV of 18 before any pressing is counted."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "persession2025",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "ppl_ul_hybrid_5day",
+        "name": "PPL + Upper/Lower hybrid, 5 day",
+        "days_per_week": 5,
+        "frequency_per_muscle": 2,
+        "structure": [
+          {
+            "day": "Push",
+            "muscle_groups": [
+              "Chest",
+              "Shoulders",
+              "Triceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17
+          },
+          {
+            "day": "Pull",
+            "muscle_groups": [
+              "Back",
+              "Biceps",
+              "Traps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17
+          },
+          {
+            "day": "Legs",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17
+          },
+          {
+            "day": "Upper",
+            "muscle_groups": [
+              "Chest",
+              "Back",
+              "Shoulders",
+              "Biceps",
+              "Triceps"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 19
+          },
+          {
+            "day": "Lower",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Quads",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 17
+          }
+        ],
+        "session_length_minutes": {
+          "min": 65,
+          "max": 90,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "The most common 5-day structure among experienced lifters. Solves the problem that PPL does not divide evenly into a 7-day week while keeping 2x frequency on everything. Good default when the athlete says 'five days'.",
+        "landmark_feasibility": {
+          "verdict": "good",
+          "notes": [
+            "Every muscle gets 2 exposures at manageable per-session volume.",
+            "The Upper day carries the same crowding problem as upper_lower_4day but only once per week, so it is absorbable.",
+            "Same blind spots as PPL: Forearms and Adductors have no home."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "bro_split_5day",
+        "name": "Body-part / 'bro' split, 5 day",
+        "days_per_week": 5,
+        "frequency_per_muscle": 1,
+        "structure": [
+          {
+            "day": "Chest",
+            "muscle_groups": [
+              "Chest"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 18
+          },
+          {
+            "day": "Back",
+            "muscle_groups": [
+              "Back",
+              "Traps"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          },
+          {
+            "day": "Shoulders",
+            "muscle_groups": [
+              "Shoulders",
+              "Core"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 18
+          },
+          {
+            "day": "Legs",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          },
+          {
+            "day": "Arms",
+            "muscle_groups": [
+              "Biceps",
+              "Triceps",
+              "Forearms"
+            ],
+            "typical_exercises": 6,
+            "typical_sets": 20
+          }
+        ],
+        "session_length_minutes": {
+          "min": 70,
+          "max": 95,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "Lifters who prefer to annihilate one area per session and have five reliable days. Still extremely common in commercial gyms. Defensible on the volume-equated frequency evidence, less defensible on the per-session ceiling evidence.",
+        "landmark_feasibility": {
+          "verdict": "difficult",
+          "problems": [
+            "1x frequency means the entire weekly volume for a muscle must fit in one session. Chest MAV of 12-20 means 12-20 sets in one session, above the ~11 fractional-set per-session PUOS from persession2025.",
+            "The honest nuance: schoenfeld2019_freq found 1x and 3x produce similar hypertrophy at equal weekly volume, so the split is not inherently inferior. The problem is that at high weekly targets, equal volume becomes physically impractical in one session.",
+            "This split works acceptably at MEV-to-low-MAV weekly volumes and degrades as volume targets rise."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "schoenfeld2019_freq",
+            "persession2025",
+            "rp_landmarks"
+          ]
+        }
+      },
+      {
+        "id": "upper_lower_6day",
+        "name": "Upper / Lower, 6 day (3x frequency)",
+        "days_per_week": 6,
+        "frequency_per_muscle": 3,
+        "structure": [
+          {
+            "day": "Upper A",
+            "muscle_groups": [
+              "Chest",
+              "Back",
+              "Shoulders",
+              "Triceps",
+              "Biceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 15
+          },
+          {
+            "day": "Lower A",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Glutes",
+              "Calves"
+            ],
+            "typical_exercises": 4,
+            "typical_sets": 13
+          },
+          {
+            "day": "Upper B",
+            "muscle_groups": [
+              "Back",
+              "Chest",
+              "Shoulders",
+              "Biceps",
+              "Triceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 15
+          },
+          {
+            "day": "Lower B",
+            "muscle_groups": [
+              "Hamstrings",
+              "Glutes",
+              "Quads",
+              "Core"
+            ],
+            "typical_exercises": 4,
+            "typical_sets": 13
+          },
+          {
+            "day": "Upper C",
+            "muscle_groups": [
+              "Chest",
+              "Back",
+              "Shoulders",
+              "Triceps",
+              "Biceps"
+            ],
+            "typical_exercises": 5,
+            "typical_sets": 15
+          },
+          {
+            "day": "Lower C",
+            "muscle_groups": [
+              "Quads",
+              "Hamstrings",
+              "Calves",
+              "Core"
+            ],
+            "typical_exercises": 4,
+            "typical_sets": 13
+          }
+        ],
+        "session_length_minutes": {
+          "min": 55,
+          "max": 75,
+          "source": "derived",
+          "confidence": "low"
+        },
+        "suits": "Lifters who want six short sessions rather than four long ones, and lifters chasing strength, where the frequency evidence is genuinely positive (pelland2025). Also the most practical way to reach high weekly volumes without any session exceeding the per-session ceiling.",
+        "landmark_feasibility": {
+          "verdict": "good",
+          "notes": [
+            "3x frequency keeps per-session volume for any single muscle at 4-7 sets, comfortably inside every practical ceiling.",
+            "The only split here that can reach the top of MAV for most muscles without a single session running over 75 minutes.",
+            "Cost is that no session includes enough volume for a muscle to feel 'trained', which many lifters dislike, and that lower body is hit 3x, which tests hamstring recovery (session ceiling 6)."
+          ],
+          "confidence": "medium",
+          "source": [
+            "derived",
+            "pelland2025",
+            "rp_landmarks"
+          ]
+        }
+      }
+    ],
+    "_missing_variants_note": "Named strength templates (5/3/1, Texas Method, conjugate/Westside, Sheiko) and specialisation methods (DC Training, FST-7, Y3T, Mountain Dog) were deliberately excluded. They are programme templates rather than splits, they prescribe their own volume and intensity scheme that would override this file, and none has split-level evidence. If the planner should support them they need their own research pass."
+  },
+  "prescription": {
+    "_headline": {
+      "claim": "For hypertrophy, load and rep range matter far less than getting close to failure. For strength, load matters a great deal and proximity to failure matters little. This asymmetry is the single most useful programming fact in this section.",
+      "source": [
+        "lopez2021_load",
+        "robinson2024"
+      ],
+      "confidence": "high"
+    },
+    "rep_ranges": {
+      "evidence": [
+        {
+          "finding": "Muscle hypertrophy improvements appear to be load independent; no differences in hypertrophy between low, moderate and high load in the overall analysis. Strength improvement was superior for high-load and moderate-load versus low-load, with a non-significant advantage for high over moderate.",
+          "source": "lopez2021_load",
+          "confidence": "high"
+        },
+        {
+          "finding": "Load did not meaningfully influence hypertrophy but did influence maximal strength.",
+          "source": "refalo2021_load",
+          "confidence": "high"
+        },
+        {
+          "finding": "RP's working-set definition for their landmarks assumes 30-85% 1RM and 5-30 reps, and states that within this range a 5-rep set and a 30-rep set produce similar stimulus and fatigue.",
+          "source": "rp_volume_article",
+          "confidence": "low",
+          "note": "Practitioner framing, but it is consistent with lopez2021_load."
+        }
+      ],
+      "by_goal_and_role": {
+        "hypertrophy": {
+          "primary_compound": {
+            "reps": {
+              "min": 5,
+              "max": 10
+            },
+            "source": [
+              "lopez2021_load",
+              "rp_volume_article"
+            ],
+            "confidence": "medium",
+            "rationale": "Any rep range in 5-30 works for growth. Lower reps on primary compounds preserve the strength carryover and keep the set duration tolerable on movements where the limiting factor is systemic rather than local."
+          },
+          "secondary_compound": {
+            "reps": {
+              "min": 8,
+              "max": 15
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium",
+            "rationale": "Load is not the constraint, joint stress is. Moderate reps at submaximal load."
+          },
+          "isolation": {
+            "reps": {
+              "min": 10,
+              "max": 20
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium",
+            "rationale": "Higher reps make it easier to reach the low RIR that hypertrophy rewards without loading a small muscle at near-maximal absolute weight."
+          }
+        },
+        "strength": {
+          "primary_compound": {
+            "reps": {
+              "min": 1,
+              "max": 6
+            },
+            "source": [
+              "lopez2021_load",
+              "refalo2021_load"
+            ],
+            "confidence": "high",
+            "rationale": "High load is where the evidence is unambiguous. This is the only prescription in this section with a high confidence rating."
+          },
+          "secondary_compound": {
+            "reps": {
+              "min": 4,
+              "max": 8
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "reps": {
+              "min": 8,
+              "max": 15
+            },
+            "source": [
+              "derived"
+            ],
+            "confidence": "low",
+            "rationale": "Isolation work does not drive maximal strength directly. Reps here are chosen for hypertrophy and joint health, not strength transfer. No source addresses this specifically."
+          }
+        },
+        "both": {
+          "primary_compound": {
+            "reps": {
+              "min": 3,
+              "max": 8
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium",
+            "rationale": "Heavy enough to satisfy the load requirement for strength, high enough in volume to accumulate hypertrophy sets."
+          },
+          "secondary_compound": {
+            "reps": {
+              "min": 6,
+              "max": 12
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "reps": {
+              "min": 10,
+              "max": 20
+            },
+            "source": [
+              "lopez2021_load"
+            ],
+            "confidence": "medium"
+          }
+        }
+      }
+    },
+    "proximity_to_failure": {
+      "evidence": [
+        {
+          "finding": "In all best-fit models for muscle hypertrophy, the marginal slope for estimated RIR was negative with confidence intervals excluding null, indicating muscle size increases as sets are terminated closer to failure. In all best-fit models for strength, confidence intervals for the RIR slope contained a null point estimate, indicating a negligible relationship. Strength gains were similar across a wide range of RIR.",
+          "source": "robinson2024",
+          "confidence": "medium",
+          "caveat": "Authors describe the analysis as exploratory with modest overall model fit, and RIR was ESTIMATED from study descriptions rather than measured. The direction is well supported; specific RIR cut-points are not."
+        },
+        {
+          "finding": "Trivial advantage for training to set failure versus non-failure for hypertrophy, effect size 0.19, with no moderating effect of volume load or relative load.",
+          "source": "refalo2023_failure",
+          "confidence": "high",
+          "n_studies": 15
+        }
+      ],
+      "reconciliation": "refalo2023_failure (categorical, failure vs not) finds the advantage of literal failure is trivial. robinson2024 (continuous, RIR as a dose) finds hypertrophy improves monotonically as RIR falls. These are compatible: the gradient is real across the RIR range, but the last step from 1-2 RIR to 0 RIR is worth very little and costs a lot of fatigue.",
+      "by_goal_and_role": {
+        "hypertrophy": {
+          "primary_compound": {
+            "rir": {
+              "min": 1,
+              "max": 3
+            },
+            "rpe": {
+              "min": 7,
+              "max": 9
+            },
+            "source": [
+              "robinson2024",
+              "refalo2023_failure"
+            ],
+            "confidence": "medium",
+            "rationale": "Closer to failure is better for growth, but failure on a heavy squat or deadlift buys a trivial hypertrophy increment for a large recovery cost that eats the rest of the week's volume."
+          },
+          "secondary_compound": {
+            "rir": {
+              "min": 0,
+              "max": 2
+            },
+            "rpe": {
+              "min": 8,
+              "max": 10
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "rir": {
+              "min": 0,
+              "max": 1
+            },
+            "rpe": {
+              "min": 9,
+              "max": 10
+            },
+            "source": [
+              "robinson2024",
+              "refalo2023_failure"
+            ],
+            "confidence": "medium",
+            "rationale": "Fatigue cost of failure is lowest here and the hypertrophy gradient is the same, so isolation work is where taking sets to or near failure is cheapest."
+          }
+        },
+        "strength": {
+          "primary_compound": {
+            "rir": {
+              "min": 1,
+              "max": 4
+            },
+            "rpe": {
+              "min": 6,
+              "max": 9
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium",
+            "rationale": "Strength gains were similar across a wide RIR range, so there is no reason to accumulate failure-level fatigue on the competition lifts. Leave reps in the tank and add load instead."
+          },
+          "secondary_compound": {
+            "rir": {
+              "min": 1,
+              "max": 3
+            },
+            "rpe": {
+              "min": 7,
+              "max": 9
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "rir": {
+              "min": 0,
+              "max": 2
+            },
+            "rpe": {
+              "min": 8,
+              "max": 10
+            },
+            "source": [
+              "derived"
+            ],
+            "confidence": "low"
+          }
+        },
+        "both": {
+          "primary_compound": {
+            "rir": {
+              "min": 1,
+              "max": 3
+            },
+            "rpe": {
+              "min": 7,
+              "max": 9
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium"
+          },
+          "secondary_compound": {
+            "rir": {
+              "min": 0,
+              "max": 2
+            },
+            "rpe": {
+              "min": 8,
+              "max": 10
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "rir": {
+              "min": 0,
+              "max": 1
+            },
+            "rpe": {
+              "min": 9,
+              "max": 10
+            },
+            "source": [
+              "robinson2024"
+            ],
+            "confidence": "medium"
+          }
+        }
+      },
+      "app_specific_note": {
+        "observation": "setVolume.ts counts a set as hard at RPE >= 7, i.e. up to 3 RIR.",
+        "implication": "robinson2024 implies a set at RPE 7 contributes less hypertrophy than a set at RPE 9-10, so a plan that is all RPE 7 will hit the app's set-count landmarks while under-delivering stimulus. The counting threshold is defensible (it matches RP's 0-4 RIR working-set definition) but the planner should not treat all counted sets as equivalent when prescribing.",
+        "source": [
+          "robinson2024",
+          "rp_volume_article",
+          "app_setvolume"
+        ],
+        "confidence": "medium"
+      }
+    },
+    "rest_periods": {
+      "evidence": [
+        {
+          "finding": "Bayesian meta-analysis found only trivial differences in hypertrophy across inter-set rest durations.",
+          "source": "giveitarest2024",
+          "confidence": "high",
+          "note": "This is the current best evidence for hypertrophy and it says rest length is close to irrelevant for growth."
+        },
+        {
+          "finding": "3 minute rest produced greater hypertrophy and strength than 1 minute over 8 weeks in resistance-trained men.",
+          "source": "schoenfeld2016_rest",
+          "confidence": "medium",
+          "caveat": "Single RCT. Superseded for hypertrophy by giveitarest2024 but still the most cited study on the topic and directionally consistent for strength."
+        },
+        {
+          "finding": "Both short and long rest are viable for hypertrophy in untrained individuals, but longer durations may be advantageous for those with previous training experience.",
+          "source": "grgic2017_rest",
+          "confidence": "medium"
+        },
+        {
+          "finding": "Shorter inter-set rest appears to slightly reduce strength and power outcomes; longer rest offers minimal benefit for hypertrophy.",
+          "source": "interset2025",
+          "confidence": "low",
+          "caveat": "Preprint, not peer reviewed. Trained males with >1 y experience."
+        }
+      ],
+      "disagreement": "schoenfeld2016_rest (single RCT, trained men) says long rest helps hypertrophy. giveitarest2024 (Bayesian meta-analysis) says the hypertrophy difference is trivial. Both are shown. The practical read is that rest length is a performance-management variable, not a growth variable: rest long enough to hit your target reps at the target RIR, because the reps are what drive the adaptation.",
+      "by_goal_and_role": {
+        "hypertrophy": {
+          "primary_compound": {
+            "seconds": {
+              "min": 120,
+              "max": 180
+            },
+            "source": [
+              "giveitarest2024",
+              "schoenfeld2016_rest"
+            ],
+            "confidence": "medium"
+          },
+          "secondary_compound": {
+            "seconds": {
+              "min": 90,
+              "max": 150
+            },
+            "source": [
+              "giveitarest2024"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "seconds": {
+              "min": 60,
+              "max": 120
+            },
+            "source": [
+              "giveitarest2024"
+            ],
+            "confidence": "medium"
+          }
+        },
+        "strength": {
+          "primary_compound": {
+            "seconds": {
+              "min": 180,
+              "max": 300
+            },
+            "source": [
+              "grgic2017_rest",
+              "schoenfeld2016_rest",
+              "interset2025"
+            ],
+            "confidence": "medium",
+            "rationale": "Rest is genuinely load-bearing for strength: shorter rest reduces performance in subsequent sets, which reduces the load lifted, which is the variable that drives strength."
+          },
+          "secondary_compound": {
+            "seconds": {
+              "min": 120,
+              "max": 240
+            },
+            "source": [
+              "grgic2017_rest"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "seconds": {
+              "min": 60,
+              "max": 120
+            },
+            "source": [
+              "derived"
+            ],
+            "confidence": "low"
+          }
+        },
+        "both": {
+          "primary_compound": {
+            "seconds": {
+              "min": 150,
+              "max": 240
+            },
+            "source": [
+              "grgic2017_rest",
+              "giveitarest2024"
+            ],
+            "confidence": "medium"
+          },
+          "secondary_compound": {
+            "seconds": {
+              "min": 90,
+              "max": 150
+            },
+            "source": [
+              "giveitarest2024"
+            ],
+            "confidence": "medium"
+          },
+          "isolation": {
+            "seconds": {
+              "min": 60,
+              "max": 120
+            },
+            "source": [
+              "giveitarest2024"
+            ],
+            "confidence": "medium"
+          }
+        }
+      }
+    }
+  },
+  "mesocycle": {
+    "_headline": {
+      "claim": "Progressive weekly set addition has direct RCT support for strength in trained males and possible small hypertrophy benefit. Block length and deload prescription have essentially no direct support and rest on survey and expert consensus. The one RCT of a mid-programme deload found it hurt strength and did nothing for hypertrophy.",
+      "source": [
+        "enes2024",
+        "bell2024_survey",
+        "coleman2024_deload"
+      ],
+      "confidence": "medium"
+    },
+    "volume_progression": {
+      "evidence": [
+        {
+          "finding": "Progressively adding four or six sets per week every two weeks elicited greater lower-limb strength than constant set volume in resistance-trained males over 12 weeks. A possible small benefit for higher-volume conditions on hypertrophy, with limited certainty.",
+          "source": "enes2024",
+          "confidence": "medium",
+          "population": "resistance-trained males",
+          "note": "This is the closest thing to direct evidence for the RP-style progressive accumulation block. Note it tested +4 and +6 sets per week added every 2 weeks for the whole lower limb, not +1 set per muscle per week."
+        },
+        {
+          "finding": "Companion trials examining weekly set progressions in females and volume increase versus maintenance in trained males exist.",
+          "source": [
+            "enes2025_females",
+            "japp2024_volume"
+          ],
+          "confidence": "low",
+          "caveat": "Located by title and PMID in this research pass but abstracts were not read in full. No numbers are drawn from them. Read before citing in the app."
+        },
+        {
+          "finding": "RP prescribes starting the block at MEV and adding exactly one working set per muscle per week if recovery is on track, holding volume constant instead of adding if soreness, performance or pump has stalled, and never adding sets to a muscle still sore from the last session.",
+          "source": "rp_volume_article",
+          "confidence": "low",
+          "evidence_grade": "practitioner_consensus"
+        }
+      ],
+      "recommended_scheme": {
+        "start_at": "MEV for the muscle from volume_landmarks",
+        "weekly_increment_sets_per_muscle": {
+          "min": 1,
+          "max": 2
+        },
+        "end_near": "MAV upper bound, or MRV in the final week for prioritised muscles only",
+        "source": [
+          "rp_volume_article",
+          "enes2024"
+        ],
+        "confidence": "low",
+        "honest_statement": "The +1 set per muscle per week rule is practitioner consensus. enes2024 supports progressive addition in principle but tested a different increment on a different unit of analysis. Do not present the increment as evidence-based.",
+        "worked_example": {
+          "muscle": "Chest",
+          "week_1": 6,
+          "week_2": 9,
+          "week_3": 12,
+          "week_4": 15,
+          "week_5": 18,
+          "deload_week": 6,
+          "note": "Illustrative, following the RP article's own sample progression pattern from MEV toward MRV. Increment shown as 3 to traverse MEV 6 to near-MRV 22 in five weeks; a +1 increment would take 16 weeks and never reach MRV, which is why RP's own worked example uses a larger step. This inconsistency inside the RP material is worth knowing about."
+        }
+      }
+    },
+    "block_length": {
+      "accumulation_weeks": {
+        "min": 4,
+        "max": 6
+      },
+      "source": [
+        "rp_volume_article",
+        "bell2024_survey"
+      ],
+      "confidence": "low",
+      "supporting_data": {
+        "observed_deload_interval_weeks": {
+          "mean": 5.6,
+          "sd": 2.3
+        },
+        "source": "bell2024_survey",
+        "confidence": "medium",
+        "note": "This is a real measured number, but it measures what 246 competitive strength and physique athletes DO, not what works. It is the best available anchor for block length and it is descriptive, not prescriptive."
+      },
+      "modifiers": {
+        "advanced_lifters": "Practitioner consensus is that advanced lifters can sustain 5-6 weeks because they have higher MRV; some sources argue the opposite, that advanced lifters accumulate fatigue faster and need shorter blocks. Your app already takes the second position by using standards level to set deload timing (see README). No evidence resolves this. Source: derived. Confidence: low.",
+        "source": [
+          "derived"
+        ],
+        "confidence": "low"
+      }
+    },
+    "deload": {
+      "_evidence_warning": "This is the weakest-evidenced section in the file. Deloading is described in the literature as 'ubiquitous yet under-researched'. There is no empirical evidence analysing the direct potentiating effects of deloads on subsequent training cycles in resistance-trained individuals.",
+      "evidence": [
+        {
+          "finding": "A one-week deload at the midpoint of a 9-week resistance training programme appeared to negatively influence lower body muscle strength, with no effect on lower body hypertrophy, power or local muscular endurance. Some evidence was obtained for greater isometric and dynamic strength adaptations WITHOUT a deloading period.",
+          "source": "coleman2024_deload",
+          "confidence": "medium",
+          "importance": "This is the only direct RCT located. It does not support the practice. The app should say so.",
+          "caveats": "Lower body training was supervised, upper body was unsupervised. Nine weeks is short. A single deload in a short programme may not capture the fatigue accumulation that deloads are meant to address, which is the standard defence of the practice."
+        },
+        {
+          "finding": "In 246 competitive strength and physique athletes, typical deload duration was 6.4 +/- 1.7 days, integrated every 5.6 +/- 2.3 weeks. Training volume decreased through reductions in both repetitions per set and sets per week, while training FREQUENCY remained unchanged. Deloads were pre-planned, autoregulated, or both, and were triggered by stalled performance, increased soreness or joint aches.",
+          "source": "bell2024_survey",
+          "confidence": "medium",
+          "note": "Descriptive of practice, not evidence of efficacy. The finding that frequency stays constant while volume drops is the most directly actionable item here."
+        },
+        {
+          "finding": "International Delphi expert consensus established design principles and a consensus definition: 'Deloading is a period of reduced training stress designed to mitigate physiological and psychological fatigue, promote recovery, and enhance preparedness for subsequent training.'",
+          "source": "bell2023_delphi",
+          "confidence": "low",
+          "note": "Expert opinion by construction."
+        },
+        {
+          "finding": "Detraining research uses periods (typically 3 weeks) far longer than real-world deloads (5-7 days), so it cannot be used to infer what a deload week does.",
+          "source": "bell2025_practical",
+          "confidence": "medium"
+        },
+        {
+          "finding": "RP prescribes a deload at roughly 50% of accumulated volume with approximately 10% intensity reduction, or a drop to MV (~6 sets/muscle).",
+          "source": [
+            "rp_volume_article"
+          ],
+          "confidence": "low",
+          "evidence_grade": "practitioner_consensus",
+          "note": "The RP article states the deload option as 'drop to MV levels', and its sample mesocycle drops week 6 to 6 sets from a week 5 peak of 20, which is a 70% volume reduction, not 50%. The commonly quoted '50% volume, 10% intensity' figure is widespread in RP-derived material rather than stated in this specific article. Verify before displaying a specific percentage."
+        }
+      ],
+      "recommended_prescription": {
+        "duration_days": {
+          "min": 5,
+          "max": 7,
+          "source": "bell2024_survey",
+          "confidence": "medium"
+        },
+        "set_reduction_percent": {
+          "min": 40,
+          "max": 60,
+          "source": [
+            "rp_volume_article",
+            "bell2024_survey"
+          ],
+          "confidence": "low"
+        },
+        "intensity_reduction_percent": {
+          "min": 0,
+          "max": 20,
+          "source": [
+            "rp_volume_article",
+            "bell2024_survey"
+          ],
+          "confidence": "low",
+          "note": "Range starts at 0 deliberately. bell2024_survey found athletes reduced volume via reps and sets; it did not report load reduction as the primary lever. Reducing sets alone is a defensible deload."
+        },
+        "rir_target_during_deload": {
+          "min": 4,
+          "max": 6,
+          "source": [
+            "derived",
+            "rp_volume_article"
+          ],
+          "confidence": "low"
+        },
+        "frequency_change": {
+          "value": "unchanged",
+          "source": "bell2024_survey",
+          "confidence": "medium",
+          "note": "The one deload parameter with actual observational data behind it. Keep the same number of sessions, cut the work inside them."
+        },
+        "both_or_either": {
+          "answer": "Reduce sets primarily; reduce intensity secondarily or not at all.",
+          "source": [
+            "bell2024_survey",
+            "rp_volume_article"
+          ],
+          "confidence": "low",
+          "rationale": "Survey data shows volume is the lever athletes actually pull. No study has compared set reduction against intensity reduction against both."
+        }
+      },
+      "app_integration_note": {
+        "text": "PLANNER_DESIGN.md requires that the mesocycle contains a deload and that the prescription scales down when the deload engine fires. That is a reasonable product decision and matches near-universal practice. It is not supported by the one RCT that tested it. If the app is going to display evidence honesty, the deload week is the place where that honesty is most needed and most uncomfortable.",
+        "source": [
+          "coleman2024_deload",
+          "bell2024_survey"
+        ],
+        "confidence": "medium"
+      }
+    }
+  },
+  "exercise_roles": {
+    "_schema": {
+      "role": "primary_compound | secondary_compound | isolation",
+      "role_definitions": {
+        "primary_compound": "Multi-joint, high absolute load, appropriate as the first movement of a session, drives the strength adaptation, high systemic fatigue cost.",
+        "secondary_compound": "Multi-joint but performed in an accessory position, lower absolute load or supported, lower systemic cost.",
+        "isolation": "Single-joint."
+      },
+      "sfr": "stimulus-to-fatigue ratio: high | moderate | low",
+      "sfr_evidence_warning": "Stimulus-to-fatigue ratio is a practitioner construct originating with Israetel and Renaissance Periodization. It has no validated measurement method and no meta-analysis quantifies it for any exercise. Every sfr value in this section is low confidence expert-opinion reasoning, not data. Source: rp_landmarks and derived. Confidence: low, universally.",
+      "counts_as_hard_set": "false where the exercise does not produce a set commensurable with the 5-30 rep, 0-4 RIR working set that the volume landmarks assume. The planner should exclude these from landmark validation.",
+      "mg_verified": "true where the muscle_group was read directly from a migration in the repo; false where it was inferred from the exercise name and must be checked against the exercises table before shipping."
+    },
+    "_source": [
+      "rp_landmarks",
+      "derived",
+      "app_setvolume"
+    ],
+    "_confidence": "low",
+    "exercises": [
+      {
+        "name": "Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "High stimulus and high fatigue. RP explicitly warns that a quad MRV of 25 sets of leg press would exceed recovery if performed as squats; weight squat sets more heavily when approaching MRV."
+      },
+      {
+        "name": "Front Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Upper-back and wrist tolerance usually limits the set before the quads do, which caps effective stimulus."
+      },
+      {
+        "name": "Pause Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Strength and technique tool. Poor volume vehicle: high fatigue per set at reduced load."
+      },
+      {
+        "name": "Box Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Strength-specific. Removes the stretch-shortening cycle, which is where hypertrophy stimulus concentrates."
+      },
+      {
+        "name": "Overhead Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Mobility and stability limited far below the load the quads could handle. Do not program for hypertrophy volume."
+      },
+      {
+        "name": "Smith Machine Squat",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Stability handled by the machine, so the set ends when the quads fail. Good high-volume vehicle."
+      },
+      {
+        "name": "Belt Squat",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "No axial spinal load. Highest-value quad option when lower back is the accumulated-fatigue bottleneck, which is exactly the deload-adjacent case this app detects."
+      },
+      {
+        "name": "Hack Squat",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Sled Leg Press",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "The generic 'leg press' in most gyms. Highest-volume-tolerant quad movement in the library."
+      },
+      {
+        "name": "Horizontal Leg Press",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Goblet Squat",
+        "muscle_group": "Quads",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Load-limited by what can be held at the chest. Rarely reaches sufficient stimulus for a trained lifter."
+      },
+      {
+        "name": "Bodyweight Squat",
+        "muscle_group": "Quads",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "Below the effective load threshold for a trained lifter unless taken to very high reps. Excluded from landmark counting by default."
+      },
+      {
+        "name": "Pistol Squat",
+        "muscle_group": "Quads",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Balance and ankle mobility limit the set before the quad does."
+      },
+      {
+        "name": "Dumbbell Bulgarian Split Squat",
+        "muscle_group": "Quads",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "High stimulus but high per-set discomfort and doubled session time (unilateral). Poor choice for high set counts."
+      },
+      {
+        "name": "Barbell Bulgarian Split Squat",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Dumbbell Lunge",
+        "muscle_group": "Quads",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Walking Lunge",
+        "muscle_group": "Quads",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "Retagged to barbell in migration 0015."
+      },
+      {
+        "name": "Reverse Lunge",
+        "muscle_group": "Quads",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "RP classifies reverse lunge under glutes rather than quads. Check which muscle_group your row carries; it changes which landmark the planner validates against."
+      },
+      {
+        "name": "Step-Up",
+        "muscle_group": "Quads",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Leg Extension",
+        "muscle_group": "Quads",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Deadlift",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "note": "The canonical low-SFR lift. Very high systemic and lower-back fatigue for modest per-muscle hypertrophy stimulus. Practitioner consensus is to cap direct deadlift volume at 2-4 hard sets per week and buy back-and-hamstring volume elsewhere. This reasoning is expert opinion, not data."
+      },
+      {
+        "name": "Sumo Deadlift",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": true
+      },
+      {
+        "name": "Hex Bar Deadlift",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "More quad-dominant and less lower-back-costly than conventional. Bar weight is 30 kg per your EXERCISE_DATA_NOTES."
+      },
+      {
+        "name": "Deficit Deadlift",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false
+      },
+      {
+        "name": "Rack Pull",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Very heavy axial loading through a short range for limited hypertrophy return. Poor high-volume choice."
+      },
+      {
+        "name": "Bent Over Row",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Lower back and hip hinge isometric usually fails before the lats do, capping usable volume."
+      },
+      {
+        "name": "Pendlay Row",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "T Bar Row",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Seal Row",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Chest-supported, so it removes the lower-back cost entirely. One of the best high-volume back options in the library."
+      },
+      {
+        "name": "Chest-Supported Row",
+        "muscle_group": "Back",
+        "equipment": "machine",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Machine Row",
+        "muscle_group": "Back",
+        "equipment": "machine",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Seated Cable Row",
+        "muscle_group": "Back",
+        "equipment": "cable",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Dumbbell Row",
+        "muscle_group": "Back",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Weight logged is one dumbbell per your data conventions."
+      },
+      {
+        "name": "Inverted Row",
+        "muscle_group": "Back",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Pull Ups",
+        "muscle_group": "Back",
+        "equipment": "bodyweight",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Load is fixed at bodyweight unless weighted, so progression is rep-based and the set often ends on grip."
+      },
+      {
+        "name": "Chin Ups",
+        "muscle_group": "Back",
+        "equipment": "bodyweight",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Neutral Grip Pull Ups",
+        "muscle_group": "Back",
+        "equipment": "bodyweight",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Assisted Pull-Up",
+        "muscle_group": "Back",
+        "equipment": "machine",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "No strengthlevel standards exist for this; unbanded by design per migration 0014."
+      },
+      {
+        "name": "Muscle Ups",
+        "muscle_group": "Back",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "Skill and power movement. Sets are limited by technique, not muscular failure. Not commensurable with a hypertrophy hard set."
+      },
+      {
+        "name": "Lat Pulldown",
+        "muscle_group": "Back",
+        "equipment": "cable",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Close Grip Lat Pulldown",
+        "muscle_group": "Back",
+        "equipment": "cable",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Straight-Arm Pulldown",
+        "muscle_group": "Back",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Dumbbell Pullover",
+        "muscle_group": "Back",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "RP lists pullovers under Back. Check your row's muscle_group; some libraries tag it Chest, which would move its sets to a different landmark."
+      },
+      {
+        "name": "Power Clean",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "Power/skill lift. Sets are terminated by bar speed, not muscular failure, so they violate the 0-4 RIR assumption behind every landmark in this file."
+      },
+      {
+        "name": "Clean",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false
+      },
+      {
+        "name": "Clean and Jerk",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false
+      },
+      {
+        "name": "Snatch",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false
+      },
+      {
+        "name": "Power Snatch",
+        "muscle_group": "Back",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false
+      },
+      {
+        "name": "Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Incline Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Decline Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Floor Press",
+        "muscle_group": "Chest",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Truncated range removes the lengthened position, which is where the hypertrophy stimulus is concentrated. Strength and lockout tool."
+      },
+      {
+        "name": "Smith Machine Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Dumbbell Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "dumbbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Incline Dumbbell Bench Press",
+        "muscle_group": "Chest",
+        "equipment": "dumbbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Decline Dumbbell Press",
+        "muscle_group": "Chest",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Chest Press",
+        "muscle_group": "Chest",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Push Ups",
+        "muscle_group": "Chest",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Load-limited for a trained lifter; needs added load or high reps to be a hard set."
+      },
+      {
+        "name": "Incline Push-Up",
+        "muscle_group": "Chest",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "A regression of the push-up. Below effective load for the app's target user."
+      },
+      {
+        "name": "Decline Push-Up",
+        "muscle_group": "Chest",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Diamond Push Ups",
+        "muscle_group": "Chest",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "One Arm Push Ups",
+        "muscle_group": "Chest",
+        "equipment": "bodyweight",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "Balance and skill limited. Not a hypertrophy dose."
+      },
+      {
+        "name": "Dumbbell Fly",
+        "muscle_group": "Chest",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Incline Dumbbell Fly",
+        "muscle_group": "Chest",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Cable Fly",
+        "muscle_group": "Chest",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Constant tension through the range. Better high-volume choice than dumbbell flyes."
+      },
+      {
+        "name": "Machine Chest Fly",
+        "muscle_group": "Chest",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Shoulder Press",
+        "muscle_group": "Shoulders",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Military Press",
+        "muscle_group": "Shoulders",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Push Press",
+        "muscle_group": "Shoulders",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "low",
+        "mg_verified": true,
+        "counts_as_hard_set": false,
+        "note": "Leg drive moves the bar through the hardest portion, so deltoid tension is reduced relative to the load. Strength and power tool, not a hypertrophy set."
+      },
+      {
+        "name": "Dumbbell Shoulder Press",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Seated Dumbbell Shoulder Press",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Seated Shoulder Press",
+        "muscle_group": "Shoulders",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Machine Shoulder Press",
+        "muscle_group": "Shoulders",
+        "equipment": "machine",
+        "role": "primary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Arnold Press",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Upright Row",
+        "muscle_group": "Shoulders",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "RP lists it under rear/side delts. Shoulder-impingement complaints are common; treat as an avoid-list candidate."
+      },
+      {
+        "name": "Dumbbell Lateral Raise",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Highest-value volume vehicle for side delts, which carry the highest MAV and MRV in the whole landmark table."
+      },
+      {
+        "name": "Cable Lateral Raise",
+        "muscle_group": "Shoulders",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Machine Lateral Raise",
+        "muscle_group": "Shoulders",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Front Raise",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Front delts have an RP MEV of 0 because pressing already saturates them. Adding front raises to a plan that already contains vertical and horizontal pressing is close to pure junk volume. Practitioner reasoning, not data."
+      },
+      {
+        "name": "Rear Delt Fly",
+        "muscle_group": "Shoulders",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Machine Reverse Fly",
+        "muscle_group": "Shoulders",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Renamed from Reverse Pec Deck in migration 0014."
+      },
+      {
+        "name": "Cable Reverse Fly",
+        "muscle_group": "Shoulders",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Face Pull",
+        "muscle_group": "Shoulders",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Equipment tag set to cable in migration 0013. muscle_group not visible in any migration; verify against the exercises table."
+      },
+      {
+        "name": "Romanian Deadlift",
+        "muscle_group": "Hamstrings",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Loads the hamstring in the lengthened position. High stimulus but high muscle damage; 3-4 hard sets per session is a practical cap."
+      },
+      {
+        "name": "Dumbbell Romanian Deadlift",
+        "muscle_group": "Hamstrings",
+        "equipment": "dumbbell",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Stiff-Leg Deadlift",
+        "muscle_group": "Hamstrings",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Good Morning",
+        "muscle_group": "Hamstrings",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Very high lower-back cost relative to hamstring stimulus. Poor high-volume choice, and a bad pick for anyone whose readiness score is being dragged down by axial fatigue."
+      },
+      {
+        "name": "Lying Leg Curl",
+        "muscle_group": "Hamstrings",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Seated Leg Curl",
+        "muscle_group": "Hamstrings",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Nordic Curl",
+        "muscle_group": "Hamstrings",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Extreme eccentric loading produces days of soreness. Excellent for injury resilience, terrible per-set economy inside a high-volume block."
+      },
+      {
+        "name": "Back Extension",
+        "muscle_group": "Hamstrings",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "RP maps 45-degree back raise to hamstrings. Your row may be tagged Back. Verify; it moves the sets between two different landmarks."
+      },
+      {
+        "name": "Hip Thrust",
+        "muscle_group": "Glutes",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "The only movement in your library that logs meaningful direct glute volume. Given RP's glute MEV of 0 assumes indirect stimulus from squats and deadlifts, this is the main lever the planner has."
+      },
+      {
+        "name": "Glute Bridge",
+        "muscle_group": "Glutes",
+        "equipment": "barbell",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Cable Pull-Through",
+        "muscle_group": "Glutes",
+        "equipment": "cable",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Cable Kickback",
+        "muscle_group": "Glutes",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Hip Abduction",
+        "muscle_group": "Glutes",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Inserted in migration 0013."
+      },
+      {
+        "name": "Kettlebell Swing",
+        "muscle_group": "Glutes",
+        "equipment": "kettlebell",
+        "role": "secondary_compound",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false,
+        "note": "Ballistic. Sets end on conditioning or power output, not muscular failure. Not commensurable with a hypertrophy hard set."
+      },
+      {
+        "name": "Hip Adduction",
+        "muscle_group": "Adductors",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "The only Adductors exercise in the library, and there is no adductor landmark. Cannot be volume-validated."
+      },
+      {
+        "name": "Standing Calf Raise",
+        "muscle_group": "Calves",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Renamed from Machine Calf Raise in migration 0014."
+      },
+      {
+        "name": "Seated Calf Raise",
+        "muscle_group": "Calves",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Bent-knee position biases soleus. Pairing seated and standing is the standard way to cover both heads."
+      },
+      {
+        "name": "Leg Press Calf Raise",
+        "muscle_group": "Calves",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Single-Leg Calf Raise",
+        "muscle_group": "Calves",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Unilateral, so doubles session time per set."
+      },
+      {
+        "name": "Barbell Curl",
+        "muscle_group": "Biceps",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "EZ Bar Curl",
+        "muscle_group": "Biceps",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Dumbbell Curl",
+        "muscle_group": "Biceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Seated Dumbbell Curl",
+        "muscle_group": "Biceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Inserted in migration 0014."
+      },
+      {
+        "name": "Incline Dumbbell Curl",
+        "muscle_group": "Biceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Trains the biceps at long muscle length, which practitioner consensus favours; the lengthened-position literature is still developing and is not settled enough to cite as evidence here."
+      },
+      {
+        "name": "Hammer Curl",
+        "muscle_group": "Biceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "Biases brachialis and brachioradialis. In a 13-group schema these sets log to Biceps, not Forearms."
+      },
+      {
+        "name": "Preacher Curl",
+        "muscle_group": "Biceps",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Machine Preacher Curl",
+        "muscle_group": "Biceps",
+        "equipment": "machine",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Concentration Curl",
+        "muscle_group": "Biceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "Unilateral and load-limited; doubles session time for the same weekly sets."
+      },
+      {
+        "name": "Cable Curl",
+        "muscle_group": "Biceps",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Close Grip Bench Press",
+        "muscle_group": "Triceps",
+        "equipment": "barbell",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "Verify muscle_group. If tagged Chest rather than Triceps, triceps volume will read as zero for plans built around it."
+      },
+      {
+        "name": "Dips",
+        "muscle_group": "Triceps",
+        "equipment": "bodyweight",
+        "role": "primary_compound",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "RP lists dips under triceps. Verify your row's muscle_group; many libraries tag it Chest."
+      },
+      {
+        "name": "Seated Dip Machine",
+        "muscle_group": "Triceps",
+        "equipment": "machine",
+        "role": "secondary_compound",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Lying Tricep Extension",
+        "muscle_group": "Triceps",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": true,
+        "note": "Elbow discomfort is the common limiter, not the triceps. Renamed from Skull Crusher in migration 0011."
+      },
+      {
+        "name": "Lying Dumbbell Tricep Extension",
+        "muscle_group": "Triceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Overhead Triceps Extension",
+        "muscle_group": "Triceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Overhead position loads the long head at length. Per your EXERCISE_DATA_NOTES this row is the dumbbell entity, weight logged as one dumbbell."
+      },
+      {
+        "name": "Cable Overhead Tricep Extension",
+        "muscle_group": "Triceps",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Tricep Pushdown",
+        "muscle_group": "Triceps",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Rope Pushdown",
+        "muscle_group": "Triceps",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Triceps Kickback",
+        "muscle_group": "Triceps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "note": "Peak resistance occurs at the shortened position where the triceps is least able to be loaded, and the load ceiling is trivial. Weakest per-set value of any triceps option in the library."
+      },
+      {
+        "name": "Barbell Shrug",
+        "muscle_group": "Traps",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true,
+        "note": "One of only two direct Traps exercises in the library, against an RP MAV of 12-20 sets."
+      },
+      {
+        "name": "Dumbbell Shrug",
+        "muscle_group": "Traps",
+        "equipment": "dumbbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Wrist Curl",
+        "muscle_group": "Forearms",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "No forearm landmark exists. Cannot be volume-validated."
+      },
+      {
+        "name": "Reverse Wrist Curl",
+        "muscle_group": "Forearms",
+        "equipment": "barbell",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false
+      },
+      {
+        "name": "Crunches",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": true
+      },
+      {
+        "name": "Sit Ups",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": true
+      },
+      {
+        "name": "Cable Crunch",
+        "muscle_group": "Core",
+        "equipment": "cable",
+        "role": "isolation",
+        "sfr": "high",
+        "mg_verified": false,
+        "note": "Loadable and therefore progressable, unlike most Core options. Best vehicle for reaching the high RP abs MAV."
+      },
+      {
+        "name": "Hanging Leg Raise",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "Grip often fails first."
+      },
+      {
+        "name": "Hanging Knee Raise",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false,
+        "note": "Regression of Hanging Leg Raise per migration 0015."
+      },
+      {
+        "name": "Lying Leg Raise",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Ab Wheel Rollout",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Bicycle Crunch",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "moderate",
+        "mg_verified": false
+      },
+      {
+        "name": "Russian Twist",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false,
+        "note": "Typically performed for time or high reps at trivial load. Not commensurable with a 0-4 RIR hypertrophy set."
+      },
+      {
+        "name": "Plank",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false,
+        "note": "Isometric, held for time. A 'set' of plank has no rep count and no RIR, so counting it toward a 16-20 set abs MAV is a category error. Exclude from landmark validation."
+      },
+      {
+        "name": "Side Plank",
+        "muscle_group": "Core",
+        "equipment": "bodyweight",
+        "role": "isolation",
+        "sfr": "low",
+        "mg_verified": false,
+        "counts_as_hard_set": false,
+        "note": "Same isometric problem as Plank. Also has no strengthlevel standards per EXERCISE_DATA_NOTES."
+      }
+    ],
+    "_coverage_note": "Covers the visible library as defined by migrations 0011 (64 strengthlevel lifts), 0013 (38 unhidden accessories plus Hip Abduction), 0014 (2 renames, 1 unhide, 2 inserts) and 0015 (20 unhides, 11 inserts). Exercises hidden by 0011 and never unhidden are omitted. User-created exercises (user_id not null) cannot be enumerated from migrations and will need a runtime role classifier or a default of isolation."
+  }
+}
