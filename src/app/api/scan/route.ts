@@ -9,7 +9,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTrainingSets } from "@/lib/data";
 import { SCAN_MODEL, toUsageReport } from "@/lib/ai-model";
-import { MAX_SCAN_FRAMES, evenlySample } from "@/lib/scan-mapping";
+import { MAX_SCAN_FRAMES, evenlySample, type ScanReading } from "@/lib/scan-mapping";
+import {
+  LOCAL_MODELS,
+  LOCAL_TIMEOUT_MS,
+  cloudAvailable,
+  localOptions,
+  preferredProvider,
+  type Provider,
+} from "@/lib/ai-provider";
+import { ollamaChat } from "@/lib/ollama";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -50,7 +59,9 @@ const TOOL: Anthropic.Tool = {
 };
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // A missing key is fine when a local model is configured; the fallback path
+  // below is the one that actually needs the cloud.
+  if (!cloudAvailable() && preferredProvider("scan") !== "local") {
     return NextResponse.json({ error: "Scanning isn't configured on this server." }, { status: 503 });
   }
   const supabase = createClient();
@@ -103,6 +114,61 @@ export async function POST(req: Request) {
       ? `\n\nThese ${frames.length} images are evenly-spaced frames of ONE set, from start to finish (earliest first). Use the motion across them to identify the exercise, and count each full rep (a complete down-up or up-down cycle). Report your best rep count even if some reps fall between frames.`
       : "";
 
+  const text = PROMPT + hint + frameNote;
+
+  /**
+   * Ask the local model, constraining output with Ollama's JSON-schema format
+   * rather than a forced tool call, which Ollama does not offer. Returns null
+   * on any failure so the caller falls back to the cloud.
+   *
+   * A schema check is the only automatic guard available here. It catches
+   * malformed output, and nothing else: a local model that confidently reports
+   * 60 kg for a 100 kg bar produces perfectly valid JSON. Accuracy is a gym
+   * benchmark, not a code path. See docs/AI_COST.md.
+   */
+  async function readLocally(): Promise<ScanReading | null> {
+    try {
+      const res = await ollamaChat(
+        {
+          model: LOCAL_MODELS.scan,
+          stream: false,
+          think: false,
+          format: TOOL.input_schema,
+          ...localOptions(512),
+          messages: [{ role: "user", content: text, images: frames.map((f) => f.data) }],
+        },
+        LOCAL_TIMEOUT_MS.scan,
+      );
+      const body = (await res.json()) as { message?: { content?: string } };
+      const raw = body.message?.content;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as ScanReading;
+      // The schema marks these required, so their absence means the model
+      // ignored the format and the reading cannot be trusted.
+      if (typeof parsed?.detected !== "boolean" || typeof parsed?.confidence !== "string") {
+        return null;
+      }
+      return parsed;
+    } catch (err) {
+      console.warn("Local scan unavailable, falling back to the cloud:", err);
+      return null;
+    }
+  }
+
+  if (preferredProvider("scan") === "local") {
+    const reading = await readLocally();
+    if (reading) {
+      return NextResponse.json({
+        reading,
+        usage: { model: LOCAL_MODELS.scan, provider: "local" satisfies Provider },
+      });
+    }
+  }
+
+  if (!cloudAvailable()) {
+    return NextResponse.json({ error: "Scanning isn't reachable right now." }, { status: 503 });
+  }
+
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const res = await anthropic.messages.create({
@@ -118,7 +184,7 @@ export async function POST(req: Request) {
               type: "image" as const,
               source: { type: "base64" as const, media_type: f.media_type, data: f.data },
             })),
-            { type: "text" as const, text: PROMPT + hint + frameNote },
+            { type: "text" as const, text },
           ],
         },
       ],
@@ -128,7 +194,7 @@ export async function POST(req: Request) {
     // Usage rides along so the client can report real cost to PostHog.
     return NextResponse.json({
       reading: toolUse.input,
-      usage: toUsageReport(SCAN_MODEL, res.usage),
+      usage: { ...toUsageReport(SCAN_MODEL, res.usage), provider: "cloud" satisfies Provider },
     });
   } catch (err) {
     console.error("Scan error:", err);
