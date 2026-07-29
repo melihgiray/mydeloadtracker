@@ -15,10 +15,20 @@
 // Pure and testable. No database, no React.
 
 import type { NextSession } from "@/lib/analytics/progression";
-import type { PlanDayWithExercises } from "@/lib/types";
+import type { PlanDayWithExercises, Units } from "@/lib/types";
 
 /** Where a prefilled weight came from, so the UI can be honest about it. */
 export type WeightBasis = "progression" | "no_history";
+
+/**
+ * Whether the plan's rep range overrode what progression suggested.
+ *
+ * Both directions are real and neither should be silent. Raising to the floor
+ * is the dangerous one: progression says hold because the lift is near
+ * maximal, and the plan asks for MORE reps at that weight. The athlete needs
+ * to see that rather than grind into it.
+ */
+export type RepsAdjustment = "none" | "raised_to_floor" | "lowered_to_ceiling";
 
 export interface PlannedSet {
   reps: string;
@@ -44,6 +54,14 @@ export interface PlannedExercise {
   weightBasis: WeightBasis;
   /** progression.ts's own explanation, passed through unchanged. */
   note: string | null;
+  repsAdjusted: RepsAdjustment;
+  /**
+   * Set when the plan and the athlete's measured performance disagree. Never
+   * resolved silently: the plan is followed, and the conflict is stated so the
+   * athlete can decide. This is the honest-uncertainty rule applied to a
+   * prescription.
+   */
+  conflict: string | null;
 }
 
 /**
@@ -75,6 +93,7 @@ export function repsWithinRange(suggested: number, low: number, high: number): n
 export function buildPlannedSession(
   day: PlanDayWithExercises,
   nextSessions: NextSession[],
+  units: Units = "kg",
 ): PlannedExercise[] {
   const byExercise = new Map(nextSessions.map((n) => [n.exerciseId, n]));
 
@@ -85,6 +104,25 @@ export function buildPlannedSession(
     const reps = hasHistory
       ? repsWithinRange(next!.target.reps, pe.rep_low, pe.rep_high)
       : pe.rep_low;
+
+    let repsAdjusted: RepsAdjustment = "none";
+    let conflict: string | null = null;
+    if (hasHistory) {
+      const suggested = next!.target.reps;
+      if (suggested < pe.rep_low) {
+        repsAdjusted = "raised_to_floor";
+        const last = next!.last;
+        const atRpe = last.rpe != null ? `, RPE ${last.rpe}` : "";
+        conflict =
+          `Last time you got ${last.reps} at ${last.weight} ${units}${atRpe}. ` +
+          `This plan asks for ${pe.rep_low}, so consider dropping the load to hit the range.`;
+      } else if (suggested > pe.rep_high) {
+        repsAdjusted = "lowered_to_ceiling";
+        conflict =
+          `You could do more than ${pe.rep_high} reps here. ` +
+          `The plan caps the range, so add load once ${pe.rep_high} feels comfortable.`;
+      }
+    }
 
     // Blank rather than zero when there is no history. An empty field reads as
     // "tell me", a zero reads as an answer the app does not have.
@@ -112,6 +150,8 @@ export function buildPlannedSession(
       })),
       weightBasis: hasHistory ? "progression" : "no_history",
       note: next?.note ?? null,
+      repsAdjusted,
+      conflict,
     };
   });
 }

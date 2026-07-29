@@ -196,3 +196,72 @@ describe("completedSetCount", () => {
     expect(completedSetCount([{ reps: "5", weight: "", rpe: "8" }])).toBe(0);
   });
 });
+
+describe("plan versus history conflicts", () => {
+  it("is silent when progression and the plan agree", () => {
+    const [ex] = buildPlannedSession(day(), [next({ target: { weight: 100, reps: 6, sets: 4 } })]);
+    expect(ex.repsAdjusted).toBe("none");
+    expect(ex.conflict).toBeNull();
+  });
+
+  // The case that matters. Progression held the lift because it is near
+  // maximal, and the plan's floor asks for MORE reps at that weight. Grinding
+  // into that silently is exactly what this app exists to prevent.
+  it("warns when the plan's floor asks for more reps than the athlete managed", () => {
+    const [ex] = buildPlannedSession(
+      day([planned({ rep_low: 6, rep_high: 10 })]),
+      [next({
+        last: { weight: 50, reps: 5, rpe: 9, sets: 3 },
+        target: { weight: 50, reps: 5, sets: 3 },
+        action: "hold",
+      })],
+      "kg",
+    );
+    expect(ex.repsAdjusted).toBe("raised_to_floor");
+    expect(ex.conflict).toContain("5 at 50 kg");
+    expect(ex.conflict).toContain("RPE 9");
+    expect(ex.conflict).toMatch(/dropping the load/);
+    // The prescription is still followed. The conflict informs, it does not override.
+    expect(ex.sets[0].reps).toBe("6");
+  });
+
+  it("names the athlete's own unit in the warning", () => {
+    const [ex] = buildPlannedSession(
+      day([planned({ rep_low: 6, rep_high: 10 })]),
+      [next({ last: { weight: 110, reps: 5, rpe: 9, sets: 3 }, target: { weight: 110, reps: 5, sets: 3 } })],
+      "lb",
+    );
+    expect(ex.conflict).toContain("110 lb");
+  });
+
+  it("mentions adding load when the athlete has outgrown the rep ceiling", () => {
+    const [ex] = buildPlannedSession(
+      day([planned({ rep_low: 5, rep_high: 8 })]),
+      [next({ target: { weight: 100, reps: 14, sets: 4 } })],
+    );
+    expect(ex.repsAdjusted).toBe("lowered_to_ceiling");
+    expect(ex.conflict).toMatch(/add load/i);
+    expect(ex.sets[0].reps).toBe("8");
+  });
+
+  it("says nothing about a conflict for a lift with no history", () => {
+    const [ex] = buildPlannedSession(day(), []);
+    expect(ex.repsAdjusted).toBe("none");
+    expect(ex.conflict).toBeNull();
+  });
+
+  it("keeps conflict copy free of dashes and exclamation points", () => {
+    const cases = buildPlannedSession(
+      day([planned({ rep_low: 6, rep_high: 10 }), planned({ exercise_id: "b", rep_low: 5, rep_high: 8 })]),
+      [
+        next({ last: { weight: 50, reps: 5, rpe: 9, sets: 3 }, target: { weight: 50, reps: 5, sets: 3 } }),
+        next({ exerciseId: "b", target: { weight: 60, reps: 20, sets: 3 } }),
+      ],
+    );
+    for (const c of cases) {
+      if (!c.conflict) continue;
+      expect(c.conflict).not.toMatch(/[—–]/);
+      expect(c.conflict).not.toContain("!");
+    }
+  });
+});
