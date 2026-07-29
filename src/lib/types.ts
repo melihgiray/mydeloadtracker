@@ -83,3 +83,74 @@ export interface DailyCheckin {
 }
 
 export type ProgressStatus = "progressing" | "plateauing" | "regressing" | "insufficient";
+
+// --- Training plans (migration 0016) ---------------------------------------
+// A plan says what to DO. It never records what was done, that stays in
+// workout_sets, so nothing here touches history or analytics. Note there are
+// no weights on a plan: prescriptions are sets and rep ranges, and the weight
+// comes from the athlete's own history at log time. That keeps plans clear of
+// the kg/lb seam entirely.
+
+export type PlanGoal = "hypertrophy" | "strength" | "both";
+export type PlanSplit = "ppl" | "upper_lower" | "full_body" | "arnold" | "custom";
+export type PlanExerciseRole = "primary" | "secondary" | "isolation";
+
+export interface TrainingPlan {
+  id: string;
+  user_id: string;
+  name: string;
+  goal: PlanGoal;
+  split: PlanSplit;
+  days_per_week: number;
+  session_minutes: number | null;
+  /** Equipment the athlete actually has. Empty means unconstrained. */
+  equipment: string[];
+  /** Injuries or movements to keep out of the plan. */
+  avoid: string[];
+  /** Accumulation weeks plus the deload. */
+  mesocycle_weeks: number;
+  /** 1-indexed week inside the mesocycle, or null if not scheduled yet. */
+  deload_week: number | null;
+  notes: string | null;
+  active: boolean;
+  started_on: string; // YYYY-MM-DD
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanDay {
+  id: string;
+  plan_id: string;
+  /** 0-based position in the weekly rotation, not a calendar weekday. */
+  day_index: number;
+  name: string; // "Push A"
+  focus: string | null; // "chest, shoulders, triceps"
+}
+
+export interface PlanExercise {
+  id: string;
+  plan_day_id: string;
+  exercise_id: string;
+  position: number;
+  sets: number;
+  rep_low: number;
+  rep_high: number;
+  rpe_target: number | null;
+  rest_seconds: number | null;
+  role: PlanExerciseRole | null;
+  note: string | null;
+}
+
+/** A plan day with its exercises resolved to library names, ordered. */
+export interface PlanDayWithExercises extends PlanDay {
+  exercises: (PlanExercise & {
+    name: string;
+    muscle_group: string;
+    equipment: string | null;
+  })[];
+}
+
+/** The shape the Log screen and the plan view both consume. */
+export interface PlanWithDays extends TrainingPlan {
+  days: PlanDayWithExercises[];
+}
