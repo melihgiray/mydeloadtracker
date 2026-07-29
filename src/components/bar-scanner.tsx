@@ -18,7 +18,9 @@ import { createClient } from "@/lib/supabase/client";
 import { capture } from "@/lib/track";
 import { estimate1RM } from "@/lib/analytics/epley";
 import {
+  MAX_SCAN_FRAMES,
   captureHintFor,
+  evenlySample,
   fieldsNeedingReview,
   readingWeightForDisplay,
   scanToSetRow,
@@ -124,7 +126,7 @@ function postScan(
   images: string[],
   onProgress: (pct: number) => void,
   onUploaded: () => void,
-): Promise<ScanReading> {
+): Promise<{ reading: ScanReading; usage?: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       return reject(new ScanError("offline"));
@@ -142,13 +144,14 @@ function postScan(
     };
     xhr.upload.onerror = () => reject(new ScanError("upload"));
     xhr.onload = () => {
-      let json: { reading?: ScanReading } | null = null;
+      let json: { reading?: ScanReading; usage?: Record<string, unknown> } | null = null;
       try {
         json = JSON.parse(xhr.responseText);
       } catch {
         /* the server's own copy is user-safe; a parse failure is a server fault */
       }
-      if (xhr.status >= 200 && xhr.status < 300 && json?.reading) resolve(json.reading);
+      if (xhr.status >= 200 && xhr.status < 300 && json?.reading)
+        resolve({ reading: json.reading, usage: json.usage });
       else reject(new ScanError("server"));
     };
     xhr.onerror = () => reject(new ScanError("offline"));
@@ -372,7 +375,9 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
   }
 
   function finishRecording() {
-    const frames = [...bufRef.current];
+    // Trim here, not on the server: frames past the cap are dropped either
+    // way, and uploading them costs the athlete mobile data and wait time.
+    const frames = evenlySample([...bufRef.current], MAX_SCAN_FRAMES);
     teardown();
     setRecording(false);
     setCountdown(0);
@@ -409,7 +414,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
 
     const labels = stageLabels(images.length);
     try {
-      const r = await postScan(
+      const { reading: r, usage } = await postScan(
         images,
         (pct) => setUploadPct(pct),
         () => {
@@ -422,6 +427,9 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
         },
       );
       clearTimers();
+      // Real token spend per scan, so the cost of a model or frame-count
+      // change is measured rather than assumed.
+      if (usage) capture("ai_usage", { surface: "scan", frames: images.length, ...usage });
       capture("bar_scanned", {
         detected: r.detected,
         confidence: r.confidence,
