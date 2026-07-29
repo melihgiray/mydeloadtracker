@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { nextDayIndex } from "@/lib/plans";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { describe, it, expect, vi } from "vitest";
+import { createPlan, nextDayIndex, type NewPlan } from "@/lib/plans";
 
 // The rotation rule is the one piece of real logic in plans.ts, and getting it
 // wrong is invisible: the app would just show the wrong day. It is pure so it
@@ -59,5 +60,171 @@ describe("nextDayIndex", () => {
         expect(idx).toBeLessThan(dayCount);
       }
     }
+  });
+});
+
+// The rollback in createPlan cannot be reached by a pure function, so these use
+// a fake Supabase query builder. The harness pattern is adapted from Terra's
+// parallel implementation in PR #2, which is what caught the missing rollback.
+
+interface Result {
+  data: unknown;
+  error: unknown;
+}
+
+/** Records every table operation so a test can assert the compensation ran. */
+function fakeSupabase(
+  results: Record<string, Result[]>,
+  log: { table: string; op: string }[],
+) {
+  const take = (table: string): Result => {
+    const queue = results[table];
+    if (!queue || queue.length === 0) return { data: null, error: null };
+    return queue.length === 1 ? queue[0] : queue.shift()!;
+  };
+
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: { id: "u1" } }, error: null }),
+    },
+    from(table: string) {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder;
+      for (const m of ["select", "eq", "gte", "in", "order", "limit"]) builder[m] = vi.fn(chain);
+      for (const m of ["insert", "update", "delete"]) {
+        builder[m] = vi.fn(() => {
+          log.push({ table, op: m });
+          return builder;
+        });
+      }
+      const settle = () => Promise.resolve(take(table));
+      builder.single = vi.fn(settle);
+      builder.maybeSingle = vi.fn(settle);
+      builder.then = (onOk: (r: Result) => unknown, onErr?: (e: unknown) => unknown) =>
+        settle().then(onOk, onErr);
+      return builder;
+    },
+  } as unknown as SupabaseClient;
+}
+
+const newPlan = (): NewPlan => ({
+  name: "Test",
+  goal: "both",
+  split: "upper_lower",
+  days_per_week: 1,
+  days: [{ name: "Upper A", exercises: [{ exercise_id: "ex1", sets: 3, rep_low: 5, rep_high: 8 }] }],
+});
+
+describe("createPlan invariants", () => {
+  it("refuses a plan with no days", async () => {
+    const log: { table: string; op: string }[] = [];
+    await expect(
+      createPlan(fakeSupabase({}, log), { ...newPlan(), days: [], days_per_week: 0 }),
+    ).rejects.toThrow(/at least one day/);
+    // Nothing was touched, so there is nothing to roll back.
+    expect(log).toHaveLength(0);
+  });
+
+  it("refuses a plan whose day count disagrees with days_per_week", async () => {
+    const log: { table: string; op: string }[] = [];
+    await expect(
+      createPlan(fakeSupabase({}, log), { ...newPlan(), days_per_week: 4 }),
+    ).rejects.toThrow(/days_per_week/);
+    expect(log).toHaveLength(0);
+  });
+});
+
+describe("createPlan rollback", () => {
+  it("returns the new plan id on the happy path", async () => {
+    const log: { table: string; op: string }[] = [];
+    const supabase = fakeSupabase(
+      {
+        training_plans: [{ data: [{ id: "old" }], error: null }, { data: { id: "new" }, error: null }],
+        plan_days: [{ data: [{ id: "d0", day_index: 0 }], error: null }],
+        plan_exercises: [{ data: null, error: null }],
+      },
+      log,
+    );
+    await expect(createPlan(supabase, newPlan())).resolves.toBe("new");
+    expect(log.some((l) => l.table === "training_plans" && l.op === "delete")).toBe(false);
+  });
+
+  // The bug this whole block exists for. Without compensation the athlete is
+  // left with their old plan off and an empty plan on.
+  it("deletes the partial plan and reactivates the previous one when days fail", async () => {
+    const log: { table: string; op: string }[] = [];
+    const supabase = fakeSupabase(
+      {
+        training_plans: [
+          { data: [{ id: "old" }], error: null }, // deactivate returns prior active
+          { data: { id: "new" }, error: null }, // insert the new plan
+          { data: null, error: null }, // delete during rollback
+          { data: null, error: null }, // reactivate during rollback
+        ],
+        plan_days: [{ data: null, error: { message: "days blew up" } }],
+      },
+      log,
+    );
+    await expect(createPlan(supabase, newPlan())).rejects.toThrow(/days blew up/);
+    expect(log).toEqual(
+      expect.arrayContaining([
+        { table: "training_plans", op: "update" }, // the initial deactivate
+        { table: "training_plans", op: "insert" },
+        { table: "plan_days", op: "insert" },
+        { table: "training_plans", op: "delete" }, // compensation
+        { table: "training_plans", op: "update" }, // reactivate
+      ]),
+    );
+  });
+
+  it("rolls back when the exercise insert fails", async () => {
+    const log: { table: string; op: string }[] = [];
+    const supabase = fakeSupabase(
+      {
+        training_plans: [
+          { data: [{ id: "old" }], error: null },
+          { data: { id: "new" }, error: null },
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        plan_days: [{ data: [{ id: "d0", day_index: 0 }], error: null }],
+        plan_exercises: [{ data: null, error: { message: "exercises blew up" } }],
+      },
+      log,
+    );
+    await expect(createPlan(supabase, newPlan())).rejects.toThrow(/exercises blew up/);
+    expect(log.filter((l) => l.table === "training_plans" && l.op === "delete")).toHaveLength(1);
+  });
+
+  it("reports a failed rollback rather than hiding it behind the original error", async () => {
+    const log: { table: string; op: string }[] = [];
+    const supabase = fakeSupabase(
+      {
+        training_plans: [
+          { data: [{ id: "old" }], error: null },
+          { data: { id: "new" }, error: null },
+          { data: null, error: { message: "delete denied" } },
+        ],
+        plan_days: [{ data: null, error: { message: "days blew up" } }],
+      },
+      log,
+    );
+    await expect(createPlan(supabase, newPlan())).rejects.toThrow(/Rollback also failed/);
+  });
+
+  it("fails loudly when the database returns fewer days than were inserted", async () => {
+    const log: { table: string; op: string }[] = [];
+    const supabase = fakeSupabase(
+      {
+        training_plans: [
+          { data: [], error: null },
+          { data: { id: "new" }, error: null },
+          { data: null, error: null },
+        ],
+        plan_days: [{ data: [], error: null }],
+      },
+      log,
+    );
+    await expect(createPlan(supabase, newPlan())).rejects.toThrow(/every inserted plan day/);
   });
 });

@@ -226,84 +226,126 @@ export interface NewPlan {
 /**
  * Insert a plan and activate it, returning the new plan id.
  *
- * Any existing active plan is deactivated first. Migration 0016 has a partial
- * unique index on (user_id) where active, so skipping that step would not
- * corrupt anything, it would just fail the insert. Deactivating explicitly
- * makes the intent visible instead of relying on an error.
+ * A plan spans three tables and Supabase JS has no transactions, so this runs
+ * a compensating rollback by hand. Without one, a failure partway leaves the
+ * athlete's previous plan deactivated AND a new empty plan active: a broken
+ * state with no route back, on the screen they open every session.
  *
- * `position` and `day_index` are assigned from array order here, so callers
- * express order by ordering the arrays and cannot get the two out of sync.
+ * On any failure the new plan is deleted, which cascades to its days and
+ * exercises, and whatever was active before is reactivated. If the compensation
+ * itself fails the thrown error says so, because a silent half-rollback is
+ * worse than a loud one.
+ *
+ * The rollback approach here comes from Terra's parallel implementation in
+ * PR #2, which caught this hole in the original version of this function.
+ *
+ * `position` and `day_index` are assigned from array order, so callers express
+ * order by ordering the arrays and cannot get the two out of sync.
  */
 export async function createPlan(supabase: SupabaseClient, input: NewPlan): Promise<string> {
+  if (input.days.length === 0) throw new Error("A plan needs at least one day.");
+  if (input.days.length !== input.days_per_week) {
+    throw new Error("A plan's day count has to match days_per_week.");
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated.");
 
-  await supabase
+  // Capture what gets deactivated so it can be put back if the insert fails.
+  const { data: deactivated, error: deactivateErr } = await supabase
     .from("training_plans")
     .update({ active: false })
     .eq("user_id", user.id)
-    .eq("active", true);
+    .eq("active", true)
+    .select("id");
+  if (deactivateErr) throw deactivateErr;
+  const previouslyActive = ((deactivated ?? []) as { id: string }[]).map((r) => r.id);
 
-  const { data: planRow, error: planErr } = await supabase
-    .from("training_plans")
-    .insert({
-      user_id: user.id,
-      name: input.name,
-      goal: input.goal,
-      split: input.split,
-      days_per_week: input.days_per_week,
-      session_minutes: input.session_minutes ?? null,
-      equipment: input.equipment ?? [],
-      avoid: input.avoid ?? [],
-      mesocycle_weeks: input.mesocycle_weeks ?? 5,
-      deload_week: input.deload_week ?? null,
-      notes: input.notes ?? null,
-      active: true,
-    })
-    .select("id")
-    .single();
-  if (planErr) throw planErr;
-  const planId = (planRow as { id: string }).id;
+  let planId: string | null = null;
+  try {
+    const { data: planRow, error: planErr } = await supabase
+      .from("training_plans")
+      .insert({
+        user_id: user.id,
+        name: input.name,
+        goal: input.goal,
+        split: input.split,
+        days_per_week: input.days_per_week,
+        session_minutes: input.session_minutes ?? null,
+        equipment: input.equipment ?? [],
+        avoid: input.avoid ?? [],
+        mesocycle_weeks: input.mesocycle_weeks ?? 5,
+        deload_week: input.deload_week ?? null,
+        notes: input.notes ?? null,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (planErr) throw planErr;
+    planId = (planRow as { id: string }).id;
 
-  const { data: dayRows, error: dayErr } = await supabase
-    .from("plan_days")
-    .insert(
-      input.days.map((d, i) => ({
-        plan_id: planId,
-        day_index: i,
-        name: d.name,
-        focus: d.focus ?? null,
+    const { data: dayRows, error: dayErr } = await supabase
+      .from("plan_days")
+      .insert(
+        input.days.map((d, i) => ({
+          plan_id: planId,
+          day_index: i,
+          name: d.name,
+          focus: d.focus ?? null,
+        })),
+      )
+      .select("id, day_index");
+    if (dayErr) throw dayErr;
+
+    const idByIndex = new Map(
+      ((dayRows ?? []) as { id: string; day_index: number }[]).map((r) => [r.day_index, r.id]),
+    );
+    if (idByIndex.size !== input.days.length) {
+      throw new Error("The database did not return every inserted plan day.");
+    }
+
+    const exercises = input.days.flatMap((d, i) =>
+      d.exercises.map((e, pos) => ({
+        plan_day_id: idByIndex.get(i)!,
+        exercise_id: e.exercise_id,
+        position: pos,
+        sets: e.sets,
+        rep_low: e.rep_low,
+        rep_high: e.rep_high,
+        rpe_target: e.rpe_target ?? null,
+        rest_seconds: e.rest_seconds ?? null,
+        role: e.role ?? null,
+        note: e.note ?? null,
       })),
-    )
-    .select("id, day_index");
-  if (dayErr) throw dayErr;
+    );
+    if (exercises.length > 0) {
+      const { error } = await supabase.from("plan_exercises").insert(exercises);
+      if (error) throw error;
+    }
 
-  const idByIndex = new Map(
-    ((dayRows ?? []) as { id: string; day_index: number }[]).map((r) => [r.day_index, r.id]),
-  );
-
-  const exercises = input.days.flatMap((d, i) =>
-    d.exercises.map((e, pos) => ({
-      plan_day_id: idByIndex.get(i)!,
-      exercise_id: e.exercise_id,
-      position: pos,
-      sets: e.sets,
-      rep_low: e.rep_low,
-      rep_high: e.rep_high,
-      rpe_target: e.rpe_target ?? null,
-      rest_seconds: e.rest_seconds ?? null,
-      role: e.role ?? null,
-      note: e.note ?? null,
-    })),
-  );
-  if (exercises.length > 0) {
-    const { error } = await supabase.from("plan_exercises").insert(exercises);
-    if (error) throw error;
+    return planId;
+  } catch (err) {
+    const failures: string[] = [];
+    if (planId) {
+      // Cascades to plan_days and plan_exercises via migration 0016.
+      const { error } = await supabase.from("training_plans").delete().eq("id", planId);
+      if (error) failures.push(`could not delete the partial plan: ${error.message}`);
+    }
+    if (previouslyActive.length > 0) {
+      const { error } = await supabase
+        .from("training_plans")
+        .update({ active: true })
+        .in("id", previouslyActive);
+      if (error) failures.push(`could not reactivate the previous plan: ${error.message}`);
+    }
+    if (failures.length > 0) {
+      const original = err instanceof Error ? err.message : String(err);
+      throw new Error(`${original}. Rollback also failed: ${failures.join(", ")}.`);
+    }
+    throw err;
   }
-
-  return planId;
 }
 
 export async function deactivatePlan(supabase: SupabaseClient, planId: string): Promise<void> {
