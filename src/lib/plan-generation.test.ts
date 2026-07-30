@@ -5,7 +5,9 @@ import {
   filterExercisesForEquipment,
   parseGeneratedPlan,
   parsePlanIntake,
+  referenceExercises,
   recentSessionFrequency,
+  resolveExerciseReferences,
   toNewPlan,
   type GeneratedPlan,
   type PlanIntake,
@@ -111,6 +113,30 @@ describe("measured snapshot helpers", () => {
     ];
     expect(recentSessionFrequency(sets, new Date("2026-07-29T12:00:00.000Z"), 4)).toBe(0.5);
   });
+
+  it("uses compact prompt references and resolves them to database IDs", () => {
+    const library = [
+      exercise("6ec2b603-f99b-4c58-9338-3b3dd903f202", "barbell"),
+      exercise("9891df0e-2e08-4e43-87bb-d86cd37b9f64", "bodyweight"),
+    ];
+    const referenced = referenceExercises(library);
+    expect(referenced.map((item) => item.reference)).toEqual(["e1", "e2"]);
+
+    const referencedPlan: GeneratedPlan = {
+      ...generated,
+      days: [
+        {
+          ...generated.days[0],
+          exercises: [{ ...generated.days[0].exercises[0], exercise_id: "e2" }],
+        },
+      ],
+    };
+    const resolved = resolveExerciseReferences(
+      referencedPlan,
+      new Map(referenced.map((item) => [item.reference, item.exercise.id])),
+    );
+    expect(resolved.days[0].exercises[0].exercise_id).toBe(library[1].id);
+  });
 });
 
 describe("parseGeneratedPlan", () => {
@@ -164,7 +190,7 @@ describe("planner prompt and persistence mapping", () => {
     evidenceCaveat: "Coach estimates, not trial results.",
     exercises: [
       {
-        id: "squat-id",
+        id: "e1",
         name: "Squat",
         muscleGroup: "Quads",
         equipment: "barbell",
@@ -177,6 +203,8 @@ describe("planner prompt and persistence mapping", () => {
     const prompt = buildPlannerPrompt(intake, snapshot);
     expect(prompt).toContain('"muscle": "Adductors"');
     expect(prompt).toContain('"target": null');
+    expect(prompt).toContain("compact references such as e1");
+    expect(prompt).toContain('"id": "e1"');
     expect(prompt).toContain("Do not replace null with a plausible number");
     expect(prompt).toContain(snapshot.evidenceCaveat);
   });

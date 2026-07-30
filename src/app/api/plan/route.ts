@@ -29,7 +29,9 @@ import {
   filterExercisesForEquipment,
   parseGeneratedPlan,
   parsePlanIntake,
+  referenceExercises,
   recentSessionFrequency,
+  resolveExerciseReferences,
   toNewPlan,
   type GeneratedPlan,
   type PlannerSnapshot,
@@ -47,7 +49,7 @@ export const maxDuration = 60;
 const PLAN_TOOL: Anthropic.Tool = {
   name: "save_training_plan",
   description:
-    "Return the complete structured training plan. Use only exercise IDs supplied in the athlete data.",
+    "Return the complete structured training plan. Copy only compact exercise references supplied in the athlete data.",
   input_schema: PLAN_TOOL_INPUT_SCHEMA as unknown as Anthropic.Tool["input_schema"],
 };
 
@@ -65,13 +67,18 @@ class CandidateRejectedError extends Error {
 
 function parseAndValidateCandidate(
   value: unknown,
-  allowedExerciseIds: Set<string>,
+  exerciseIdByReference: ReadonlyMap<string, string>,
   intake: ReturnType<typeof parsePlanIntake>,
   library: Awaited<ReturnType<typeof getExercises>>,
 ): { plan: GeneratedPlan; warnings: PlanValidationIssue[] } {
   let plan: GeneratedPlan;
   try {
-    plan = parseGeneratedPlan(value, allowedExerciseIds, intake);
+    const referencedPlan = parseGeneratedPlan(
+      value,
+      new Set(exerciseIdByReference.keys()),
+      intake,
+    );
+    plan = resolveExerciseReferences(referencedPlan, exerciseIdByReference);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "The generated plan was malformed.";
@@ -134,6 +141,7 @@ export async function POST(req: Request) {
     if (exercises.length === 0) {
       return jsonError("No exercises match the selected equipment.", 400);
     }
+    const referencedExercises = referenceExercises(exercises);
 
     const now = new Date();
     const setVolume = buildSetVolume(sets, 4, 8, now);
@@ -193,8 +201,8 @@ export async function POST(req: Request) {
         };
       }),
       evidenceCaveat: EVIDENCE_CAVEAT,
-      exercises: exercises.map((exercise) => ({
-        id: exercise.id,
+      exercises: referencedExercises.map(({ reference, exercise }) => ({
+        id: reference,
         name: exercise.name,
         muscleGroup: exercise.muscle_group,
         equipment: exercise.equipment!,
@@ -203,9 +211,9 @@ export async function POST(req: Request) {
     };
 
     const prompt = buildPlannerPrompt(intake, snapshot);
-    // Parse against every visible library row so the validator can distinguish
-    // a real but unavailable equipment choice from an invented or hidden ID.
-    const allowedExerciseIds = new Set(library.map((exercise) => exercise.id));
+    const exerciseIdByReference = new Map(
+      referencedExercises.map(({ reference, exercise }) => [reference, exercise.id]),
+    );
     let generated: GeneratedPlan | null = null;
     let provider: Provider = preferredProvider("plan");
     let validationWarnings: PlanValidationIssue[] = [];
@@ -295,7 +303,7 @@ export async function POST(req: Request) {
       try {
         const candidate = parseAndValidateCandidate(
           candidateInput,
-          allowedExerciseIds,
+          exerciseIdByReference,
           intake,
           library,
         );
