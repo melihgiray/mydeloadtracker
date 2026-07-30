@@ -5,7 +5,7 @@ Written 2026-07-29 by Claude (Fable) as the planning and audit pass. Read
 document supersedes the build order in PLANNER_DESIGN.md, for the reason in
 the next section.
 
-## Status, updated 2026-07-29
+## Status, updated 2026-07-30
 
 | Step | State | Owner |
 |------|-------|-------|
@@ -14,7 +14,23 @@ the next section.
 | 3. Log integration | DONE, on main, verified at 393x852 | Claude |
 | 4. Intake plus /api/plan | DONE, merged as `c3f3902` | Terra |
 | 5. plan-validation.ts | DONE, merged, F5 fixed at `9ce98a4` | Terra, F5 by Claude |
-| 6. Deload adaptation | **OPEN, unclaimed, last planner step** | unassigned |
+| 6. Deload adaptation | DONE, committed as `a8501e1`, `9764214`, `929d597` | Codex |
+
+## Step 6 closure
+
+The planner now adapts today's Log prescription from either of two signals:
+the plan's explicit `deload_week`, or an earlier recommendation from the
+existing deload analytics. A plan week is anchored to `started_on` and repeats
+with the mesocycle. During an active deload, planned sets are cut roughly in
+half, loaded exercises with history use progression's existing 15 percent load
+reduction, and prescribed effort is capped at RPE 6. The Log screen states the
+reason and the changes rather than quietly swapping numbers.
+
+Verified on 2026-07-30 with 182 passing tests, clean typecheck, and a successful
+production build. The active-deload code path was simulated locally at 393 by
+852 against the seeded test plan. It rendered 2 sets at RPE 6 instead of 4 at
+RPE 8, had no browser errors or framework overlay, and measured 378 pixels of
+document width inside the 393 pixel viewport.
 
 **Read this table before dispatching anyone.** Steps 2 and 3 were both built
 twice, once by Claude on main and once by Terra in PR #2, because the Step 2
