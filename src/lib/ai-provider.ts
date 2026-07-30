@@ -17,7 +17,7 @@
 // scanner needs a real gym benchmark before anyone trusts it, and it is
 // written down in docs/AI_COST.md rather than left as folklore.
 
-export type Surface = "scan" | "coach";
+export type Surface = "scan" | "coach" | "plan";
 export type Provider = "local" | "cloud";
 
 /**
@@ -30,23 +30,42 @@ export function localBaseUrl(): string | null {
   return raw ? raw.replace(/\/$/, "") : null;
 }
 
+const OVERRIDE_VAR: Record<Surface, string> = {
+  scan: "AI_SCAN_PROVIDER",
+  coach: "AI_COACH_PROVIDER",
+  plan: "AI_PLAN_PROVIDER",
+};
+
 /**
  * Per-surface override, so the scanner can be pinned back to the cloud while
  * the coach runs locally. Accepts "local" or "cloud"; anything else is
  * ignored rather than guessed at.
  */
 function override(surface: Surface): Provider | null {
-  const raw = (
-    surface === "scan" ? process.env.AI_SCAN_PROVIDER : process.env.AI_COACH_PROVIDER
-  )?.trim().toLowerCase();
+  const raw = process.env[OVERRIDE_VAR[surface]]?.trim().toLowerCase();
   return raw === "local" || raw === "cloud" ? raw : null;
 }
+
+/**
+ * Surfaces that do NOT follow OLLAMA_BASE_URL and must be switched on by name.
+ *
+ * The planner is here because of measured latency, not preference. A plan is
+ * 1,600 to 2,600 output tokens and gemma4:12b produces about 30 per second on
+ * an M5 Pro, so generation alone runs 80 to 95 seconds. That is tolerable in
+ * development and unacceptable in front of an athlete. It is also the worst
+ * cost target in the app: a plan is built about once per mesocycle, roughly
+ * every five weeks, while a scan runs every set.
+ *
+ * See docs/AUDIT_2026-07-29_pr3.md for the measurements.
+ */
+const OPT_IN_ONLY = new Set<Surface>(["plan"]);
 
 /** The provider to try first. */
 export function preferredProvider(surface: Surface): Provider {
   const forced = override(surface);
   if (forced === "local") return "local";
   if (forced === "cloud") return "cloud";
+  if (OPT_IN_ONLY.has(surface)) return "cloud";
   return localBaseUrl() ? "local" : "cloud";
 }
 
@@ -75,11 +94,18 @@ export function cloudAvailable(): boolean {
 export const LOCAL_TIMEOUT_MS: Record<Surface, number> = {
   scan: 15_000,
   coach: 25_000,
+  // Sized from measurement, not guessed. The coach's 25s works because that
+  // call streams, so the timeout bounds only the connection. A one-shot
+  // non-streaming call has to cover the whole generation, and a plan measured
+  // 80.4s and 94.6s across two runs. 180s leaves headroom without hanging
+  // forever. Only ever reached when AI_PLAN_PROVIDER=local is set explicitly.
+  plan: 180_000,
 };
 
 export const LOCAL_MODELS: Record<Surface, string> = {
   scan: process.env.OLLAMA_SCAN_MODEL ?? "gemma4:12b",
   coach: process.env.OLLAMA_COACH_MODEL ?? "gemma4:12b",
+  plan: process.env.OLLAMA_PLAN_MODEL ?? process.env.OLLAMA_COACH_MODEL ?? "gemma4:12b",
 };
 
 /** Shared Ollama tuning, so both routes agree on context and warmth. */
