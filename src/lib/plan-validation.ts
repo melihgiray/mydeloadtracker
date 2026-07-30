@@ -23,6 +23,7 @@ export type PlanValidationCode =
   | "exercise_unavailable"
   | "equipment_unavailable"
   | "avoid_conflict"
+  | "avoid_unmatched"
   | "deload_missing"
   | "volume_below_target"
   | "volume_above_target"
@@ -35,6 +36,8 @@ export interface PlanValidationIssue {
   dayIndex?: number;
   exerciseId?: string;
   muscle?: string;
+  /** The athlete's own wording, for an avoid issue. */
+  restriction?: string;
 }
 
 export interface SessionEstimate {
@@ -49,6 +52,36 @@ export interface PlanValidationResult {
   warnings: PlanValidationIssue[];
   weeklySetsByMuscle: Record<string, number>;
   sessionEstimates: SessionEstimate[];
+  /**
+   * Restrictions the matcher could not tie to anything in the library, so they
+   * were NOT enforced. Surfaced rather than swallowed, see unmatchedAvoidTerms.
+   */
+  unmatchedAvoid: string[];
+}
+
+/**
+ * Which of the athlete's restrictions match nothing in the whole library.
+ *
+ * This exists because the matcher is a conjunctive AND over the restriction's
+ * words: every token has to appear in some exercise's metadata. So one word the
+ * library does not use silently disables the entire restriction. Measured
+ * against the real 137-exercise library:
+ *
+ *   "no barbell" blocks 41 exercises, "no barbell work" blocks 0
+ *   "back"       blocks 26,            "lower back pain"  blocks 0
+ *   "shoulder"   blocks 17,            "shoulder impingement" blocks 0
+ *
+ * The intake field is free text, so the natural phrasing is exactly the
+ * phrasing that fails. Staying silent about it is the worst option: the plan
+ * validates clean and the athlete has every reason to believe the constraint
+ * they typed was honoured. Saying "this was not enforced" is the honest answer,
+ * and it is the same rule the app applies to a number it cannot compute.
+ */
+export function unmatchedAvoidTerms(avoid: string[], library: Exercise[]): string[] {
+  return avoid.filter((restriction) => {
+    if (!restriction.trim()) return false;
+    return !library.some((exercise) => exerciseConflictsWithAvoid(exercise, [restriction]));
+  });
 }
 
 /**
@@ -275,6 +308,17 @@ export function validateGeneratedPlan(
     });
   }
 
+  // A restriction that matches nothing was not enforced. Say so rather than
+  // letting a clean-looking plan imply it was respected.
+  for (const restriction of unmatchedAvoidTerms(intake.avoid, library)) {
+    warnings.push({
+      severity: "warning",
+      code: "avoid_unmatched",
+      message: `We could not match "${restriction}" to anything in the exercise library, so it was not enforced. Naming a lift or a movement works better, for example "deadlift" or "overhead press".`,
+      restriction,
+    });
+  }
+
   for (const muscle of MUSCLE_GROUPS) {
     if (!canValidate(muscle)) continue;
     const target = prescriptionRange(muscle);
@@ -306,5 +350,8 @@ export function validateGeneratedPlan(
       MUSCLE_GROUPS.map((muscle) => [muscle, weeklySets.get(muscle) ?? 0]),
     ),
     sessionEstimates,
+    unmatchedAvoid: warnings
+      .filter((issue) => issue.code === "avoid_unmatched")
+      .map((issue) => issue.restriction!),
   };
 }

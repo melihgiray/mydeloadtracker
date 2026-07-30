@@ -8,6 +8,7 @@ import type {
 import {
   estimateSessionMinutes,
   exerciseConflictsWithAvoid,
+  unmatchedAvoidTerms,
   validateGeneratedPlan,
 } from "@/lib/plan-validation";
 import type { Exercise } from "@/lib/types";
@@ -232,5 +233,115 @@ describe("validateGeneratedPlan advisory checks", () => {
         expect.objectContaining({ severity: "warning", code: "session_too_long" }),
       ]),
     );
+  });
+});
+
+// F5 from docs/AUDIT_2026-07-30_pr4.md. The avoid matcher is a conjunctive AND
+// over the restriction's words, so one word the library does not use disables
+// the whole restriction. That failure used to be completely silent.
+describe("unmatched avoid restrictions", () => {
+  const library = [
+    libraryExercise("squat", { name: "Squat", movement_pattern: "Squat", muscle_group: "Quads" }),
+    libraryExercise("bench", {
+      name: "Bench Press",
+      movement_pattern: "Horizontal Push",
+      muscle_group: "Chest",
+    }),
+    libraryExercise("ohp", {
+      name: "Shoulder Press",
+      movement_pattern: "Vertical Push",
+      muscle_group: "Shoulders",
+    }),
+  ];
+
+  it("reports nothing when every restriction matched something", () => {
+    expect(unmatchedAvoidTerms(["squat"], library)).toEqual([]);
+    expect(unmatchedAvoidTerms(["overhead press"], library)).toEqual([]);
+  });
+
+  // Naming a lift survives extra words, because a second match rule fires when
+  // the exercise's whole name is contained in the restriction. This is the
+  // mitigation that keeps the feature useful, and it is why the warning only
+  // covers restrictions that name no lift at all.
+  it("stays quiet when the restriction still names a lift, extra words and all", () => {
+    expect(unmatchedAvoidTerms(["squat aggravates my knee"], library)).toEqual([]);
+    expect(unmatchedAvoidTerms(["bench press hurts"], library)).toEqual([]);
+  });
+
+  // The measured case. A restriction built from category words plus filler
+  // satisfies neither rule: no exercise name is a subset of it, and its own
+  // tokens are not all present in any exercise's metadata.
+  it("reports a category restriction that one ordinary word disabled", () => {
+    expect(unmatchedAvoidTerms(["barbell"], library)).toEqual([]);
+    expect(unmatchedAvoidTerms(["no barbell work"], library)).toEqual(["no barbell work"]);
+  });
+
+  it("reports natural phrasing that names a symptom rather than a lift", () => {
+    expect(unmatchedAvoidTerms(["lower back pain"], library)).toEqual(["lower back pain"]);
+    expect(unmatchedAvoidTerms(["shoulder impingement"], library)).toEqual([
+      "shoulder impingement",
+    ]);
+  });
+
+  it("ignores blank entries rather than warning about them", () => {
+    expect(unmatchedAvoidTerms(["", "   "], library)).toEqual([]);
+  });
+
+  it("reports each unmatched restriction separately", () => {
+    expect(unmatchedAvoidTerms(["squat", "lower back pain", "knee pain"], library)).toEqual([
+      "lower back pain",
+      "knee pain",
+    ]);
+  });
+});
+
+describe("validateGeneratedPlan surfaces unenforced restrictions", () => {
+  const library = [libraryExercise("squat", { name: "Squat" })];
+  const withAvoid = (avoid: string[]): PlanIntake => ({ ...intake, avoid });
+
+  it("warns rather than blocking, since an unmatched term is unknown not violated", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat")]),
+      withAvoid(["lower back pain"]),
+      library,
+    );
+    expect(result.valid).toBe(true);
+    const issue = result.warnings.find((w) => w.code === "avoid_unmatched");
+    expect(issue).toBeTruthy();
+    expect(issue!.restriction).toBe("lower back pain");
+    expect(issue!.message).toContain("not enforced");
+    expect(result.unmatchedAvoid).toEqual(["lower back pain"]);
+  });
+
+  it("says nothing when the restriction was actually enforced", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat")]),
+      withAvoid(["deadlift"]),
+      library,
+    );
+    // "deadlift" matches nothing in this one-exercise library, so it IS
+    // unmatched. Use a restriction that does match to prove the quiet path.
+    expect(result.unmatchedAvoid).toEqual(["deadlift"]);
+
+    const enforced = validateGeneratedPlan(
+      plan([plannedExercise("squat")]),
+      withAvoid(["squat"]),
+      library,
+    );
+    expect(enforced.unmatchedAvoid).toEqual([]);
+    expect(enforced.warnings.some((w) => w.code === "avoid_unmatched")).toBe(false);
+    // It matched, so it is a hard error instead.
+    expect(enforced.errors.some((e) => e.code === "avoid_conflict")).toBe(true);
+  });
+
+  it("keeps the message free of dashes and exclamation points", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat")]),
+      withAvoid(["shoulder impingement"]),
+      library,
+    );
+    const msg = result.warnings.find((w) => w.code === "avoid_unmatched")!.message;
+    expect(msg).not.toMatch(/[—–]/);
+    expect(msg).not.toContain("!");
   });
 });
