@@ -12,7 +12,7 @@ the next section.
 | 1. Migration 0016 | DONE, applied and verified by REST | founder |
 | 2. Plan data layer plus seed | DONE, on main | Claude |
 | 3. Log integration | DONE, on main, verified at 393x852 | Claude |
-| 4. Intake plus /api/plan | **OPEN, unclaimed** | Terra |
+| 4. Intake plus /api/plan | **PR #3, changes requested** | Terra |
 | 5. plan-validation.ts | not started, ships with step 4 | Claude |
 | 6. Deload adaptation | not started | Claude |
 
@@ -22,6 +22,12 @@ brief stayed live after Claude took the work. Two implementations of one file
 is the shared-state failure this document warns about, produced by this
 document. The table is the fix: it is the single owner-of-record, and it gets
 updated the moment a step is claimed.
+
+PR #3 (step 4) is audited in `docs/AUDIT_2026-07-29_pr3.md`. Strong work with
+one blocking defect: local plan generation cannot finish inside the coach's 25s
+timeout, because that number was written for a streaming call. The planner now
+has its own opt-in-only surface in `ai-provider.ts`, added on main at `9bdbc7e`
+so the remaining fix lives entirely inside Terra's own route.
 
 PR #2 is closed rather than merged. Not because it was worse: it caught a real
 missing rollback in `createPlan`, which is now on main at `e848bda` with the
