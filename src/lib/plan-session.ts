@@ -64,6 +64,11 @@ export interface PlannedExercise {
   conflict: string | null;
 }
 
+export interface PlanSessionOptions {
+  /** Reduce the plan's work prescription for a scheduled or readiness deload. */
+  deload?: boolean;
+}
+
 /**
  * Clamp progression's suggested reps into the plan's prescribed range.
  *
@@ -94,12 +99,27 @@ export function buildPlannedSession(
   day: PlanDayWithExercises,
   nextSessions: NextSession[],
   units: Units = "kg",
+  options: PlanSessionOptions = {},
 ): PlannedExercise[] {
   const byExercise = new Map(nextSessions.map((n) => [n.exerciseId, n]));
 
   return day.exercises.map((pe) => {
     const next = byExercise.get(pe.exercise_id);
-    const hasHistory = next != null && Number.isFinite(next.target.weight) && next.target.weight > 0;
+    const targetWeight = next?.target.weight;
+    const hasHistory =
+      next != null &&
+      Number.isFinite(targetWeight) &&
+      (targetWeight! > 0 || (pe.equipment === "bodyweight" && targetWeight === 0));
+
+    // The plan owns the normal prescription. A deload is the one explicit
+    // adaptation: roughly half the planned sets and an RPE ceiling of 6. The
+    // existing progression rule owns the corresponding 15% load reduction.
+    const prescribedSets = options.deload
+      ? Math.max(1, Math.ceil(pe.sets / 2))
+      : Math.max(1, pe.sets);
+    const prescribedRpe = options.deload
+      ? Math.min(pe.rpe_target ?? 6, 6)
+      : pe.rpe_target;
 
     const reps = hasHistory
       ? repsWithinRange(next!.target.reps, pe.rep_low, pe.rep_high)
@@ -127,29 +147,32 @@ export function buildPlannedSession(
     // Blank rather than zero when there is no history. An empty field reads as
     // "tell me", a zero reads as an answer the app does not have.
     const weight = hasHistory ? String(next!.target.weight) : "";
-    const rpe = pe.rpe_target != null ? String(pe.rpe_target) : "";
+    const rpe = prescribedRpe != null ? String(prescribedRpe) : "";
+    const note = options.deload
+      ? (next?.note ?? "Deload week, half the sets and keep every set at RPE 6 or below.")
+      : (next?.note ?? null);
 
     return {
       exerciseId: pe.exercise_id,
       name: pe.name,
       muscleGroup: pe.muscle_group,
       target: {
-        sets: pe.sets,
+        sets: prescribedSets,
         repLow: pe.rep_low,
         repHigh: pe.rep_high,
-        rpe: pe.rpe_target,
+        rpe: prescribedRpe,
         restSeconds: pe.rest_seconds,
         role: pe.role,
       },
       // One row per prescribed set, all identical. The athlete edits the ones
       // that differ, which on a normal session is none of them.
-      sets: Array.from({ length: Math.max(1, pe.sets) }, () => ({
+      sets: Array.from({ length: prescribedSets }, () => ({
         reps: String(reps),
         weight,
         rpe,
       })),
       weightBasis: hasHistory ? "progression" : "no_history",
-      note: next?.note ?? null,
+      note,
       repsAdjusted,
       conflict,
     };

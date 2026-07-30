@@ -124,14 +124,53 @@ describe("buildPlannedSession", () => {
     expect(ex.sets.every((s) => s.reps === "8")).toBe(true);
   });
 
-  // A deload arrives already applied in progression's target weight, so this
-  // module needs no deload branch of its own.
-  it("carries a deloaded target through without special handling", () => {
+  it("applies both sides of a deload, lighter history weight and fewer plan sets", () => {
     const [ex] = buildPlannedSession(day(), [
       next({ action: "deload", target: { weight: 70, reps: 5, sets: 3 }, note: "Deload week." }),
-    ]);
+    ], "kg", { deload: true });
     expect(ex.sets[0].weight).toBe("70");
+    expect(ex.sets).toHaveLength(2);
+    expect(ex.target.sets).toBe(2);
+    expect(ex.target.rpe).toBe(6);
+    expect(ex.sets.every((set) => set.rpe === "6")).toBe(true);
     expect(ex.note).toBe("Deload week.");
+  });
+
+  it("rounds an odd deload set count up and never below one", () => {
+    const [three, one] = buildPlannedSession(
+      day([
+        planned({ exercise_id: "a", sets: 3 }),
+        planned({ exercise_id: "b", sets: 1 }),
+      ]),
+      [],
+      "kg",
+      { deload: true },
+    );
+    expect(three.sets).toHaveLength(2);
+    expect(one.sets).toHaveLength(1);
+  });
+
+  it("reduces a deload prescription even when the lift has no history", () => {
+    const [ex] = buildPlannedSession(
+      day([planned({ sets: 5, rpe_target: null })]),
+      [],
+      "kg",
+      { deload: true },
+    );
+    expect(ex.sets).toHaveLength(3);
+    expect(ex.sets.every((set) => set.weight === "")).toBe(true);
+    expect(ex.sets.every((set) => set.rpe === "6")).toBe(true);
+    expect(ex.note).toContain("Deload week");
+  });
+
+  it("uses zero as a real history weight for bodyweight work", () => {
+    const [ex] = buildPlannedSession(
+      day([planned({ equipment: "bodyweight", name: "Pull Up" })]),
+      [next({ target: { weight: 0, reps: 9, sets: 4 } })],
+    );
+    expect(ex.weightBasis).toBe("progression");
+    expect(ex.sets[0].weight).toBe("0");
+    expect(ex.sets[0].reps).toBe("8");
   });
 
   it("keeps the plan's order and passes through the target", () => {
