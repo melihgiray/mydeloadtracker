@@ -132,8 +132,8 @@ afterEach(() => {
 describe("POST /api/plan validation and regeneration", () => {
   it("regenerates once with the named avoid conflict, then persists the valid plan", async () => {
     mocks.messagesCreate
-      .mockResolvedValueOnce(toolResponse(generated("shoulder-id")))
-      .mockResolvedValueOnce(toolResponse(generated("squat-id")));
+      .mockResolvedValueOnce(toolResponse(generated("e2")))
+      .mockResolvedValueOnce(toolResponse(generated("e1")));
 
     const response = await POST(request());
     const body = (await response.json()) as {
@@ -149,10 +149,19 @@ describe("POST /api/plan validation and regeneration", () => {
       usage: { inputTokens: 200, outputTokens: 400 },
     });
     expect(mocks.messagesCreate).toHaveBeenCalledTimes(2);
+    expect(mocks.messagesCreate.mock.calls[0][0].messages[0].content).toContain(
+      '"id": "e1"',
+    );
+    expect(mocks.messagesCreate.mock.calls[0][0].messages[0].content).not.toContain(
+      "squat-id",
+    );
     expect(mocks.messagesCreate.mock.calls[1][0].messages[0].content).toContain(
       "conflicts with “No overhead pressing”",
     );
     expect(mocks.createPlan).toHaveBeenCalledTimes(1);
+    expect(mocks.createPlan.mock.calls[0][1].days[0].exercises[0].exercise_id).toBe(
+      "squat-id",
+    );
   });
 
   it("surfaces the specific problem and never persists after two rejected candidates", async () => {
