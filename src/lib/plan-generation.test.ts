@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlannerPrompt,
+  buildPlannerRetryPrompt,
   filterExercisesForEquipment,
   parseGeneratedPlan,
   parsePlanIntake,
@@ -192,5 +193,15 @@ describe("planner prompt and persistence mapping", () => {
       deload_week: 5,
     });
     expect(plan.days[0].exercises[0]).not.toHaveProperty("weight");
+  });
+
+  it("names the rejected constraint when asking for one regeneration", () => {
+    const retry = buildPlannerRetryPrompt(
+      buildPlannerPrompt(intake, snapshot),
+      "Full Body A uses Shoulder Press, which conflicts with no overhead pressing.",
+    );
+    expect(retry).toContain("REGENERATION_REQUIRED");
+    expect(retry).toContain("Full Body A uses Shoulder Press");
+    expect(retry).toContain("All original rules still apply");
   });
 });
