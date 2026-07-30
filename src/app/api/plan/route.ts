@@ -307,10 +307,12 @@ export async function POST(req: Request) {
         const callStartedAt = Date.now();
         const response = await anthropic.messages.create({
           model: PLAN_MODEL,
-          // A seven day plan of twelve exercises each is well under 3000 output
-          // tokens. 4096 was headroom that only ever bought a slower worst case
-          // against a ceiling that cannot move.
-          max_tokens: 3000,
+          // Measured, not assumed: a four day plan filled 3000 output tokens
+          // exactly and was truncated mid-structure, which surfaced as "wrong
+          // number of days". A plan is genuinely this large, so the cap has to
+          // clear it. Truncation is a broken plan; slowness is a slow plan, and
+          // the lever for slowness is PLAN_MODEL, not this number.
+          max_tokens: 4096,
           tools: [PLAN_TOOL],
           tool_choice: { type: "tool", name: PLAN_TOOL.name },
           messages: [{ role: "user", content: attemptPrompt }],
