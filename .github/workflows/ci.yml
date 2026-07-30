@@ -1,0 +1,63 @@
+# Runs the three checks every commit has to pass, on every pull request.
+#
+# Why this exists: agents and humans both open PRs here claiming "142 tests
+# pass", and until now the only way to confirm that was to check out the branch
+# and run it by hand. Two audits did exactly that. This makes the claim
+# self-verifying, so review can spend its time on judgement instead of
+# re-running commands.
+#
+# Golden rule 1 says npm test stays green because any commit can become a
+# deploy. This is that rule, enforced instead of remembered.
+#
+# Deliberately NOT here:
+#   - No secrets. All three checks pass with no environment variables at all,
+#     verified in a clean worktree with no .env.local. Anything needing a real
+#     Supabase or Anthropic key belongs in manual verification, not CI.
+#   - No `npm audit`. The dev-dependency advisories are a known deferred item
+#     (roadmap P2-11), and a red X on every PR for something already decided
+#     teaches people to ignore the X.
+#   - No deploy step. Deploys go through the Vercel CLI or the dashboard by
+#     hand, see CLAUDE.md.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push supersedes the run in flight for the same branch, so a series of
+# quick fixes does not queue up minutes of stale work.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 22 LTS. The repo pins no version, and this matches what Vercel
+          # runs for Next 14, so CI fails for the same reasons production would.
+          node-version: '22'
+          cache: npm
+
+      # ci, not install: respect the committed lockfile exactly so a green run
+      # means the tree everyone else gets is green.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      # Last because it is the slowest, and a type or test failure already tells
+      # you what to fix.
+      - name: Production build
+        run: npm run build
