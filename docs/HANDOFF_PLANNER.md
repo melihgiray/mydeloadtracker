@@ -14,7 +14,7 @@ the next section.
 | 3. Log integration | DONE, on main, verified at 393x852 | Claude |
 | 4. Intake plus /api/plan | DONE, merged as `c3f3902` | Terra |
 | 5. plan-validation.ts | DONE, merged, F5 fixed at `9ce98a4` | Terra, F5 by Claude |
-| 6. Deload adaptation | DONE, committed as `a8501e1`, `9764214`, `929d597` | Codex |
+| 6. Deload adaptation | DONE, audited at `dfe0d6d`, verified at 393x852 | Terra |
 
 ## Step 6 closure
 
