@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect, vi } from "vitest";
-import { createPlan, nextDayIndex, type NewPlan } from "@/lib/plans";
+import {
+  createPlan,
+  isScheduledDeloadWeek,
+  nextDayIndex,
+  planCycleWeek,
+  type NewPlan,
+} from "@/lib/plans";
 
 // The rotation rule is the one piece of real logic in plans.ts, and getting it
 // wrong is invisible: the app would just show the wrong day. It is pure so it
@@ -60,6 +66,45 @@ describe("nextDayIndex", () => {
         expect(idx).toBeLessThan(dayCount);
       }
     }
+  });
+});
+
+describe("planCycleWeek", () => {
+  it("starts in week 1 and changes only after seven full days", () => {
+    expect(planCycleWeek("2026-07-29", 5, "2026-07-29")).toBe(1);
+    expect(planCycleWeek("2026-07-29", 5, "2026-08-04")).toBe(1);
+    expect(planCycleWeek("2026-07-29", 5, "2026-08-05")).toBe(2);
+  });
+
+  it("repeats the mesocycle after its last week", () => {
+    expect(planCycleWeek("2026-07-01", 5, "2026-07-29")).toBe(5);
+    expect(planCycleWeek("2026-07-01", 5, "2026-08-05")).toBe(1);
+  });
+
+  it("does not move before a future start date", () => {
+    expect(planCycleWeek("2026-08-05", 5, "2026-07-29")).toBe(1);
+  });
+
+  it("fails safe on invalid cycle data", () => {
+    expect(planCycleWeek("not-a-date", 5, "2026-07-29")).toBe(1);
+    expect(planCycleWeek("2026-07-29", 0, "2026-08-29")).toBe(1);
+  });
+});
+
+describe("isScheduledDeloadWeek", () => {
+  const plan = {
+    started_on: "2026-07-01",
+    mesocycle_weeks: 5,
+    deload_week: 5,
+  };
+
+  it("recognizes the plan's explicit deload week", () => {
+    expect(isScheduledDeloadWeek(plan, "2026-07-29")).toBe(true);
+    expect(isScheduledDeloadWeek(plan, "2026-07-22")).toBe(false);
+  });
+
+  it("does not synthesize a schedule when deload_week is null", () => {
+    expect(isScheduledDeloadWeek({ ...plan, deload_week: null }, "2026-07-29")).toBe(false);
   });
 });
 

@@ -169,6 +169,39 @@ export function nextDayIndex(
 }
 
 /**
+ * Current 1-indexed week inside a repeating mesocycle.
+ *
+ * A plan week begins on the plan's own start date, not on Monday. That keeps a
+ * plan created midweek from jumping to week 2 after only a few days. Date-only
+ * UTC arithmetic avoids daylight-saving changes turning a seven-day span into
+ * six or eight days.
+ */
+export function planCycleWeek(
+  startedOn: string,
+  mesocycleWeeks: number,
+  today: string,
+): number {
+  if (!Number.isInteger(mesocycleWeeks) || mesocycleWeeks < 1) return 1;
+  const started = Date.parse(`${startedOn.slice(0, 10)}T00:00:00Z`);
+  const current = Date.parse(`${today.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(started) || !Number.isFinite(current) || current <= started) {
+    return 1;
+  }
+
+  const elapsedDays = Math.floor((current - started) / (24 * 60 * 60 * 1000));
+  return (Math.floor(elapsedDays / 7) % mesocycleWeeks) + 1;
+}
+
+/** Whether today falls in the plan's explicit deload week. */
+export function isScheduledDeloadWeek(
+  plan: Pick<PlanWithDays, "started_on" | "mesocycle_weeks" | "deload_week">,
+  today: string,
+): boolean {
+  if (plan.deload_week == null) return false;
+  return planCycleWeek(plan.started_on, plan.mesocycle_weeks, today) === plan.deload_week;
+}
+
+/**
  * Today's planned session, or null when there is no active plan.
  *
  * Only sessions logged on or after the plan's start date count, so activating a
