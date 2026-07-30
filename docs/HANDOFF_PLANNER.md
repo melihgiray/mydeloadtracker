@@ -13,8 +13,8 @@ the next section.
 | 2. Plan data layer plus seed | DONE, on main | Claude |
 | 3. Log integration | DONE, on main, verified at 393x852 | Claude |
 | 4. Intake plus /api/plan | DONE, merged as `c3f3902` | Terra |
-| 5. plan-validation.ts | **PR #4, approved, F5 follow-up owed** | Terra (reassigned by founder) |
-| 6. Deload adaptation | not started | Claude |
+| 5. plan-validation.ts | DONE, merged, F5 fixed at `9ce98a4` | Terra, F5 by Claude |
+| 6. Deload adaptation | **OPEN, unclaimed, last planner step** | unassigned |
 
 **Read this table before dispatching anyone.** Steps 2 and 3 were both built
 twice, once by Claude on main and once by Terra in PR #2, because the Step 2
