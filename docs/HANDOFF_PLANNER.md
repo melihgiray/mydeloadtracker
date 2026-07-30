@@ -12,8 +12,8 @@ the next section.
 | 1. Migration 0016 | DONE, applied and verified by REST | founder |
 | 2. Plan data layer plus seed | DONE, on main | Claude |
 | 3. Log integration | DONE, on main, verified at 393x852 | Claude |
-| 4. Intake plus /api/plan | **PR #3, changes requested** | Terra |
-| 5. plan-validation.ts | not started, ships with step 4 | Claude |
+| 4. Intake plus /api/plan | DONE, merged as `c3f3902` | Terra |
+| 5. plan-validation.ts | **PR #4, approved, F5 follow-up owed** | Terra (reassigned by founder) |
 | 6. Deload adaptation | not started | Claude |
 
 **Read this table before dispatching anyone.** Steps 2 and 3 were both built
