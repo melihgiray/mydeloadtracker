@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { COACH_MODEL, toUsageReport } from "@/lib/ai-model";
+import { COACH_MODEL, toUsageReport, type UsageReport } from "@/lib/ai-model";
 import {
   LOCAL_MODELS,
   LOCAL_TIMEOUT_MS,
@@ -25,6 +25,7 @@ import { ollamaChat } from "@/lib/ollama";
 import {
   PLAN_TOOL_INPUT_SCHEMA,
   buildPlannerPrompt,
+  buildPlannerRetryPrompt,
   filterExercisesForEquipment,
   parseGeneratedPlan,
   parsePlanIntake,
@@ -33,6 +34,10 @@ import {
   type GeneratedPlan,
   type PlannerSnapshot,
 } from "@/lib/plan-generation";
+import {
+  validateGeneratedPlan,
+  type PlanValidationIssue,
+} from "@/lib/plan-validation";
 import { createPlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,6 +50,54 @@ const PLAN_TOOL: Anthropic.Tool = {
     "Return the complete structured training plan. Use only exercise IDs supplied in the athlete data.",
   input_schema: PLAN_TOOL_INPUT_SCHEMA as unknown as Anthropic.Tool["input_schema"],
 };
+
+const MAX_GENERATED_CANDIDATES = 2;
+
+class CandidateRejectedError extends Error {
+  constructor(
+    message: string,
+    readonly issues: PlanValidationIssue[] = [],
+  ) {
+    super(message);
+    this.name = "CandidateRejectedError";
+  }
+}
+
+function parseAndValidateCandidate(
+  value: unknown,
+  allowedExerciseIds: Set<string>,
+  intake: ReturnType<typeof parsePlanIntake>,
+  library: Awaited<ReturnType<typeof getExercises>>,
+): { plan: GeneratedPlan; warnings: PlanValidationIssue[] } {
+  let plan: GeneratedPlan;
+  try {
+    plan = parseGeneratedPlan(value, allowedExerciseIds, intake);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "The generated plan was malformed.";
+    throw new CandidateRejectedError(message);
+  }
+
+  const validation = validateGeneratedPlan(plan, intake, library);
+  if (!validation.valid) {
+    throw new CandidateRejectedError(
+      validation.errors.map((issue) => issue.message).join(" "),
+      validation.errors,
+    );
+  }
+  return { plan, warnings: validation.warnings };
+}
+
+function addUsage(total: UsageReport | null, next: UsageReport): UsageReport {
+  if (!total) return next;
+  return {
+    model: next.model,
+    inputTokens: total.inputTokens + next.inputTokens,
+    outputTokens: total.outputTokens + next.outputTokens,
+    cacheReadTokens: total.cacheReadTokens + next.cacheReadTokens,
+    cacheWriteTokens: total.cacheWriteTokens + next.cacheWriteTokens,
+  };
+}
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -150,71 +203,125 @@ export async function POST(req: Request) {
     };
 
     const prompt = buildPlannerPrompt(intake, snapshot);
-    const allowedExerciseIds = new Set(exercises.map((exercise) => exercise.id));
+    // Parse against every visible library row so the validator can distinguish
+    // a real but unavailable equipment choice from an invented or hidden ID.
+    const allowedExerciseIds = new Set(library.map((exercise) => exercise.id));
     let generated: GeneratedPlan | null = null;
-    let provider: Provider = "cloud";
+    let provider: Provider = preferredProvider("plan");
+    let validationWarnings: PlanValidationIssue[] = [];
     let usage:
       | ReturnType<typeof toUsageReport>
       | { model: string; provider: "local" }
       | null = null;
+    let cloudUsage: UsageReport | null = null;
+    let candidateCount = 0;
+    let retryProblem: string | null = null;
 
-    if (preferredProvider("plan") === "local") {
-      try {
-        const response = await ollamaChat(
-          {
-            model: LOCAL_MODELS.plan,
-            stream: false,
-            think: false,
-            format: PLAN_TOOL_INPUT_SCHEMA,
-            ...localOptions(4096),
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a strength program planner. Return only the JSON object required by the supplied schema.",
-              },
-              { role: "user", content: prompt },
-            ],
-          },
-          LOCAL_TIMEOUT_MS.plan,
+    while (!generated && candidateCount < MAX_GENERATED_CANDIDATES) {
+      const attemptPrompt = retryProblem
+        ? buildPlannerRetryPrompt(prompt, retryProblem)
+        : prompt;
+      let candidateInput: unknown;
+
+      if (provider === "local") {
+        try {
+          const response = await ollamaChat(
+            {
+              model: LOCAL_MODELS.plan,
+              stream: false,
+              think: false,
+              format: PLAN_TOOL_INPUT_SCHEMA,
+              ...localOptions(4096),
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are a strength program planner. Return only the JSON object required by the supplied schema.",
+                },
+                { role: "user", content: attemptPrompt },
+              ],
+            },
+            LOCAL_TIMEOUT_MS.plan,
+          );
+          const body = (await response.json()) as { message?: { content?: string } };
+          if (!body.message?.content) {
+            throw new CandidateRejectedError(
+              "The local coach did not return a structured training plan.",
+            );
+          }
+          try {
+            candidateInput = JSON.parse(body.message.content);
+          } catch {
+            throw new CandidateRejectedError("The local coach returned malformed JSON.");
+          }
+        } catch (error) {
+          if (error instanceof CandidateRejectedError) {
+            candidateCount += 1;
+            retryProblem = error.message;
+            console.warn("Local plan candidate rejected:", error.message);
+            if (cloudAvailable()) provider = "cloud";
+            continue;
+          }
+          console.warn("Local plan generation unavailable, falling back to the cloud:", error);
+          if (!cloudAvailable()) {
+            return jsonError("Plan generation is not reachable right now.", 503);
+          }
+          provider = "cloud";
+          retryProblem = null;
+          continue;
+        }
+      } else {
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const response = await anthropic.messages.create({
+          model: COACH_MODEL,
+          max_tokens: 4096,
+          tools: [PLAN_TOOL],
+          tool_choice: { type: "tool", name: PLAN_TOOL.name },
+          messages: [{ role: "user", content: attemptPrompt }],
+        });
+        cloudUsage = addUsage(cloudUsage, toUsageReport(COACH_MODEL, response.usage));
+        const toolUse = response.content.find(
+          (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
         );
-        const body = (await response.json()) as { message?: { content?: string } };
-        if (!body.message?.content) throw new Error("Local planner returned no content.");
-        generated = parseGeneratedPlan(
-          JSON.parse(body.message.content),
+        if (!toolUse) {
+          candidateCount += 1;
+          retryProblem = "The coach did not return a structured training plan.";
+          continue;
+        }
+        candidateInput = toolUse.input;
+      }
+
+      candidateCount += 1;
+      try {
+        const candidate = parseAndValidateCandidate(
+          candidateInput,
           allowedExerciseIds,
           intake,
+          library,
         );
-        provider = "local";
-        usage = { model: LOCAL_MODELS.plan, provider: "local" };
+        generated = candidate.plan;
+        validationWarnings = candidate.warnings;
+        usage =
+          provider === "local"
+            ? { model: LOCAL_MODELS.plan, provider: "local" }
+            : cloudUsage;
       } catch (error) {
-        console.warn("Local plan generation unavailable, falling back to the cloud:", error);
+        if (!(error instanceof CandidateRejectedError)) throw error;
+        retryProblem = error.message;
+        console.warn(`${provider} plan candidate rejected:`, error.message);
+        if (provider === "local" && cloudAvailable()) provider = "cloud";
       }
     }
 
     if (!generated) {
-      if (!cloudAvailable()) {
-        return jsonError("Plan generation is not reachable right now.", 503);
-      }
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const response = await anthropic.messages.create({
-        model: COACH_MODEL,
-        max_tokens: 4096,
-        tools: [PLAN_TOOL],
-        tool_choice: { type: "tool", name: PLAN_TOOL.name },
-        messages: [{ role: "user", content: prompt }],
-      });
-      const toolUse = response.content.find(
-        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+      return jsonError(
+        `The coach could not build a valid plan: ${retryProblem ?? "the generated plan was incomplete."}`,
+        502,
       );
-      if (!toolUse) return jsonError("The coach did not return a training plan.", 502);
-      generated = parseGeneratedPlan(toolUse.input, allowedExerciseIds, intake);
-      provider = "cloud";
-      usage = toUsageReport(COACH_MODEL, response.usage);
     }
 
     const planId = await createPlan(supabase, toNewPlan(intake, generated));
-    return NextResponse.json({ planId, provider, usage });
+    return NextResponse.json({ planId, provider, usage, warnings: validationWarnings });
   } catch (error) {
     console.error("Plan generation error:", error);
     return jsonError("The coach could not build a valid plan. Try again.", 502);

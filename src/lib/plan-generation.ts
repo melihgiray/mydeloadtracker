@@ -314,6 +314,15 @@ ATHLETE_DATA_JSON
 ${JSON.stringify({ intake, snapshot }, null, 2)}`;
 }
 
+/** Build the one allowed regeneration prompt from a named validation failure. */
+export function buildPlannerRetryPrompt(prompt: string, problem: string): string {
+  return `${prompt}
+
+REGENERATION_REQUIRED
+The previous candidate was rejected before persistence: ${problem}
+Return a complete new plan that fixes that problem. All original rules still apply.`;
+}
+
 export const PLAN_TOOL_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
