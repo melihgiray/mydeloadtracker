@@ -285,14 +285,14 @@ export function validateGeneratedPlan(
       warnings.push({
         severity: "warning",
         code: "volume_below_target",
-        message: `${muscle} has ${sets} weekly sets; the coach-estimate target starts at ${target.min}.`,
+        message: `${muscle} has ${sets} weekly sets; the coach estimate target starts at ${target.min}.`,
         muscle,
       });
     } else if (sets > target.max) {
       warnings.push({
         severity: "warning",
         code: "volume_above_target",
-        message: `${muscle} has ${sets} weekly sets; the coach-estimate target ends at ${target.max}.`,
+        message: `${muscle} has ${sets} weekly sets; the coach estimate target ends at ${target.max}.`,
         muscle,
       });
     }

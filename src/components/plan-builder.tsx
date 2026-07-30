@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CalendarDays, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, Loader2, RefreshCw } from "lucide-react";
 import {
   EQUIPMENT_TAGS,
   type EquipmentTag,
@@ -74,6 +74,7 @@ export function PlanBuilder({
   const [note, setNote] = useState(initialPlan?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     if (initialPlan) setEditing(false);
@@ -89,6 +90,7 @@ export function PlanBuilder({
     event.preventDefault();
     if (equipment.length === 0 || saving) return;
     setError(null);
+    setWarnings([]);
     setSaving(true);
 
     const intake: PlanIntake = {
@@ -109,10 +111,16 @@ export function PlanBuilder({
       });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
+        warnings?: { message?: string }[];
       };
       if (!response.ok) {
         throw new Error(body.error ?? "The coach could not build your plan.");
       }
+      setWarnings(
+        (body.warnings ?? [])
+          .map((warning) => warning.message?.trim())
+          .filter((message): message is string => Boolean(message)),
+      );
       setEditing(false);
       router.refresh();
     } catch (caught) {
@@ -186,6 +194,25 @@ export function PlanBuilder({
         <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
           {evidenceCaveat}
         </p>
+
+        {warnings.length > 0 && (
+          <details className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-500" />
+              {warnings.length} coach {warnings.length === 1 ? "check" : "checks"}
+            </summary>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              These estimates do not block your plan. Review them before your first session.
+            </p>
+            <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted">
+              {warnings.map((warning) => (
+                <li key={warning} className="rounded-lg bg-background/60 px-3 py-2">
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <Link href="/log" className="btn-brand w-full sm:w-auto">
           Open today&apos;s workout
