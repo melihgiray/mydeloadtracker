@@ -75,6 +75,10 @@ export function PlanBuilder({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  // Kept apart from the estimate warnings above. An unenforced restriction is
+  // not an estimate to review later, it is a constraint the athlete gave that
+  // the app could not apply, so it is stated plainly instead of collapsed.
+  const [unenforced, setUnenforced] = useState<string[]>([]);
 
   useEffect(() => {
     if (initialPlan) setEditing(false);
@@ -91,6 +95,7 @@ export function PlanBuilder({
     if (equipment.length === 0 || saving) return;
     setError(null);
     setWarnings([]);
+    setUnenforced([]);
     setSaving(true);
 
     const intake: PlanIntake = {
@@ -111,16 +116,18 @@ export function PlanBuilder({
       });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
-        warnings?: { message?: string }[];
+        warnings?: { message?: string; code?: string }[];
       };
       if (!response.ok) {
         throw new Error(body.error ?? "The coach could not build your plan.");
       }
-      setWarnings(
-        (body.warnings ?? [])
+      const all = body.warnings ?? [];
+      const text = (list: typeof all) =>
+        list
           .map((warning) => warning.message?.trim())
-          .filter((message): message is string => Boolean(message)),
-      );
+          .filter((message): message is string => Boolean(message));
+      setWarnings(text(all.filter((warning) => warning.code !== "avoid_unmatched")));
+      setUnenforced(text(all.filter((warning) => warning.code === "avoid_unmatched")));
       setEditing(false);
       router.refresh();
     } catch (caught) {
@@ -194,6 +201,26 @@ export function PlanBuilder({
         <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
           {evidenceCaveat}
         </p>
+
+        {/* Shown open and above the estimates: the athlete asked for something
+            the app could not apply, and burying that would imply it was. */}
+        {unenforced.length > 0 && (
+          <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-warning">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              {unenforced.length === 1
+                ? "One thing you asked to avoid was not applied"
+                : `${unenforced.length} things you asked to avoid were not applied`}
+            </p>
+            <ul className="mt-2 space-y-2 text-xs leading-relaxed text-muted">
+              {unenforced.map((message) => (
+                <li key={message} className="rounded-lg bg-background/60 px-3 py-2">
+                  {message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {warnings.length > 0 && (
           <details className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3">
