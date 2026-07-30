@@ -1,0 +1,222 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextResponse } from "next/server";
+import { COACH_MODEL, toUsageReport } from "@/lib/ai-model";
+import {
+  LOCAL_MODELS,
+  LOCAL_TIMEOUT_MS,
+  cloudAvailable,
+  localOptions,
+  preferredProvider,
+  type Provider,
+} from "@/lib/ai-provider";
+import { getCheckins, getExercises, getProfile, getTrainingSets } from "@/lib/data";
+import { detectDeload } from "@/lib/analytics/deload";
+import { buildRecords } from "@/lib/analytics/records";
+import { computeReadiness } from "@/lib/analytics/readiness";
+import { buildSetVolume } from "@/lib/analytics/setVolume";
+import { classifyLift } from "@/lib/analytics/standards";
+import {
+  EVIDENCE_CAVEAT,
+  MUSCLE_GROUPS,
+  canValidate,
+  prescriptionRange,
+} from "@/lib/analytics/volume-landmarks";
+import { ollamaChat } from "@/lib/ollama";
+import {
+  PLAN_TOOL_INPUT_SCHEMA,
+  buildPlannerPrompt,
+  filterExercisesForEquipment,
+  parseGeneratedPlan,
+  parsePlanIntake,
+  recentSessionFrequency,
+  toNewPlan,
+  type GeneratedPlan,
+  type PlannerSnapshot,
+} from "@/lib/plan-generation";
+import { createPlan } from "@/lib/plans";
+import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+const PLAN_TOOL: Anthropic.Tool = {
+  name: "save_training_plan",
+  description:
+    "Return the complete structured training plan. Use only exercise IDs supplied in the athlete data.",
+  input_schema: PLAN_TOOL_INPUT_SCHEMA as unknown as Anthropic.Tool["input_schema"],
+};
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+export async function POST(req: Request) {
+  if (!cloudAvailable() && preferredProvider("plan") !== "local") {
+    return jsonError("Plan generation is not configured on this server.", 503);
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return jsonError("Not authenticated.", 401);
+
+  let intake;
+  try {
+    intake = parsePlanIntake(await req.json());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid plan intake.";
+    return jsonError(message, 400);
+  }
+
+  try {
+    const profile = await getProfile(supabase);
+    const units = profile?.units ?? "kg";
+    const [sets, checkins, library] = await Promise.all([
+      getTrainingSets(supabase, units, 8),
+      getCheckins(supabase, 30),
+      getExercises(supabase),
+    ]);
+    const exercises = filterExercisesForEquipment(library, intake.equipment);
+    if (exercises.length === 0) {
+      return jsonError("No exercises match the selected equipment.", 400);
+    }
+
+    const now = new Date();
+    const setVolume = buildSetVolume(sets, 4, 8, now);
+    const readiness = computeReadiness(sets, checkins, now, {
+      bodyweight: profile?.bodyweight ?? null,
+      sex: profile?.sex ?? null,
+      units,
+    });
+    const deload = detectDeload(sets, now);
+    const records = buildRecords(sets);
+    const strengthLevels =
+      profile?.bodyweight && profile.sex
+        ? records
+            .filter((record) => record.isMajor)
+            .map((record) =>
+              classifyLift(
+                record.exerciseName,
+                { e1rm: record.bestE1RM, reps: record.bestReps },
+                profile.bodyweight!,
+                profile.sex!,
+                units,
+              ),
+            )
+            .filter((level) => level != null)
+            .map((level) => ({
+              lift: level.lift,
+              level: level.level.label,
+              metric: level.metric,
+            }))
+        : [];
+
+    const volumeByMuscle = new Map(
+      setVolume.muscles.map((muscle) => [muscle.muscleGroup, muscle]),
+    );
+    const snapshot: PlannerSnapshot = {
+      loggedSets: sets.length,
+      sessionsPerWeek: recentSessionFrequency(sets, now),
+      currentSetsPerMuscle: MUSCLE_GROUPS.map((muscle) => ({
+        muscle,
+        setsPerWeek: volumeByMuscle.get(muscle)?.setsPerWeek ?? 0,
+        thisWeek: volumeByMuscle.get(muscle)?.thisWeek ?? 0,
+      })),
+      strengthLevels,
+      readiness: {
+        score: readiness.score,
+        band: readiness.band.label,
+        topDrivers: readiness.topDrivers,
+      },
+      deload: { recommended: deload.recommended, reasons: deload.reasons },
+      landmarks: MUSCLE_GROUPS.map((muscle) => {
+        const safe = canValidate(muscle);
+        const range = safe ? prescriptionRange(muscle) : null;
+        return {
+          muscle,
+          canValidate: safe,
+          target: range ? { min: range.min, max: range.max } : null,
+        };
+      }),
+      evidenceCaveat: EVIDENCE_CAVEAT,
+      exercises: exercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        muscleGroup: exercise.muscle_group,
+        equipment: exercise.equipment!,
+        isMajor: exercise.is_major,
+      })),
+    };
+
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    const allowedExerciseIds = new Set(exercises.map((exercise) => exercise.id));
+    let generated: GeneratedPlan | null = null;
+    let provider: Provider = "cloud";
+    let usage:
+      | ReturnType<typeof toUsageReport>
+      | { model: string; provider: "local" }
+      | null = null;
+
+    if (preferredProvider("plan") === "local") {
+      try {
+        const response = await ollamaChat(
+          {
+            model: LOCAL_MODELS.plan,
+            stream: false,
+            think: false,
+            format: PLAN_TOOL_INPUT_SCHEMA,
+            ...localOptions(4096),
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a strength program planner. Return only the JSON object required by the supplied schema.",
+              },
+              { role: "user", content: prompt },
+            ],
+          },
+          LOCAL_TIMEOUT_MS.plan,
+        );
+        const body = (await response.json()) as { message?: { content?: string } };
+        if (!body.message?.content) throw new Error("Local planner returned no content.");
+        generated = parseGeneratedPlan(
+          JSON.parse(body.message.content),
+          allowedExerciseIds,
+          intake,
+        );
+        provider = "local";
+        usage = { model: LOCAL_MODELS.plan, provider: "local" };
+      } catch (error) {
+        console.warn("Local plan generation unavailable, falling back to the cloud:", error);
+      }
+    }
+
+    if (!generated) {
+      if (!cloudAvailable()) {
+        return jsonError("Plan generation is not reachable right now.", 503);
+      }
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const response = await anthropic.messages.create({
+        model: COACH_MODEL,
+        max_tokens: 4096,
+        tools: [PLAN_TOOL],
+        tool_choice: { type: "tool", name: PLAN_TOOL.name },
+        messages: [{ role: "user", content: prompt }],
+      });
+      const toolUse = response.content.find(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+      );
+      if (!toolUse) return jsonError("The coach did not return a training plan.", 502);
+      generated = parseGeneratedPlan(toolUse.input, allowedExerciseIds, intake);
+      provider = "cloud";
+      usage = toUsageReport(COACH_MODEL, response.usage);
+    }
+
+    const planId = await createPlan(supabase, toNewPlan(intake, generated));
+    return NextResponse.json({ planId, provider, usage });
+  } catch (error) {
+    console.error("Plan generation error:", error);
+    return jsonError("The coach could not build a valid plan. Try again.", 502);
+  }
+}
