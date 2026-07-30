@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CalendarCheck, ScanLine } from "lucide-react";
+import { CalendarCheck, ScanLine, TrendingDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCheckins, getExercises, getProfile, getTrainingSets } from "@/lib/data";
-import { getPlanDayForToday } from "@/lib/plans";
+import { getPlanDayForToday, isScheduledDeloadWeek, planCycleWeek } from "@/lib/plans";
 import { buildPlannedSession, type PlannedExercise } from "@/lib/plan-session";
 import { buildNextSessions } from "@/lib/analytics/progression";
 import { detectDeload } from "@/lib/analytics/deload";
@@ -33,16 +33,38 @@ export default async function LogPage() {
   ]);
 
   let planned: PlannedExercise[] | undefined;
+  let deloadMessage: string | null = null;
   if (today) {
-    // Deload state comes from the analytics brain and progression applies it to
-    // every target, so a deload week reaches the form as lighter prefilled
-    // weights without the form or the plan knowing why.
-    const deload = detectDeload(sets);
+    // A scheduled deload and an earlier readiness-triggered deload are equally
+    // actionable. Either one adapts today's plan. Readiness can pull recovery
+    // forward, while the explicit plan week prevents an accumulation block
+    // from running forever when the fatigue detector stays quiet.
+    const readinessDeload = detectDeload(sets).recommended;
+    const dateKey = todayKey();
+    const scheduledDeload = isScheduledDeloadWeek(today.plan, dateKey);
+    const deload = readinessDeload || scheduledDeload;
+    const cycleWeek = planCycleWeek(
+      today.plan.started_on,
+      today.plan.mesocycle_weeks,
+      dateKey,
+    );
+
     planned = buildPlannedSession(
       today.day,
-      buildNextSessions(sets, { units, deload: deload.recommended }),
+      buildNextSessions(sets, { units, deload }),
       units,
+      { deload },
     );
+
+    if (deload) {
+      const reason =
+        scheduledDeload && readinessDeload
+          ? `Week ${cycleWeek} is your planned deload, and your readiness signals agree.`
+          : scheduledDeload
+            ? `Week ${cycleWeek} is your planned deload.`
+            : "Your recent training signals call for recovery.";
+      deloadMessage = `${reason} Today has about half the sets. Loaded exercises with history are about 15% lighter, and effort is capped at RPE 6.`;
+    }
   }
 
   return (
@@ -68,6 +90,15 @@ export default async function LogPage() {
             Today from {today.plan.name}
             {today.day.focus && `. ${today.day.focus}`}. It is already filled in, so change what
             differs and save.
+          </p>
+        </div>
+      )}
+
+      {deloadMessage && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5">
+          <TrendingDown className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" />
+          <p className="min-w-0 text-xs leading-snug text-warning">
+            <span className="font-semibold">Deload active.</span> {deloadMessage}
           </p>
         </div>
       )}
