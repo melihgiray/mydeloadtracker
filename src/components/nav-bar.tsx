@@ -18,6 +18,7 @@ function isActive(pathname: string, href: string) {
   if (href === "/progress") return pathname.startsWith("/progress") || pathname.startsWith("/history");
   if (href === "/log") return pathname.startsWith("/log") || pathname.startsWith("/scan");
   if (href === "/dashboard") return pathname === "/dashboard" || pathname.startsWith("/insights");
+  if (href === "/coach") return pathname.startsWith("/coach") || pathname.startsWith("/plan");
   return pathname.startsWith(href);
 }
 
