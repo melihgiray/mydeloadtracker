@@ -14,6 +14,7 @@ import { detectDeload } from "@/lib/analytics/deload";
 import { buildRecords } from "@/lib/analytics/records";
 import { computeReadiness } from "@/lib/analytics/readiness";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
+import { assessWeakPoints, priorityMuscles } from "@/lib/analytics/weak-points";
 import { classifyLift } from "@/lib/analytics/standards";
 import {
   EVIDENCE_CAVEAT,
@@ -169,7 +170,6 @@ export async function POST(req: Request) {
     const strengthLevels =
       profile?.bodyweight && profile.sex
         ? records
-            .filter((record) => record.isMajor)
             .map((record) =>
               classifyLift(
                 record.exerciseName,
@@ -187,6 +187,15 @@ export async function POST(req: Request) {
             }))
         : [];
 
+    // Per muscle strength and volume, scored against the athlete's own median.
+    // This is the difference between a plan that knows their arms lag and one
+    // that has to be told.
+    const weakPoints = assessWeakPoints(records, setVolume, {
+      bodyweight: profile?.bodyweight ?? null,
+      sex: profile?.sex ?? null,
+      units,
+    });
+
     const volumeByMuscle = new Map(
       setVolume.muscles.map((muscle) => [muscle.muscleGroup, muscle]),
     );
@@ -199,6 +208,17 @@ export async function POST(req: Request) {
         thisWeek: volumeByMuscle.get(muscle)?.thisWeek ?? 0,
       })),
       strengthLevels,
+      muscleAssessment: weakPoints.muscles.map((m) => ({
+        muscle: m.muscle,
+        strengthLabel: m.strengthLabel,
+        basedOn: m.basedOn,
+        setsPerWeek: m.setsPerWeek,
+        status: m.status,
+        lag: m.lag,
+        reasons: m.reasons,
+      })),
+      priorityMuscles: priorityMuscles(weakPoints),
+      assessmentInsufficient: weakPoints.insufficientData,
       readiness: {
         score: readiness.score,
         band: readiness.band.label,

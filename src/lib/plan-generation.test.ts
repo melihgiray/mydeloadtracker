@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EQUIPMENT_TAGS,
   buildPlannerPrompt,
   buildPlannerRetryPrompt,
   filterExercisesForEquipment,
@@ -181,6 +182,19 @@ describe("planner prompt and persistence mapping", () => {
     sessionsPerWeek: 3,
     currentSetsPerMuscle: [{ muscle: "Quads", setsPerWeek: 8, thisWeek: 3 }],
     strengthLevels: [{ lift: "Squat", level: "Intermediate", metric: "weight" }],
+    muscleAssessment: [
+      {
+        muscle: "Biceps",
+        strengthLabel: "Novice",
+        basedOn: "Barbell Curl",
+        setsPerWeek: 4,
+        status: "lagging",
+        lag: 0.9,
+        reasons: ["Novice on Barbell Curl, about 0.9 levels behind the rest of your lifts."],
+      },
+    ],
+    priorityMuscles: ["Biceps"],
+    assessmentInsufficient: false,
     readiness: { score: 72, band: "Solid", topDrivers: [] },
     deload: { recommended: false, reasons: [] },
     landmarks: [
@@ -273,5 +287,76 @@ describe("model prose is trimmed, not rejected", () => {
 
   it("still refuses a structural violation, which is not cosmetic", () => {
     expect(() => parseGeneratedPlan(candidate({ days: [] }), ids, intake)).toThrow();
+  });
+});
+
+// The founder's complaint, as a contract on the prompt: the plan put compounds
+// before arm work, which is why the arms lagged. The model cannot fix that
+// unless it is told both which muscles lag and what to do about the order.
+describe("the prompt carries the weak-point assessment", () => {
+  const snapshot: PlannerSnapshot = {
+    loggedSets: 40,
+    sessionsPerWeek: 4,
+    currentSetsPerMuscle: [{ muscle: "Biceps", setsPerWeek: 4, thisWeek: 2 }],
+    strengthLevels: [{ lift: "Squat", level: "Intermediate", metric: "weight" }],
+    muscleAssessment: [
+      {
+        muscle: "Biceps",
+        strengthLabel: "Novice",
+        basedOn: "Barbell Curl",
+        setsPerWeek: 4,
+        status: "lagging",
+        lag: 0.9,
+        reasons: ["Novice on Barbell Curl, about 0.9 levels behind the rest of your lifts."],
+      },
+    ],
+    priorityMuscles: ["Biceps"],
+    assessmentInsufficient: false,
+    readiness: { score: 72, band: "Solid", topDrivers: [] },
+    deload: { recommended: false, reasons: [] },
+    landmarks: [{ muscle: "Biceps", canValidate: true, target: { min: 8, max: 20 } }],
+    evidenceCaveat: "Coach estimates, not trial results.",
+    exercises: [
+      { id: "e1", name: "Barbell Curl", muscleGroup: "Biceps", equipment: "barbell", isMajor: false },
+    ],
+  };
+
+  it("names the priority muscles it was given", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toContain("Biceps");
+    expect(prompt).toContain("priorityMuscles");
+  });
+
+  it("tells the model to open a day with the lagging muscle's direct work", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/ORDER WITHIN EACH DAY/);
+    expect(prompt).toMatch(/before the compounds that fatigue it/);
+  });
+
+  it("tells the model to move sets rather than inflate total volume", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/move sets from leading muscles to lagging ones/);
+  });
+
+  it("forbids asking the athlete what is already computed", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/do not ask them what is weak/);
+  });
+
+  it("carries the reason a muscle was flagged, so the plan can explain itself", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toContain("Barbell Curl");
+  });
+});
+
+describe("equipment options suit the audience", () => {
+  it("no longer offers kettlebells", () => {
+    expect(EQUIPMENT_TAGS).not.toContain("kettlebell" as never);
+  });
+
+  it("keeps the equipment a gym lifter actually uses", () => {
+    for (const tag of ["barbell", "dumbbell", "machine", "cable", "bodyweight"]) {
+      expect(EQUIPMENT_TAGS).toContain(tag as never);
+    }
   });
 });

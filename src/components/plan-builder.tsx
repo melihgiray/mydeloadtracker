@@ -18,7 +18,6 @@ const EQUIPMENT_LABELS: Record<EquipmentTag, string> = {
   machine: "Machines",
   bodyweight: "Bodyweight",
   cable: "Cables",
-  kettlebell: "Kettlebells",
 };
 
 const GOALS: { value: PlanGoal; label: string }[] = [

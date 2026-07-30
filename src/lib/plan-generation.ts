@@ -7,7 +7,6 @@ export const EQUIPMENT_TAGS = [
   "machine",
   "bodyweight",
   "cable",
-  "kettlebell",
 ] as const;
 
 export type EquipmentTag = (typeof EQUIPMENT_TAGS)[number];
@@ -54,6 +53,24 @@ export interface PlannerSnapshot {
   sessionsPerWeek: number;
   currentSetsPerMuscle: { muscle: string; setsPerWeek: number; thisWeek: number }[];
   strengthLevels: { lift: string; level: string; metric: string }[];
+  /**
+   * Per muscle strength and volume, scored against the athlete's OWN median.
+   * This is what makes "my arms are lagging" something the app works out
+   * instead of something the athlete has to type. See weak-points.ts.
+   */
+  muscleAssessment: {
+    muscle: string;
+    strengthLabel: string | null;
+    basedOn: string | null;
+    setsPerWeek: number;
+    status: string;
+    lag: number | null;
+    reasons: string[];
+  }[];
+  /** Muscles whose direct work should come first in the session. */
+  priorityMuscles: string[];
+  /** True when there is too little classified history to rank anything. */
+  assessmentInsufficient: boolean;
   readiness: { score: number; band: string; topDrivers: string[] };
   deload: { recommended: boolean; reasons: string[] };
   landmarks: {
@@ -372,6 +389,10 @@ Rules:
 6. Schedule a deload week inside the mesocycle. Account for the measured readiness and deload state.
 7. Landmark target null means there is no defensible per muscle target. Do not replace null with a plausible number or claim that muscle was validated.
 8. Per muscle targets are low confidence coach estimates. Use them as starting points, not measured limits.
+9. ORDER WITHIN EACH DAY. Put direct work for a priorityMuscles muscle FIRST, before the compounds that fatigue it. A lagging muscle trained last gets the tired end of every session, which is how it stays lagging. If a day trains a priority muscle at all, an isolation or short-lever movement for it opens that day.
+10. VOLUME ALLOCATION. Aim a lagging muscle at the upper half of its landmark range and add frequency across days. Hold a leading muscle near the lower end. Do not raise total weekly sets across the board to do this; move sets from leading muscles to lagging ones.
+11. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
+12. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
 
 ATHLETE_DATA_JSON
 ${JSON.stringify({ intake, snapshot }, null, 2)}`;
