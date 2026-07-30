@@ -109,6 +109,32 @@ function optionalText(value: unknown, label: string, max: number): string | null
   return text(value, label, max);
 }
 
+/**
+ * Cosmetic prose, trimmed to fit rather than rejected.
+ *
+ * Strictness here should be proportional to consequence. An exercise id that is
+ * not in the library references nothing and has to be refused. A note that runs
+ * long is just prose, and throwing away an otherwise valid four day plan
+ * because its summary was wordy is the wrong trade.
+ *
+ * This was found by running the route end to end against production: the model
+ * reliably wrote plan notes past the 500 character cap, every candidate was
+ * rejected, and the retry pushed the request past the 60s function ceiling. The
+ * athlete saw a timeout caused entirely by prose length.
+ *
+ * Cuts on a word boundary when there is one, so the result reads as a sentence
+ * that stops rather than a string that was chopped.
+ */
+function trimmedText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const clean = value.trim();
+  if (clean === "") return null;
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd();
+}
+
 function integer(value: unknown, label: string, min: number, max: number): number {
   if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) {
     throw new Error(`${label} must be a whole number from ${min} to ${max}.`);
@@ -289,13 +315,13 @@ export function parseGeneratedPlan(
         rest_seconds:
           rest == null ? null : integer(rest, "Rest time", 15, 600),
         role: exercise.role as GeneratedPlanExercise["role"],
-        note: optionalText(exercise.note, "Exercise note", 240),
+        note: trimmedText(exercise.note, 240),
       };
     });
 
     return {
       name: text(day.name, `Day ${dayIndex + 1} name`, 80),
-      focus: optionalText(day.focus, `Day ${dayIndex + 1} focus`, 160),
+      focus: trimmedText(day.focus, 160),
       exercises,
     };
   });
@@ -308,7 +334,7 @@ export function parseGeneratedPlan(
     split: raw.split as PlanSplit,
     mesocycle_weeks: mesocycleWeeks,
     deload_week: deloadWeek,
-    notes: optionalText(raw.notes, "Plan notes", 500),
+    notes: trimmedText(raw.notes, 500),
     days,
   };
 }

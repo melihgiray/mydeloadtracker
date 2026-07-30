@@ -233,3 +233,45 @@ describe("planner prompt and persistence mapping", () => {
     expect(retry).toContain("All original rules still apply");
   });
 });
+
+// Found by running the route end to end against production: the model reliably
+// wrote plan notes past the cap, every candidate was rejected, and the retry
+// pushed the request past the 60s function ceiling. A wordy summary must never
+// cost the athlete a whole plan.
+describe("model prose is trimmed, not rejected", () => {
+  const long = (n: number) => "word ".repeat(Math.ceil(n / 5)).slice(0, n);
+  const ids = new Set(["squat-id"]);
+  // parseGeneratedPlan reads a raw candidate, so start from the typed fixture
+  // and widen it rather than hand-rolling a second shape.
+  const candidate = (over: Record<string, unknown> = {}) =>
+    JSON.parse(JSON.stringify({ ...generated, ...over })) as Record<string, unknown>;
+
+  it("accepts a plan whose notes run past the limit", () => {
+    const parsed = parseGeneratedPlan(candidate({ notes: long(2000) }), ids, intake);
+    expect(parsed.notes).toBeTruthy();
+    expect(parsed.notes!.length).toBeLessThanOrEqual(500);
+  });
+
+  it("accepts an over-long exercise note and day focus", () => {
+    const c = candidate();
+    (c.days as any)[0].focus = long(900);
+    (c.days as any)[0].exercises[0].note = long(900);
+    const parsed = parseGeneratedPlan(c, ids, intake);
+    expect(parsed.days[0].focus!.length).toBeLessThanOrEqual(160);
+    expect(parsed.days[0].exercises[0].note!.length).toBeLessThanOrEqual(240);
+  });
+
+  it("leaves prose that already fits completely untouched", () => {
+    const parsed = parseGeneratedPlan(candidate({ notes: "Short and useful." }), ids, intake);
+    expect(parsed.notes).toBe("Short and useful.");
+  });
+
+  it("cuts on a word boundary, so the text reads as a sentence that stops", () => {
+    const parsed = parseGeneratedPlan(candidate({ notes: long(2000) }), ids, intake);
+    expect(parsed.notes).not.toMatch(/\s$/);
+  });
+
+  it("still refuses a structural violation, which is not cosmetic", () => {
+    expect(() => parseGeneratedPlan(candidate({ days: [] }), ids, intake)).toThrow();
+  });
+});
