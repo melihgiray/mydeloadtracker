@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { COACH_MODEL, toUsageReport, type UsageReport } from "@/lib/ai-model";
+import { PLAN_MODEL, toUsageReport, type UsageReport } from "@/lib/ai-model";
 import {
   LOCAL_MODELS,
   LOCAL_TIMEOUT_MS,
@@ -54,6 +54,20 @@ const PLAN_TOOL: Anthropic.Tool = {
 };
 
 const MAX_GENERATED_CANDIDATES = 2;
+
+/**
+ * Wall-clock budget for the whole route, from maxDuration above.
+ *
+ * The Vercel account is on Hobby, where 60s is a hard per-function ceiling that
+ * cannot be raised. A second generation attempt is only worth starting if there
+ * is plausibly time to finish it AND still write three tables afterwards.
+ * Measured in production: a first attempt that has already burned past this
+ * mark will not fit a second, and the athlete gets a 504 instead of a plan.
+ */
+const ROUTE_BUDGET_MS = 60_000;
+const RETRY_CUTOFF_MS = 24_000;
+/** Room for the plan, day and exercise inserts after generation returns. */
+const PERSIST_RESERVE_MS = 6_000;
 
 class CandidateRejectedError extends Error {
   constructor(
@@ -224,8 +238,18 @@ export async function POST(req: Request) {
     let cloudUsage: UsageReport | null = null;
     let candidateCount = 0;
     let retryProblem: string | null = null;
+    const startedAt = Date.now();
+    const elapsed = () => Date.now() - startedAt;
 
     while (!generated && candidateCount < MAX_GENERATED_CANDIDATES) {
+      // Skip a retry there is no time for. Timing out returns nothing at all,
+      // which is strictly worse than reporting why the first attempt failed.
+      if (candidateCount > 0 && elapsed() > RETRY_CUTOFF_MS) {
+        console.warn(
+          `Skipping plan retry: ${elapsed()}ms elapsed of a ${ROUTE_BUDGET_MS}ms budget.`,
+        );
+        break;
+      }
       const attemptPrompt = retryProblem
         ? buildPlannerRetryPrompt(prompt, retryProblem)
         : prompt;
@@ -280,14 +304,24 @@ export async function POST(req: Request) {
         }
       } else {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const callStartedAt = Date.now();
         const response = await anthropic.messages.create({
-          model: COACH_MODEL,
-          max_tokens: 4096,
+          model: PLAN_MODEL,
+          // A seven day plan of twelve exercises each is well under 3000 output
+          // tokens. 4096 was headroom that only ever bought a slower worst case
+          // against a ceiling that cannot move.
+          max_tokens: 3000,
           tools: [PLAN_TOOL],
           tool_choice: { type: "tool", name: PLAN_TOOL.name },
           messages: [{ role: "user", content: attemptPrompt }],
         });
-        cloudUsage = addUsage(cloudUsage, toUsageReport(COACH_MODEL, response.usage));
+        // Logged because the budget arithmetic above is only as good as this
+        // number, and it was previously unmeasured in production.
+        console.info(
+          `Plan generation attempt ${candidateCount + 1}: ${Date.now() - callStartedAt}ms, ` +
+            `${response.usage?.output_tokens ?? 0} output tokens, model ${PLAN_MODEL}.`,
+        );
+        cloudUsage = addUsage(cloudUsage, toUsageReport(PLAN_MODEL, response.usage));
         const toolUse = response.content.find(
           (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
         );

@@ -25,6 +25,17 @@ export const SCAN_MODEL = process.env.ANTHROPIC_SCAN_MODEL ?? FALLBACK;
 /** Long-context reasoning over training history. Quality-sensitive. */
 export const COACH_MODEL = process.env.ANTHROPIC_COACH_MODEL ?? FALLBACK;
 
+/**
+ * One shot structured generation of a whole training plan.
+ *
+ * Separate from the coach because it is the only call in the app bounded by a
+ * hard wall clock: the Vercel account is on Hobby, where 60s per function
+ * cannot be raised, and a plan that generates too slowly returns nothing at
+ * all. That makes speed a correctness property here and merely nice elsewhere,
+ * so it needs its own knob. Falls back to the coach model.
+ */
+export const PLAN_MODEL = process.env.ANTHROPIC_PLAN_MODEL ?? COACH_MODEL;
+
 /** Token usage returned by the Anthropic SDK, narrowed to what we report. */
 export interface UsageReport {
   model: string;
