@@ -41,6 +41,10 @@ docs/LAUNCH.md
 docs/RAISE_PLAYBOOK.md
 docs/YC_APPLICATION.md
 
+# Local-only working docs: audit trails, verbatim founder feedback, agent
+# handoff prompts. Kept out of the public repo but written for Sol to review.
+docs/*.local.md
+
 # Claude Code local tooling (not for the public repo)
 .claude/settings.local.json
 .claude/launch.json

@@ -20,18 +20,17 @@ the next section.
 written after the founder used v1: it is not editable, it does not ask a new
 user for their PRs, it does not branch exercise selection on goal, and it
 prescribes volume and effort instead of asking. That doc carries its own build
-order and a proposed ownership split, and **no v2 step is claimed until the
-founder confirms it here.**
+order and a proposed ownership split, and the founder assigned **all seven steps to Claude** on 2026-07-30.
 
 | v2 step | State | Owner |
 |---------|-------|-------|
-| 1. Migration 0017 plus exercise-profile.ts | not started | proposed Claude |
-| 2. Direct editing with undo | not started | proposed Sol or Terra |
-| 3. PR intake and cold start | not started | proposed Claude |
-| 4. Training style question | not started | proposed Sol or Terra |
-| 5. Selection rules, goal branch | not started | proposed Claude |
-| 6. Conversational editing | not started | proposed Sol or Terra |
-| 7. Weekly review | not started | proposed Claude |
+| 1. Migration 0017 plus exercise-profile.ts | not started | Claude |
+| 2. Direct editing with undo | not started | Claude |
+| 3. PR intake and cold start | not started | Claude |
+| 4. Training style question | not started | Claude |
+| 5. Selection rules, goal branch | not started | Claude |
+| 6. Conversational editing | not started | Claude |
+| 7. Weekly review | not started | Claude |
 
 ## Step 6 closure
 
