@@ -15,9 +15,9 @@
 // "Lagging" only means anything relative to the rest of the same body. An
 // Intermediate squat next to a Novice curl is a lagging arm; an Intermediate
 // curl next to an Intermediate squat is not, even though both are Intermediate.
-// So every muscle is scored against the median of that athlete's own scored
-// muscles. This also makes the signal work for a beginner and an advanced
-// lifter without either of them being told they are behind.
+// So every muscle is scored against what the athlete's STRONGER muscles can
+// do, not against a population table. This also makes the signal work for a
+// beginner and an advanced lifter without either being told they are behind.
 //
 // Two dimensions, deliberately kept separate:
 //   STRENGTH, from the strengthlevel tables via standards.ts.
@@ -35,7 +35,7 @@ import { MUSCLE_GROUPS, canValidate, prescriptionRange, zoneFor, type VolumeZone
 import type { Units } from "@/lib/types";
 
 /**
- * How far below the athlete's own median a muscle must sit to be called
+ * How far below the athlete's stronger muscles a muscle must sit to be called
  * lagging, in strength levels.
  *
  * Half a level. Small enough to catch a real imbalance before it becomes
@@ -46,7 +46,7 @@ import type { Units } from "@/lib/types";
  */
 export const LAG_THRESHOLD = 0.5;
 
-/** Above the median by this much and a muscle is carrying the athlete. */
+/** Above the reference by this much and a muscle is carrying the athlete. */
 export const LEAD_THRESHOLD = 0.5;
 
 export type MuscleStatus = "lagging" | "on_track" | "leading" | "unscored";
@@ -65,7 +65,7 @@ export interface MuscleAssessment {
   liftsScored: number;
   setsPerWeek: number;
   volumeZone: VolumeZone | null;
-  /** Levels below the athlete's own median. Positive means behind. */
+  /** Levels below the athlete's stronger muscles. Positive means behind. */
   lag: number | null;
   status: MuscleStatus;
   /** Plain sentences explaining the status, safe to show or to prompt with. */
@@ -77,7 +77,13 @@ export interface WeakPointReport {
   muscles: MuscleAssessment[];
   /** The athlete's median strength score across scored muscles. */
   medianScore: number | null;
-  /** Muscles behind the median, worst first. Empty when nothing is behind. */
+  /**
+   * The benchmark muscles are actually judged against: the median of the
+   * STRONGER half. See the note on referenceScore below for why the plain
+   * median is the wrong yardstick.
+   */
+  referenceScore: number | null;
+  /** Muscles behind the reference, worst first. Empty when nothing is behind. */
   lagging: MuscleAssessment[];
   /** Muscles below their minimum effective volume, regardless of strength. */
   underTrained: MuscleAssessment[];
@@ -143,13 +149,31 @@ export function assessWeakPoints(
     }
   }
 
-  const medianScore = median([...best.values()].map((b) => b.score));
+  const scores = [...best.values()].map((b) => b.score);
+  const medianScore = median(scores);
+
+  /**
+   * Judge against the stronger half, not the overall median.
+   *
+   * A plain median is diluted by the very muscles it is meant to catch. On real
+   * data: shoulders 2.57 and back 2.29 against biceps 1.18 and triceps 1.10
+   * gave a median of 1.59, which put both arms 0.41 and 0.49 behind, just under
+   * a 0.5 threshold, and reported nothing lagging. The weak muscles had pulled
+   * the yardstick down to meet themselves.
+   *
+   * Taking the median of the scores at or above the overall median gives 2.29
+   * here, and the same arms come out 1.11 and 1.19 behind, which matches what
+   * the athlete already knew. The question is "behind what this body can do",
+   * and the stronger half is the better answer to that.
+   */
+  const upperHalf = medianScore == null ? [] : scores.filter((v) => v >= medianScore);
+  const referenceScore = median(upperHalf);
 
   const muscles: MuscleAssessment[] = MUSCLE_GROUPS.map((muscle) => {
     const b = best.get(muscle);
     const setsPerWeek = setsByMuscle.get(muscle) ?? 0;
     const volumeZone = zoneFor(muscle, setsPerWeek);
-    const lag = b != null && medianScore != null ? round2(medianScore - b.score) : null;
+    const lag = b != null && referenceScore != null ? round2(referenceScore - b.score) : null;
 
     let status: MuscleStatus = "unscored";
     if (lag != null) {
@@ -217,6 +241,7 @@ export function assessWeakPoints(
   return {
     muscles: ranked,
     medianScore: medianScore != null ? round2(medianScore) : null,
+    referenceScore: referenceScore != null ? round2(referenceScore) : null,
     lagging,
     underTrained,
     // Two scored muscles is the minimum that makes a median mean anything.
@@ -237,12 +262,28 @@ export function assessWeakPoints(
  */
 export function priorityMuscles(report: WeakPointReport, max = 2): string[] {
   if (report.insufficientData) return [];
-  const scored = new Map(report.lagging.map((m) => [m.muscle, (m.lag ?? 0) + 1]));
-  for (const m of report.underTrained) {
-    scored.set(m.muscle, (scored.get(m.muscle) ?? 0) + 1);
+
+  const scorable = report.muscles.filter((m) => canValidate(m.muscle));
+  // When nearly everything is under its minimum, under-training says nothing
+  // about which muscle to put first. That happens whenever training history is
+  // older than the volume window, and it used to hand every muscle the same
+  // score, so the ranking fell back to list order and returned whichever groups
+  // happened to be first. Strength lag is the signal in that case.
+  const volumeDiscriminates =
+    scorable.length > 0 && report.underTrained.length < scorable.length;
+
+  const scored = new Map<string, number>();
+  // Strength lag dominates: it is measured against the athlete's own lifts and
+  // is what "lagging" actually means. Volume is a tiebreak, not a peer.
+  for (const m of report.lagging) scored.set(m.muscle, (m.lag ?? 0) * 2);
+  if (volumeDiscriminates) {
+    for (const m of report.underTrained) {
+      scored.set(m.muscle, (scored.get(m.muscle) ?? 0) + 1);
+    }
   }
+
   return [...scored.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, max)
     .map(([muscle]) => muscle);
 }

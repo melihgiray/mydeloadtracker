@@ -206,3 +206,60 @@ describe("priorityMuscles", () => {
     expect(priorityMuscles(report).length).toBeLessThanOrEqual(2);
   });
 });
+
+// Both of these are regression tests for bugs found by running the real test
+// account's lifts through this module, after the first live plan still buried
+// arms at the end of the session.
+describe("regressions from the first live run", () => {
+  // Bug 1. A plain median is pulled down by the weak muscles it is meant to
+  // catch. With this data the median was 1.59, putting both arms 0.41 and 0.49
+  // behind, just under the 0.5 threshold, so nothing was reported as lagging.
+  it("judges against the stronger half, so weak arms cannot hide the gap", () => {
+    const report = assessWeakPoints(
+      [
+        record("Shoulder Press", "Shoulders", 56),
+        record("Deadlift", "Back", 172),
+        record("Squat", "Quads", 132),
+        record("Bench Press", "Chest", 88),
+        record("Barbell Curl", "Biceps", 37),
+        record("Tricep Pushdown", "Triceps", 41),
+      ],
+      volume({ Back: 16, Quads: 12, Chest: 10, Shoulders: 9, Biceps: 4, Triceps: 4 }),
+      { bodyweight: 85, sex: "male", units: "kg" },
+    );
+    expect(report.referenceScore).toBeGreaterThan(report.medianScore!);
+    const names = report.lagging.map((m) => m.muscle);
+    expect(names).toContain("Biceps");
+    expect(names).toContain("Triceps");
+  });
+
+  // Bug 2. Training history older than the volume window makes every muscle
+  // read as zero sets. That used to give them all the same score, so the
+  // ranking fell back to list order and returned the first groups in the list
+  // rather than the weak ones.
+  it("still picks the weak muscles when every muscle reads zero volume", () => {
+    const lifts = [
+      record("Shoulder Press", "Shoulders", 56),
+      record("Deadlift", "Back", 172),
+      record("Squat", "Quads", 132),
+      record("Barbell Curl", "Biceps", 37),
+      record("Tricep Pushdown", "Triceps", 41),
+    ];
+    const opts85 = { bodyweight: 85, sex: "male" as const, units: "kg" as const };
+
+    const stale = priorityMuscles(assessWeakPoints(lifts, volume({}), opts85));
+    const fresh = priorityMuscles(
+      assessWeakPoints(
+        lifts,
+        volume({ Back: 16, Quads: 12, Shoulders: 9, Biceps: 4, Triceps: 4 }),
+        opts85,
+      ),
+    );
+
+    expect(stale).not.toContain("Back");
+    expect(stale.some((m) => m === "Biceps" || m === "Triceps")).toBe(true);
+    // The answer must not depend on whether the volume window happened to
+    // catch the athlete's history.
+    expect(stale).toEqual(fresh);
+  });
+});
