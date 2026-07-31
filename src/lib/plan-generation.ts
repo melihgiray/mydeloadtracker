@@ -389,11 +389,12 @@ Rules:
 6. Schedule a deload week inside the mesocycle. Account for the measured readiness and deload state.
 7. Landmark target null means there is no defensible per muscle target. Do not replace null with a plausible number or claim that muscle was validated.
 8. Per muscle targets are low confidence coach estimates. Use them as starting points, not measured limits.
-9. ORDER WITHIN EACH DAY. Put direct work for a priorityMuscles muscle FIRST, before the compounds that fatigue it. A lagging muscle trained last gets the tired end of every session, which is how it stays lagging. If a day trains a priority muscle at all, an isolation or short-lever movement for it opens that day.
-10. VOLUME ALLOCATION. Aim a lagging muscle at the upper half of its landmark range and add frequency across days. Hold a leading muscle near the lower end. Do not raise total weekly sets across the board to do this; move sets from leading muscles to lagging ones.
-11. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
-12. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
-13. WRITING STYLE for name, notes, focus and note. Write like a human. Never use em dashes, en dashes, or any dash as punctuation; use commas and periods. No exclamation points. Plain text only, no markdown and no LaTeX.
+9. ORDER WITHIN EACH DAY. Never place an isolation movement immediately before a compound that works the same muscle. That is pre-exhaustion and the evidence is against it. Compounds open the day. A priorityMuscles muscle gets its direct work immediately AFTER the compounds, never buried at the end of the session, unless the day contains no compound that involves it, in which case its direct work may open the day.
+10. VOLUME ALLOCATION is the growth lever, not order. Give a lagging muscle more direct sets and hold a leading muscle near the lower end of its range, moving sets between them rather than adding to the weekly total. Adding volume on top of an already adequate program did not improve growth in the one trial that tested it on trained lifters, so total weekly sets stay roughly flat.
+11. Spread a lagging muscle's raised sets across more days rather than stacking them into one session. Frequency at matched weekly volume does not itself drive growth, but it keeps any single session's direct sets for that muscle in a moderate range and makes the higher weekly count executable.
+12. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
+13. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
+14. WRITING STYLE for name, notes, focus and note. Write like a human. Never use em dashes, en dashes, or any dash as punctuation; use commas and periods. No exclamation points. Plain text only, no markdown and no LaTeX.
 
 ATHLETE_DATA_JSON
 ${JSON.stringify({ intake, snapshot }, null, 2)}`;

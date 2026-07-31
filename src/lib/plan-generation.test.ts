@@ -329,15 +329,40 @@ describe("the prompt carries the weak-point assessment", () => {
     expect(prompt).toContain("priorityMuscles");
   });
 
-  it("tells the model to open a day with the lagging muscle's direct work", () => {
+  // Hermann 2026 (n=48, trained, age 22.5) is the best population match in the
+  // evidence pass and it leans against pre-exhaustion for hypertrophy. The
+  // planner used to generate exactly that protocol. See docs/PLANNER_EVIDENCE.md.
+  it("forbids pre-exhaustion rather than prescribing it", () => {
     const prompt = buildPlannerPrompt(intake, snapshot);
-    expect(prompt).toMatch(/ORDER WITHIN EACH DAY/);
-    expect(prompt).toMatch(/before the compounds that fatigue it/);
+    expect(prompt).toMatch(/Never place an isolation movement immediately before a compound/);
+    expect(prompt).toMatch(/pre-exhaustion and the evidence is against it/);
   });
 
-  it("tells the model to move sets rather than inflate total volume", () => {
+  it("keeps a priority muscle early without burying it at the end", () => {
     const prompt = buildPlannerPrompt(intake, snapshot);
-    expect(prompt).toMatch(/move sets from leading muscles to lagging ones/);
+    expect(prompt).toMatch(/immediately AFTER the compounds, never buried at the end/);
+  });
+
+  // Nunes 2021: order moves strength in that exercise, g = 0.32 and -0.58, but
+  // not hypertrophy, g = 0.03, p = 0.862. Volume is the growth lever.
+  it("names volume rather than order as the growth lever", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/VOLUME ALLOCATION is the growth lever, not order/);
+  });
+
+  // Barsuhn 2024: trained men who maintained volume out-gained those who added
+  // 30% or 60%. Small trial, but it tested exactly this feature's action.
+  it("holds total weekly volume flat instead of adding on top", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/moving sets between them rather than adding to the weekly total/);
+    expect(prompt).toMatch(/total weekly sets stay roughly flat/);
+  });
+
+  // Schoenfeld 2019 and Pelland 2025: frequency at matched volume is null for
+  // growth. It is a scheduling tool, and the prompt must not oversell it.
+  it("uses frequency for executability, not as a growth claim", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/Frequency at matched weekly volume does not itself drive growth/);
   });
 
   it("forbids asking the athlete what is already computed", () => {
