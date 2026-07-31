@@ -393,6 +393,7 @@ Rules:
 10. VOLUME ALLOCATION. Aim a lagging muscle at the upper half of its landmark range and add frequency across days. Hold a leading muscle near the lower end. Do not raise total weekly sets across the board to do this; move sets from leading muscles to lagging ones.
 11. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
 12. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
+13. WRITING STYLE for name, notes, focus and note. Write like a human. Never use em dashes, en dashes, or any dash as punctuation; use commas and periods. No exclamation points. Plain text only, no markdown and no LaTeX.
 
 ATHLETE_DATA_JSON
 ${JSON.stringify({ intake, snapshot }, null, 2)}`;

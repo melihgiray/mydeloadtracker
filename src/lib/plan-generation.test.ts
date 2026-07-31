@@ -293,8 +293,7 @@ describe("model prose is trimmed, not rejected", () => {
 // The founder's complaint, as a contract on the prompt: the plan put compounds
 // before arm work, which is why the arms lagged. The model cannot fix that
 // unless it is told both which muscles lag and what to do about the order.
-describe("the prompt carries the weak-point assessment", () => {
-  const snapshot: PlannerSnapshot = {
+const weakPointSnapshot: PlannerSnapshot = {
     loggedSets: 40,
     sessionsPerWeek: 4,
     currentSetsPerMuscle: [{ muscle: "Biceps", setsPerWeek: 4, thisWeek: 2 }],
@@ -310,16 +309,19 @@ describe("the prompt carries the weak-point assessment", () => {
         reasons: ["Novice on Barbell Curl, about 0.9 levels behind the rest of your lifts."],
       },
     ],
-    priorityMuscles: ["Biceps"],
-    assessmentInsufficient: false,
-    readiness: { score: 72, band: "Solid", topDrivers: [] },
-    deload: { recommended: false, reasons: [] },
-    landmarks: [{ muscle: "Biceps", canValidate: true, target: { min: 8, max: 20 } }],
-    evidenceCaveat: "Coach estimates, not trial results.",
-    exercises: [
-      { id: "e1", name: "Barbell Curl", muscleGroup: "Biceps", equipment: "barbell", isMajor: false },
-    ],
-  };
+  priorityMuscles: ["Biceps"],
+  assessmentInsufficient: false,
+  readiness: { score: 72, band: "Solid", topDrivers: [] },
+  deload: { recommended: false, reasons: [] },
+  landmarks: [{ muscle: "Biceps", canValidate: true, target: { min: 8, max: 20 } }],
+  evidenceCaveat: "Coach estimates, not trial results.",
+  exercises: [
+    { id: "e1", name: "Barbell Curl", muscleGroup: "Biceps", equipment: "barbell", isMajor: false },
+  ],
+};
+
+describe("the prompt carries the weak-point assessment", () => {
+  const snapshot = weakPointSnapshot;
 
   it("names the priority muscles it was given", () => {
     const prompt = buildPlannerPrompt(intake, snapshot);
@@ -358,5 +360,22 @@ describe("equipment options suit the audience", () => {
     for (const tag of ["barbell", "dumbbell", "machine", "cable", "bodyweight"]) {
       expect(EQUIPMENT_TAGS).toContain(tag as never);
     }
+  });
+});
+
+// The first plan generated after the weak-point change wrote "Shoulders
+// leading slightly—held at lower end", which is an em dash in copy the athlete
+// reads. The coach prompt already carried the house style; this one did not.
+describe("the prompt carries the house writing style", () => {
+  const snapshot = weakPointSnapshot;
+
+  it("forbids dashes as punctuation in the prose it generates", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/Never use em dashes/);
+  });
+
+  it("names every field the style applies to", () => {
+    const prompt = buildPlannerPrompt(intake, snapshot);
+    expect(prompt).toMatch(/name, notes, focus and note/);
   });
 });
