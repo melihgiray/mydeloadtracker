@@ -16,6 +16,23 @@ the next section.
 | 5. plan-validation.ts | DONE, merged, F5 fixed at `9ce98a4` | Terra, F5 by Claude |
 | 6. Deload adaptation | DONE, audited at `dfe0d6d`, verified at 393x852 | Terra |
 
+**Planner v1 is complete and in production.** The next round is `PLANNER_V2_DESIGN.md`,
+written after the founder used v1: it is not editable, it does not ask a new
+user for their PRs, it does not branch exercise selection on goal, and it
+prescribes volume and effort instead of asking. That doc carries its own build
+order and a proposed ownership split, and **no v2 step is claimed until the
+founder confirms it here.**
+
+| v2 step | State | Owner |
+|---------|-------|-------|
+| 1. Migration 0017 plus exercise-profile.ts | not started | proposed Claude |
+| 2. Direct editing with undo | not started | proposed Sol or Terra |
+| 3. PR intake and cold start | not started | proposed Claude |
+| 4. Training style question | not started | proposed Sol or Terra |
+| 5. Selection rules, goal branch | not started | proposed Claude |
+| 6. Conversational editing | not started | proposed Sol or Terra |
+| 7. Weekly review | not started | proposed Claude |
+
 ## Step 6 closure
 
 The planner now adapts today's Log prescription from either of two signals:
