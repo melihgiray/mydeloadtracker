@@ -102,6 +102,11 @@ export async function applyPatchToPlan(
     return { plan: result.plan, applied: [], rejected: result.rejected, revision: null, summary };
   }
 
+  // Self-healing baseline. A plan created before revision tracking existed has
+  // no revision 0, so the first edit would leave nothing to undo back to and
+  // the Undo button would appear but fail. Write the pre-patch state first.
+  await ensureBaselineRevision(supabase, plan);
+
   const touched = new Set(result.applied.map((o) => o.dayIndex));
   for (const dayIndex of touched) {
     const day = result.plan.days[dayIndex];
@@ -208,17 +213,31 @@ export async function undoLastRevision(
 }
 
 /**
- * Record the plan as generated, so the first edit has something to undo back to.
+ * Make sure a plan has a revision 0 to undo back to.
  *
- * Called once after createPlan. Without it the first undo has no earlier
- * snapshot and correctly refuses, which would strand the athlete on their first
- * edit.
+ * Undo restores the snapshot from the revision before the latest, so a plan
+ * whose first ever edit is revision 1 has nothing underneath it. That is the
+ * state every plan created before revision tracking is in, and it showed up
+ * immediately in production: the Undo button appeared after the first chat
+ * edit and had nothing to restore.
+ *
+ * Called with the plan as it was BEFORE the patch, so revision 0 is a true
+ * baseline. Idempotent: the unique index on (plan_id, revision) makes a second
+ * call a no-op.
  */
-export async function recordInitialRevision(
+export async function ensureBaselineRevision(
   supabase: SupabaseClient,
   plan: PlanWithDays,
 ): Promise<void> {
-  const { error } = await supabase.from("plan_revisions").insert({
+  const { data, error } = await supabase
+    .from("plan_revisions")
+    .select("revision")
+    .eq("plan_id", plan.id)
+    .limit(1);
+  if (error) throw error;
+  if ((data ?? []).length > 0) return;
+
+  const { error: insErr } = await supabase.from("plan_revisions").insert({
     plan_id: plan.id,
     revision: 0,
     source: "generated",
@@ -226,8 +245,8 @@ export async function recordInitialRevision(
     snapshot: plan,
     summary: "Plan created.",
   });
-  // A duplicate revision 0 means this already ran. Not an error worth throwing.
-  if (error && !error.message.includes("duplicate")) throw error;
+  // A duplicate means another request won the race. Not an error worth throwing.
+  if (insErr && !insErr.message.toLowerCase().includes("duplicate")) throw insErr;
 }
 
 /** Load the athlete's active plan, or null. Re-exported so callers need one import. */
