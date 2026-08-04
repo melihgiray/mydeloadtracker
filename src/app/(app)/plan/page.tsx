@@ -19,7 +19,11 @@ export default async function PlanPage() {
   const [library, profile, sets, claims] = await Promise.all([
     getExercises(supabase),
     getProfile(supabase),
-    getTrainingSets(supabase, "kg", 8).catch(() => []),
+    // Five years, not the usual eight weeks. This window decides whether the
+    // app already KNOWS a lift, and a bench logged three months ago is still
+    // known. The eight-week window is for "what are they training now", which
+    // is a different question.
+    getTrainingSets(supabase, "kg", 260).catch(() => []),
     getAthleteLifts(supabase).catch(() => []),
   ]);
   const loggedIds = new Set(buildRecords(sets).map((r) => r.exerciseId));
