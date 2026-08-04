@@ -14,6 +14,7 @@ import { detectDeload } from "@/lib/analytics/deload";
 import { buildRecords } from "@/lib/analytics/records";
 import { computeReadiness } from "@/lib/analytics/readiness";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
+import { getAthleteLifts, mergeSelfReported } from "@/lib/athlete-lifts";
 import { assessWeakPoints, priorityMuscles } from "@/lib/analytics/weak-points";
 import { classifyLift } from "@/lib/analytics/standards";
 import {
@@ -190,7 +191,11 @@ export async function POST(req: Request) {
     // Per muscle strength and volume, scored against the athlete's own median.
     // This is the difference between a plan that knows their arms lag and one
     // that has to be told.
-    const weakPoints = assessWeakPoints(records, setVolume, {
+    // Fold in what the athlete told us about themselves. Without this a
+    // first-time user has no logged history, the assessment gives up, and they
+    // get a generic plan. Logged history still wins where both exist.
+    const claims = await getAthleteLifts(supabase).catch(() => []);
+    const weakPoints = assessWeakPoints(mergeSelfReported(records, claims, library), setVolume, {
       bodyweight: profile?.bodyweight ?? null,
       sex: profile?.sex ?? null,
       units,

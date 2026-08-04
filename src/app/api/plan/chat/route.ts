@@ -16,6 +16,7 @@ import { cloudAvailable } from "@/lib/ai-provider";
 import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
 import { buildRecords } from "@/lib/analytics/records";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
+import { getAthleteLifts, mergeSelfReported } from "@/lib/athlete-lifts";
 import { assessWeakPoints } from "@/lib/analytics/weak-points";
 import {
   EQUIPMENT_TAGS,
@@ -92,11 +93,16 @@ export async function POST(req: Request) {
 
     // The coach should know what the app knows, so it does not ask the athlete
     // to explain their own weak points again.
-    const weakPoints = assessWeakPoints(buildRecords(sets), buildSetVolume(sets, 4, 8, new Date()), {
+    const claims = await getAthleteLifts(supabase).catch(() => []);
+    const weakPoints = assessWeakPoints(
+      mergeSelfReported(buildRecords(sets), claims, library),
+      buildSetVolume(sets, 4, 8, new Date()),
+      {
       bodyweight: profile?.bodyweight ?? null,
       sex: profile?.sex ?? null,
-      units,
-    });
+        units,
+      },
+    );
     const weakPointSummary = weakPoints.insufficientData
       ? []
       : weakPoints.muscles

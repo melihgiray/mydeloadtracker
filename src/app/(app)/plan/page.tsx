@@ -2,6 +2,10 @@ import { EVIDENCE_CAVEAT } from "@/lib/analytics/volume-landmarks";
 import { PlanBuilder } from "@/components/plan-builder";
 import { PlanCoachChat } from "@/components/plan-coach-chat";
 import { getActivePlan } from "@/lib/plans";
+import { coldStartQuestions, getAthleteLifts } from "@/lib/athlete-lifts";
+import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
+import { buildRecords } from "@/lib/analytics/records";
+import { LiftIntake } from "@/components/lift-intake";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +13,25 @@ export const dynamic = "force-dynamic";
 export default async function PlanPage() {
   const supabase = createClient();
   const plan = await getActivePlan(supabase);
+
+  // Only ask about lifts the athlete has not already logged. The rule from v1
+  // still holds: never ask for something the app can work out.
+  const [library, profile, sets, claims] = await Promise.all([
+    getExercises(supabase),
+    getProfile(supabase),
+    getTrainingSets(supabase, "kg", 8).catch(() => []),
+    getAthleteLifts(supabase).catch(() => []),
+  ]);
+  const loggedIds = new Set(buildRecords(sets).map((r) => r.exerciseId));
+  const questions = coldStartQuestions(library, claims)
+    .filter((q) => !loggedIds.has(q.exercise.id))
+    .map((q) => ({
+      exerciseId: q.exercise.id,
+      name: q.exercise.name,
+      covers: q.covers,
+      weight: q.answer ? String(q.answer.weight) : "",
+      reps: q.answer ? String(q.answer.reps) : "",
+    }));
 
   return (
     <div className="space-y-6">
@@ -22,6 +45,11 @@ export default async function PlanPage() {
       {/* Above the plan on purpose. The founder's first complaint was that a
           plan could only be replaced, never talked about, so the way to change
           it should be the first thing visible once one exists. */}
+      {/* Above the plan, and above the chat, because a plan built without
+          knowing anything about the athlete is the thing being fixed. Disappears
+          once every lift is either answered or logged. */}
+      <LiftIntake questions={questions} units={profile?.units ?? "kg"} />
+
       <PlanCoachChat hasPlan={plan != null} />
       <PlanBuilder initialPlan={plan} evidenceCaveat={EVIDENCE_CAVEAT} />
     </div>
