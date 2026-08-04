@@ -25,11 +25,11 @@ order and a proposed ownership split, and the founder assigned **all seven steps
 | v2 step | State | Owner |
 |---------|-------|-------|
 | 1. Migration 0017 plus exercise-profile.ts | not started | Claude |
-| 2. Direct editing with undo | not started | Claude |
-| 3. PR intake and cold start | not started | Claude |
+| 2. Editing engine, persistence, undo | DONE, undo verified in production | Claude |
+| 3. PR intake and cold start | DONE, live | Claude |
 | 4. Training style question | not started | Claude |
 | 5. Selection rules, goal branch | not started | Claude |
-| 6. Conversational editing | not started | Claude |
+| 6. Conversational editing | DONE, live, pulled forward | Claude |
 | 7. Weekly review | not started | Claude |
 
 ## Step 6 closure
