@@ -57,6 +57,8 @@ const plan = (): PlanWithDays => ({
   mesocycle_weeks: 5,
   deload_week: 5,
   notes: null,
+  last_reviewed_on: null,
+  training_style: null,
   active: true,
   started_on: "2026-07-01",
   created_at: "2026-07-01T00:00:00.000Z",

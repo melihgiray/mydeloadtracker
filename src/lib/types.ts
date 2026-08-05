@@ -116,6 +116,10 @@ export interface TrainingPlan {
   started_on: string; // YYYY-MM-DD
   created_at: string;
   updated_at: string;
+  /** Migration 0017. Null until the first weekly review runs. */
+  last_reviewed_on: string | null;
+  /** Migration 0017. Null means the athlete was never asked. */
+  training_style: string | null;
 }
 
 export interface PlanDay {

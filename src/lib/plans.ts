@@ -31,6 +31,8 @@ interface RawPlanRow {
   mesocycle_weeks: number;
   deload_week: number | null;
   notes: string | null;
+  last_reviewed_on: string | null;
+  training_style: string | null;
   active: boolean;
   started_on: string;
   created_at: string;
@@ -119,6 +121,8 @@ function mapPlan(row: RawPlanRow): PlanWithDays {
     mesocycle_weeks: row.mesocycle_weeks,
     deload_week: row.deload_week,
     notes: row.notes,
+    last_reviewed_on: row.last_reviewed_on,
+    training_style: row.training_style,
     active: row.active,
     started_on: row.started_on,
     created_at: row.created_at,
