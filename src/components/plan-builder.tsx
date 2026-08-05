@@ -12,7 +12,9 @@ import {
 } from "@/lib/plan-generation";
 import type { PlanGoal, PlanWithDays } from "@/lib/types";
 import { TRAINING_STYLES, type TrainingStyle } from "@/lib/training-style";
-import { PlanExerciseRow, type PickerExercise } from "@/components/plan-exercise-row";
+import { PlanExerciseRow } from "@/components/plan-exercise-row";
+import type { PickerExercise } from "@/components/plan-exercise-picker";
+import { AddExerciseToDay, DayName } from "@/components/plan-day-controls";
 
 const EQUIPMENT_LABELS: Record<EquipmentTag, string> = {
   barbell: "Barbell",
@@ -180,8 +182,9 @@ export function PlanBuilder({
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
                     Day {day.day_index + 1}
                   </p>
-                  <h3 className="mt-1 text-lg font-semibold">{day.name}</h3>
-                  {day.focus && <p className="text-xs text-muted">{day.focus}</p>}
+                  <div className="mt-1">
+                    <DayName day={day} />
+                  </div>
                 </div>
                 <CalendarDays className="h-5 w-5 text-muted" />
               </div>
@@ -197,6 +200,11 @@ export function PlanBuilder({
                   />
                 ))}
               </ul>
+              <AddExerciseToDay
+                day={day}
+                library={library}
+                trainingStyle={initialPlan.training_style}
+              />
             </section>
           ))}
         </div>

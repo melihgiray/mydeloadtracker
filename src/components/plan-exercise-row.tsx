@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Loader2, Repeat, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, Repeat, Trash2 } from "lucide-react";
 import type { PlanDayWithExercises } from "@/lib/types";
+import { ExercisePicker, type PickerExercise } from "@/components/plan-exercise-picker";
 
 /**
  * Tap an exercise to change it.
@@ -16,13 +17,6 @@ import type { PlanDayWithExercises } from "@/lib/types";
  * Everything goes through /api/plan/edit, which is also what the weekly review
  * accepts through. One apply path means one revision history and one undo.
  */
-
-/** Slimmed library rows. The full Exercise type carries columns a picker never needs. */
-export interface PickerExercise {
-  id: string;
-  name: string;
-  muscle_group: string;
-}
 
 interface Props {
   day: PlanDayWithExercises;
@@ -42,7 +36,6 @@ export function PlanExerciseRow({ day, exercise, index, count, library }: Props)
   const [sets, setSets] = useState(exercise.sets);
   const [repLow, setRepLow] = useState(exercise.rep_low);
   const [repHigh, setRepHigh] = useState(exercise.rep_high);
-  const [query, setQuery] = useState("");
 
   async function send(op: Record<string, unknown>) {
     setBusy(true);
@@ -72,17 +65,6 @@ export function PlanExerciseRow({ day, exercise, index, count, library }: Props)
 
   const base = { dayIndex: day.day_index, position: exercise.position };
   const dirty = sets !== exercise.sets || repLow !== exercise.rep_low || repHigh !== exercise.rep_high;
-
-  // Same muscle first, because a swap is nearly always for a variant of the
-  // same thing. Everything else stays reachable through the search box.
-  const matches = library
-    .filter((e) => e.id !== exercise.exercise_id)
-    .filter((e) =>
-      query.trim()
-        ? e.name.toLowerCase().includes(query.trim().toLowerCase())
-        : e.muscle_group === exercise.muscle_group,
-    )
-    .slice(0, 8);
 
   return (
     <li className="py-3 first:pt-0 last:pb-0">
@@ -226,54 +208,25 @@ export function PlanExerciseRow({ day, exercise, index, count, library }: Props)
         </div>
       )}
 
+      {/* Same muscle first, because a swap is nearly always for a variant of
+          the same thing. The search box reaches the rest. */}
       {panel === "swap" && (
-        <div className="mt-3 space-y-2 rounded-xl border border-border bg-surface-2 p-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="search"
-              className="input flex-1"
-              placeholder={`Search, or pick a ${exercise.muscle_group.toLowerCase()} lift`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={() => setPanel("edit")}
-              aria-label="Close swap"
-              className="btn-ghost min-h-11 px-2"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {matches.length === 0 ? (
-            <p className="text-xs text-muted">Nothing matches that in your equipment.</p>
-          ) : (
-            <ul className="space-y-1">
-              {matches.map((candidate) => (
-                <li key={candidate.id}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void send({
-                        op: "replace_exercise",
-                        ...base,
-                        exerciseId: candidate.id,
-                        reason: `You swapped ${exercise.name} for ${candidate.name}.`,
-                      })
-                    }
-                    className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border px-3 text-left"
-                  >
-                    <span className="truncate text-sm">{candidate.name}</span>
-                    <span className="flex-shrink-0 text-[11px] text-muted">
-                      {candidate.muscle_group}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <ExercisePicker
+          library={library}
+          exclude={[exercise.exercise_id]}
+          preferMuscle={exercise.muscle_group}
+          placeholder={`Search, or pick a ${exercise.muscle_group.toLowerCase()} lift`}
+          disabled={busy}
+          onClose={() => setPanel("edit")}
+          onPick={(candidate) =>
+            void send({
+              op: "replace_exercise",
+              ...base,
+              exerciseId: candidate.id,
+              reason: `You swapped ${exercise.name} for ${candidate.name}.`,
+            })
+          }
+        />
       )}
 
       {error && (
