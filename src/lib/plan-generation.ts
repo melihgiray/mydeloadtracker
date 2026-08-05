@@ -1,5 +1,6 @@
 import type { Exercise, PlanGoal, PlanSplit, TrainingSet } from "@/lib/types";
 import type { NewPlan } from "@/lib/plans";
+import { isTrainingStyle, stylePromptLine, type TrainingStyle } from "@/lib/training-style";
 
 export const EQUIPMENT_TAGS = [
   "barbell",
@@ -20,6 +21,8 @@ export interface PlanIntake {
   avoid: string[];
   splitPreference: SplitPreference;
   note: string | null;
+  /** How they like to train. Null means they have not been asked. */
+  trainingStyle: TrainingStyle | null;
 }
 
 export interface GeneratedPlanExercise {
@@ -86,6 +89,9 @@ export interface PlannerSnapshot {
     muscleGroup: string;
     equipment: string;
     isMajor: boolean;
+    /** Same key means same stimulus. Null means no opinion. */
+    stimulus: string | null;
+    cost: string | null;
   }[];
 }
 
@@ -209,6 +215,7 @@ export function parsePlanIntake(value: unknown): PlanIntake {
     equipment,
     goal: input.goal as PlanGoal,
     avoid,
+    trainingStyle: isTrainingStyle(input.trainingStyle) ? input.trainingStyle : null,
     splitPreference: input.splitPreference as SplitPreference,
     note: optionalText(input.note, "Plan note", 500),
   };
@@ -360,6 +367,7 @@ export function toNewPlan(intake: PlanIntake, generated: GeneratedPlan): NewPlan
   return {
     name: generated.name,
     goal: intake.goal,
+    training_style: intake.trainingStyle,
     split: generated.split,
     days_per_week: intake.daysPerWeek,
     session_minutes: intake.sessionMinutes,
@@ -390,11 +398,14 @@ Rules:
 7. Landmark target null means there is no defensible per muscle target. Do not replace null with a plausible number or claim that muscle was validated.
 8. Per muscle targets are low confidence coach estimates. Use them as starting points, not measured limits.
 9. ORDER WITHIN EACH DAY. Never place an isolation movement immediately before a compound that works the same muscle. That is pre-exhaustion and the evidence is against it. Compounds open the day. A priorityMuscles muscle gets its direct work immediately AFTER the compounds, never buried at the end of the session, unless the day contains no compound that involves it, in which case its direct work may open the day.
-10. VOLUME ALLOCATION is the growth lever, not order. Give a lagging muscle more direct sets and hold a leading muscle near the lower end of its range, moving sets between them rather than adding to the weekly total. Adding volume on top of an already adequate program did not improve growth in the one trial that tested it on trained lifters, so total weekly sets stay roughly flat.
-11. Spread a lagging muscle's raised sets across more days rather than stacking them into one session. Frequency at matched weekly volume does not itself drive growth, but it keeps any single session's direct sets for that muscle in a moderate range and makes the higher weekly count executable.
-12. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
-13. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
-14. WRITING STYLE for name, notes, focus and note. Write like a human. Never use em dashes, en dashes, or any dash as punctuation; use commas and periods. No exclamation points. Plain text only, no markdown and no LaTeX.
+10. HOW THIS ATHLETE TRAINS. ${stylePromptLine(intake.trainingStyle)}
+11. NEVER two exercises that train the same thing. exercises[].stimulus groups them: a barbell bench and a dumbbell bench share a key and only one belongs in a plan. Incline is a different key from flat, so both may appear. For a hypertrophy goal prefer the incline variant when choosing within a group.
+12. FATIGUE BUDGET. exercises[].cost is low, moderate or high. A high cost lift spends recovery that could have gone to more productive volume, and volume is the growth lever. For a hypertrophy goal use at most one high cost lift per session and two per week. For strength they are the plan and that cap does not apply. High cost is not the same as bad: a deadlift is a more expensive lift, not a worse one.
+13. VOLUME ALLOCATION is the growth lever, not order. Give a lagging muscle more direct sets and hold a leading muscle near the lower end of its range, moving sets between them rather than adding to the weekly total. Adding volume on top of an already adequate program did not improve growth in the one trial that tested it on trained lifters, so total weekly sets stay roughly flat.
+14. Spread a lagging muscle's raised sets across more days rather than stacking them into one session. Frequency at matched weekly volume does not itself drive growth, but it keeps any single session's direct sets for that muscle in a moderate range and makes the higher weekly count executable.
+15. Use muscleAssessment. It is computed from the athlete's own logged lifts, so do not ask them what is weak and do not contradict it. When assessmentInsufficient is true, treat the plan as a balanced starting point and say so in notes rather than inventing a weak point.
+16. This app is for people who train seriously in a gym. Prefer barbell, dumbbell, machine and cable work. Do not build a session around novelty or conditioning implements.
+17. WRITING STYLE for name, notes, focus and note. Write like a human. Never use em dashes, en dashes, or any dash as punctuation; use commas and periods. No exclamation points. Plain text only, no markdown and no LaTeX.
 
 ATHLETE_DATA_JSON
 ${JSON.stringify({ intake, snapshot }, null, 2)}`;

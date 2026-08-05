@@ -20,6 +20,7 @@ const intake: PlanIntake = {
   goal: "both",
   avoid: [],
   splitPreference: "full_body",
+  trainingStyle: "balanced",
   note: null,
 };
 

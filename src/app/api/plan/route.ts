@@ -15,6 +15,7 @@ import { buildRecords } from "@/lib/analytics/records";
 import { computeReadiness } from "@/lib/analytics/readiness";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
 import { getAthleteLifts, mergeSelfReported } from "@/lib/athlete-lifts";
+import { stimulusKey, systemicCost } from "@/lib/exercise-profile";
 import { assessWeakPoints, priorityMuscles } from "@/lib/analytics/weak-points";
 import { classifyLift } from "@/lib/analytics/standards";
 import {
@@ -246,6 +247,10 @@ export async function POST(req: Request) {
         muscleGroup: exercise.muscle_group,
         equipment: exercise.equipment!,
         isMajor: exercise.is_major,
+        // Step 1's derived facts. The model needs both to obey the redundancy
+        // and fatigue rules, and neither is in the exercises table.
+        stimulus: stimulusKey(exercise),
+        cost: systemicCost(exercise),
       })),
     };
 

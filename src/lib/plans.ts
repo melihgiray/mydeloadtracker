@@ -253,6 +253,7 @@ export interface NewPlan {
   mesocycle_weeks?: number;
   deload_week?: number | null;
   notes?: string | null;
+  training_style?: string | null;
   days: NewPlanDay[];
 }
 

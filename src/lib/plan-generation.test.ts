@@ -23,6 +23,7 @@ const intake: PlanIntake = {
   goal: "both",
   avoid: ["Overhead pressing"],
   splitPreference: "full_body",
+  trainingStyle: "balanced",
   note: "Keep the warmup short.",
 };
 
@@ -208,7 +209,7 @@ describe("planner prompt and persistence mapping", () => {
         name: "Squat",
         muscleGroup: "Quads",
         equipment: "barbell",
-        isMajor: true,
+        isMajor: true, stimulus: "Quads/squat", cost: "high",
       },
     ],
   };
@@ -316,7 +317,7 @@ const weakPointSnapshot: PlannerSnapshot = {
   landmarks: [{ muscle: "Biceps", canValidate: true, target: { min: 8, max: 20 } }],
   evidenceCaveat: "Coach estimates, not trial results.",
   exercises: [
-    { id: "e1", name: "Barbell Curl", muscleGroup: "Biceps", equipment: "barbell", isMajor: false },
+    { id: "e1", name: "Barbell Curl", muscleGroup: "Biceps", equipment: "barbell", isMajor: false, stimulus: "Biceps/curl", cost: "low" },
   ],
 };
 

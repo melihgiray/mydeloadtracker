@@ -11,6 +11,7 @@ import {
   type SplitPreference,
 } from "@/lib/plan-generation";
 import type { PlanGoal, PlanWithDays } from "@/lib/types";
+import { TRAINING_STYLES, type TrainingStyle } from "@/lib/training-style";
 
 const EQUIPMENT_LABELS: Record<EquipmentTag, string> = {
   barbell: "Barbell",
@@ -66,6 +67,12 @@ export function PlanBuilder({
     initialEquipment(initialPlan),
   );
   const [goal, setGoal] = useState<PlanGoal>(initialPlan?.goal ?? "both");
+  // Null means not asked yet, which is different from balanced. The athlete
+  // sets their own set count and effort because no trial supports a specific
+  // one (docs/PLANNER_EVIDENCE.md, Q4 returned no_source).
+  const [trainingStyle, setTrainingStyle] = useState<TrainingStyle | null>(
+    (initialPlan as { training_style?: TrainingStyle | null } | null)?.training_style ?? null,
+  );
   const [splitPreference, setSplitPreference] = useState<SplitPreference>(
     initialPlan?.split ?? "auto",
   );
@@ -103,6 +110,7 @@ export function PlanBuilder({
       equipment,
       goal,
       avoid: splitAvoid(avoid),
+      trainingStyle,
       splitPreference,
       note: note.trim() || null,
     };
@@ -342,6 +350,50 @@ export function PlanBuilder({
               {option.label}
             </button>
           ))}
+        </div>
+
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-sm font-semibold">How do you like to train?</h3>
+            <p className="text-xs text-muted">
+              There is no single right answer here, so this is yours to pick. It sets your sets and
+              how hard each one goes.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {TRAINING_STYLES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={trainingStyle === option.id}
+                onClick={() => setTrainingStyle(option.id)}
+                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                  trainingStyle === option.id
+                    ? "border-brand bg-brand/15"
+                    : "border-border bg-background"
+                }`}
+              >
+                <span
+                  className={`block text-sm font-medium ${
+                    trainingStyle === option.id ? "text-brand" : "text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </span>
+                <span className="block text-xs text-muted">{option.detail}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-pressed={trainingStyle === null}
+              onClick={() => setTrainingStyle(null)}
+              className={`rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                trainingStyle === null ? "border-brand bg-brand/15 text-brand" : "border-border text-muted"
+              }`}
+            >
+              Not sure, pick for me
+            </button>
+          </div>
         </div>
 
         <label className="block space-y-1.5 text-sm font-medium">
