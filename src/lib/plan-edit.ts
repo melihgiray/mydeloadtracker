@@ -66,6 +66,49 @@ async function rewriteDay(
   if (insErr) throw insErr;
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
+interface TouchedDay {
+  before: PlanWithDays["days"][number];
+  after: PlanWithDays["days"][number];
+  renamed: boolean;
+  exercisesChanged: boolean;
+}
+
+/** Restore every touched part of a plan, collecting rather than hiding failures. */
+async function restoreTouchedDays(
+  supabase: SupabaseClient,
+  touchedDays: TouchedDay[],
+): Promise<void> {
+  const failures: string[] = [];
+
+  for (const { before, renamed, exercisesChanged } of touchedDays) {
+    if (renamed) {
+      const { error } = await supabase
+        .from("plan_days")
+        .update({ name: before.name, focus: before.focus })
+        .eq("id", before.id);
+      if (error) failures.push(`${before.name} name: ${errorMessage(error)}`);
+    }
+
+    if (exercisesChanged) {
+      try {
+        await rewriteDay(supabase, before);
+      } catch (error) {
+        failures.push(`${before.name} exercises: ${errorMessage(error)}`);
+      }
+    }
+  }
+
+  if (failures.length > 0) throw new Error(failures.join("; "));
+}
+
 /** The next revision number for a plan. Revision 0 is the plan as generated. */
 async function nextRevision(supabase: SupabaseClient, planId: string): Promise<number> {
   const { data, error } = await supabase
@@ -108,37 +151,60 @@ export async function applyPatchToPlan(
   await ensureBaselineRevision(supabase, plan);
 
   const touched = new Set(result.applied.map((o) => o.dayIndex));
-  for (const dayIndex of touched) {
-    const day = result.plan.days[dayIndex];
-    if (!day) continue;
-    if (result.applied.some((o) => o.dayIndex === dayIndex && o.op === "rename_day")) {
-      const { error } = await supabase
-        .from("plan_days")
-        .update({ name: day.name, focus: day.focus })
-        .eq("id", day.id);
-      if (error) throw error;
-    }
-    // A rename alone does not change the exercise rows, so skip the rewrite.
-    if (result.applied.some((o) => o.dayIndex === dayIndex && o.op !== "rename_day")) {
-      await rewriteDay(supabase, day);
-    }
-  }
-
-  const revision = await nextRevision(supabase, plan.id);
-  const { error } = await supabase.from("plan_revisions").insert({
-    plan_id: plan.id,
-    revision,
-    source,
-    ops: result.applied,
-    // The whole plan after the patch. Undo becomes a restore rather than an
-    // inverse-operation replay, which is where this kind of feature usually
-    // breaks on insert, remove and reorder.
-    snapshot: result.plan,
-    summary,
+  const touchedDays = [...touched].flatMap((dayIndex): TouchedDay[] => {
+    const before = plan.days[dayIndex];
+    const after = result.plan.days[dayIndex];
+    if (!before || !after) return [];
+    return [
+      {
+        before,
+        after,
+        renamed: result.applied.some((o) => o.dayIndex === dayIndex && o.op === "rename_day"),
+        exercisesChanged: result.applied.some(
+          (o) => o.dayIndex === dayIndex && o.op !== "rename_day",
+        ),
+      },
+    ];
   });
-  if (error) throw error;
 
-  return { ...result, revision, summary };
+  try {
+    for (const { after, renamed, exercisesChanged } of touchedDays) {
+      if (renamed) {
+        const { error } = await supabase
+          .from("plan_days")
+          .update({ name: after.name, focus: after.focus })
+          .eq("id", after.id);
+        if (error) throw error;
+      }
+      // A rename alone does not change the exercise rows, so skip the rewrite.
+      if (exercisesChanged) await rewriteDay(supabase, after);
+    }
+
+    const revision = await nextRevision(supabase, plan.id);
+    const { error } = await supabase.from("plan_revisions").insert({
+      plan_id: plan.id,
+      revision,
+      source,
+      ops: result.applied,
+      // The whole plan after the patch. Undo becomes a restore rather than an
+      // inverse-operation replay, which is where this kind of feature usually
+      // breaks on insert, remove and reorder.
+      snapshot: result.plan,
+      summary,
+    });
+    if (error) throw error;
+
+    return { ...result, revision, summary };
+  } catch (editError) {
+    try {
+      await restoreTouchedDays(supabase, touchedDays);
+    } catch (rollbackError) {
+      throw new Error(
+        `Plan edit failed: ${errorMessage(editError)}. Rollback also failed: ${errorMessage(rollbackError)}`,
+      );
+    }
+    throw editError;
+  }
 }
 
 export interface PlanRevision {

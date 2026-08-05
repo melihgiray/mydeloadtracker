@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
-import { undoLastRevision } from "@/lib/plan-edit";
-import type { PlanWithDays } from "@/lib/types";
+import { applyPatchToPlan, undoLastRevision } from "@/lib/plan-edit";
+import type { Exercise, PlanWithDays } from "@/lib/types";
 
 // Undo is database code, so this uses a fake query builder in the same shape as
 // the createPlan harness in plans.test.ts.
@@ -132,5 +132,190 @@ describe("undoLastRevision", () => {
     // Nothing was restored, so nothing may be deleted. Otherwise the last
     // revision would be destroyed with no state change to show for it.
     expect(log).toHaveLength(0);
+  });
+});
+
+interface QueryResult {
+  data: unknown;
+  error: unknown;
+}
+
+interface Mutation {
+  table: string;
+  op: string;
+  value: unknown;
+}
+
+/** Queue database results by table and operation, and retain write payloads. */
+function fakeEditSupabase(results: Record<string, QueryResult[]>, log: Mutation[]) {
+  const take = (key: string): QueryResult => {
+    const queue = results[key];
+    if (!queue || queue.length === 0) return { data: null, error: null };
+    return queue.length === 1 ? queue[0] : queue.shift()!;
+  };
+
+  return {
+    from(table: string) {
+      const builder: Record<string, unknown> = {};
+      let pending = "select";
+      let value: unknown = null;
+      const chain = () => builder;
+
+      for (const method of ["select", "eq", "order", "limit"]) builder[method] = vi.fn(chain);
+      for (const method of ["insert", "update", "delete"]) {
+        builder[method] = vi.fn((nextValue: unknown) => {
+          pending = method;
+          value = nextValue;
+          log.push({ table, op: method, value: nextValue });
+          return builder;
+        });
+      }
+
+      const settle = () => Promise.resolve(take(`${table}.${pending}`));
+      builder.then = (ok: (result: QueryResult) => unknown, err?: (error: unknown) => unknown) =>
+        settle().then(ok, err);
+      return builder;
+    },
+  } as unknown as SupabaseClient;
+}
+
+const editLibrary: Exercise[] = [
+  {
+    id: "bench",
+    user_id: null,
+    name: "Bench Press",
+    muscle_group: "Chest",
+    movement_pattern: "Horizontal Push",
+    equipment: "barbell",
+    is_major: true,
+    hidden: false,
+    created_at: "2026-07-01T00:00:00.000Z",
+  },
+];
+
+function editablePlan(): PlanWithDays {
+  const plan = snapshot("Upper A");
+  plan.days[0].exercises = [
+    {
+      id: "pe1",
+      plan_day_id: "d1",
+      exercise_id: "bench",
+      position: 0,
+      sets: 3,
+      rep_low: 8,
+      rep_high: 12,
+      rpe_target: 9,
+      rest_seconds: 120,
+      role: "primary",
+      note: null,
+      name: "Bench Press",
+      muscle_group: "Chest",
+      equipment: "barbell",
+    },
+  ];
+  return plan;
+}
+
+describe("applyPatchToPlan compensation", () => {
+  const fourSetPatch = [
+    {
+      op: "set_prescription" as const,
+      dayIndex: 0,
+      position: 0,
+      sets: 4,
+      reason: "Use four sets.",
+    },
+  ];
+
+  it("restores the original day when inserting the edited day fails", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [{ data: [], error: null }],
+        "plan_revisions.insert": [{ data: null, error: null }],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: { message: "edited insert failed" } },
+          { data: null, error: null },
+        ],
+        "plan_days.update": [{ data: null, error: null }],
+      },
+      log,
+    );
+
+    await expect(
+      applyPatchToPlan(
+        supabase,
+        editablePlan(),
+        fourSetPatch,
+        "athlete_direct",
+        editLibrary,
+      ),
+    ).rejects.toThrow(/edited insert failed/);
+
+    const insertedSets = log
+      .filter((entry) => entry.table === "plan_exercises" && entry.op === "insert")
+      .map((entry) => (entry.value as { sets: number }[])[0].sets);
+    expect(insertedSets).toEqual([4, 3]);
+  });
+
+  it("restores the original day when recording the revision fails", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [
+          { data: [], error: null },
+          { data: [{ revision: 0 }], error: null },
+        ],
+        "plan_revisions.insert": [
+          { data: null, error: null },
+          { data: null, error: { message: "revision insert failed" } },
+        ],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+      },
+      log,
+    );
+
+    await expect(
+      applyPatchToPlan(supabase, editablePlan(), fourSetPatch, "athlete_direct", editLibrary),
+    ).rejects.toThrow(/revision insert failed/);
+
+    const insertedSets = log
+      .filter((entry) => entry.table === "plan_exercises" && entry.op === "insert")
+      .map((entry) => (entry.value as { sets: number }[])[0].sets);
+    expect(insertedSets).toEqual([4, 3]);
+  });
+
+  it("reports a failed compensation instead of hiding the partial state", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [{ data: [], error: null }],
+        "plan_revisions.insert": [{ data: null, error: null }],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: { message: "edited insert failed" } },
+          { data: null, error: { message: "original restore failed" } },
+        ],
+      },
+      log,
+    );
+
+    await expect(
+      applyPatchToPlan(supabase, editablePlan(), fourSetPatch, "athlete_direct", editLibrary),
+    ).rejects.toThrow(/Rollback also failed:.*original restore failed/);
   });
 });
