@@ -24,13 +24,28 @@ order and a proposed ownership split, and the founder assigned **all seven steps
 
 | v2 step | State | Owner |
 |---------|-------|-------|
-| 1. Migration 0017 plus exercise-profile.ts | not started | Claude |
-| 2. Editing engine, persistence, undo | DONE, undo verified in production | Claude |
+| 1. Migration 0017 plus exercise-profile.ts | DONE, 0017 applied and verified by REST | Claude |
+| 2. Editing engine, persistence, undo, tap-to-edit | DONE, undo verified in production, tap-to-edit verified at 393x852 | Claude |
 | 3. PR intake and cold start | DONE, live | Claude |
-| 4. Training style question | not started | Claude |
-| 5. Selection rules, goal branch | not started | Claude |
+| 4. Training style question | DONE, `81069b2` and `fb3a325` | Claude |
+| 5. Selection rules, goal branch | DONE, `fb3a325` and `d87a8ee` | Claude |
 | 6. Conversational editing | DONE, live, pulled forward | Claude |
-| 7. Weekly review | not started | Claude |
+| 7. Weekly review | DONE, `4d9a97a`, `5e558bd`, `c3e96ca` | Claude |
+
+**Planner v2 is complete.** All seven steps are on main with 295 passing
+tests, a clean typecheck and a clean production build.
+
+Two things about the shape of v2 are worth carrying forward:
+
+- **One apply path.** Every hand change to a plan goes through
+  `/api/plan/edit`: the weekly review's Accept button and the direct
+  tap-to-edit controls both. The chat route is separate only because it also
+  talks to the model; the part after the ops exist is shared. A second apply
+  path would be a second place for undo to drift.
+- **The review proposes, it never applies.** `/api/plan/review` changes
+  nothing and does not even stamp `last_reviewed_on`. Accepting or dismissing
+  does. A plan that rewrites itself between Sunday and Monday is worse than
+  one that never changes.
 
 ## Step 6 closure
 
