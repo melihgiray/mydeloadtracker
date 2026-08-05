@@ -81,6 +81,22 @@ export function coldStartQuestions(
 }
 
 /**
+ * Questions still needed by the cold-start intake, excluding known history.
+ * Keep claimed answers editable while a blank remains; hide the whole block
+ * once every candidate is either claimed or known from logged training.
+ */
+export function coldStartIntakeQuestions(
+  library: Exercise[],
+  existing: AthleteLift[],
+  loggedExerciseIds: ReadonlySet<string>,
+): { exercise: Exercise; covers: string; answer: AthleteLift | null }[] {
+  const questions = coldStartQuestions(library, existing).filter(
+    (question) => !loggedExerciseIds.has(question.exercise.id),
+  );
+  return questions.some((question) => question.answer === null) ? questions : [];
+}
+
+/**
  * Fold self-reported bests into records built from logged history.
  *
  * Logged history always wins where both exist. An athlete who claimed a 100 kg

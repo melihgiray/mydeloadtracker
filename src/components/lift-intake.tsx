@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { liftClaimToKg } from "@/lib/athlete-lifts";
 import type { Units } from "@/lib/types";
 
@@ -39,7 +39,7 @@ export function LiftIntake({
   const [rows, setRows] = useState<LiftQuestion[]>(questions);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const answered = rows.filter((r) => r.weight.trim() && r.reps.trim()).length;
 
@@ -74,7 +74,7 @@ export function LiftIntake({
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Could not save those.");
       }
-      setSaved(true);
+      setDismissed(true);
       router.refresh();
       onDone?.();
     } catch (caught) {
@@ -84,7 +84,7 @@ export function LiftIntake({
     }
   }
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0 || dismissed) return null;
 
   return (
     <div className="card">
@@ -133,10 +133,8 @@ export function LiftIntake({
         >
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : saved ? (
-            <Check className="h-4 w-4" />
           ) : null}
-          {saved ? "Saved" : `Save ${answered || ""}`.trim()}
+          {`Save ${answered || ""}`.trim()}
         </button>
         {/* Skipping is a first-class answer, not a hidden escape. */}
         <button onClick={() => void save(true)} disabled={saving} className="btn-ghost text-xs">

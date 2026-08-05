@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect } from "vitest";
 import {
   COLD_START_LIFTS,
+  coldStartIntakeQuestions,
   coldStartQuestions,
   getAthleteLifts,
   liftClaimToKg,
@@ -92,6 +93,31 @@ describe("coldStartQuestions", () => {
       "Biceps",
       "Triceps",
     ]);
+  });
+});
+
+describe("coldStartIntakeQuestions", () => {
+  it("hides the block once every lift is claimed or logged", () => {
+    const existing = library.slice(0, 5).map((exercise) => claim(exercise.id, 100, 5));
+    const questions = coldStartIntakeQuestions(library, existing, new Set(["push"]));
+    expect(questions).toEqual([]);
+  });
+
+  it("keeps claimed answers editable while any unknown lift remains", () => {
+    const questions = coldStartIntakeQuestions(
+      library,
+      [claim("squat", 140, 3)],
+      new Set(["dead"]),
+    );
+    expect(questions.map((question) => question.exercise.id)).toEqual([
+      "squat",
+      "bench",
+      "ohp",
+      "curl",
+      "push",
+    ]);
+    expect(questions[0].answer).toMatchObject({ exercise_id: "squat", weight: 140, reps: 3 });
+    expect(questions[1].answer).toBeNull();
   });
 });
 

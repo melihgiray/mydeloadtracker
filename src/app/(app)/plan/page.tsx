@@ -4,7 +4,7 @@ import { PlanCoachChat } from "@/components/plan-coach-chat";
 import { WeeklyReview } from "@/components/weekly-review";
 import { isReviewDue } from "@/lib/plan-review";
 import { getActivePlan } from "@/lib/plans";
-import { coldStartQuestions, getAthleteLifts } from "@/lib/athlete-lifts";
+import { coldStartIntakeQuestions, getAthleteLifts } from "@/lib/athlete-lifts";
 import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
 import { buildRecords } from "@/lib/analytics/records";
 import { LiftIntake } from "@/components/lift-intake";
@@ -33,15 +33,13 @@ export default async function PlanPage() {
   ]);
   const units = profile?.units ?? "kg";
   const loggedIds = new Set(buildRecords(sets).map((r) => r.exerciseId));
-  const questions = coldStartQuestions(library, claims)
-    .filter((q) => !loggedIds.has(q.exercise.id))
-    .map((q) => ({
-      exerciseId: q.exercise.id,
-      name: q.exercise.name,
-      covers: q.covers,
-      weight: q.answer ? String(q.answer.weight) : "",
-      reps: q.answer ? String(q.answer.reps) : "",
-    }));
+  const questions = coldStartIntakeQuestions(library, claims, loggedIds).map((q) => ({
+    exerciseId: q.exercise.id,
+    name: q.exercise.name,
+    covers: q.covers,
+    weight: q.answer ? String(q.answer.weight) : "",
+    reps: q.answer ? String(q.answer.reps) : "",
+  }));
 
   // Only what a swap picker needs, and only what the athlete can actually do.
   // Sending the whole library would offer equipment they said they do not have.
