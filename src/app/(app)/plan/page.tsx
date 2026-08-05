@@ -39,6 +39,14 @@ export default async function PlanPage() {
       reps: q.answer ? String(q.answer.reps) : "",
     }));
 
+  // Only what a swap picker needs, and only what the athlete can actually do.
+  // Sending the whole library would offer equipment they said they do not have.
+  const planEquipment = new Set(plan?.equipment ?? []);
+  const pickerLibrary = library
+    .filter((e) => !e.hidden)
+    .filter((e) => planEquipment.size === 0 || (e.equipment != null && planEquipment.has(e.equipment)))
+    .map((e) => ({ id: e.id, name: e.name, muscle_group: e.muscle_group }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -61,7 +69,7 @@ export default async function PlanPage() {
       {plan && <WeeklyReview due={isReviewDue(plan)} />}
 
       <PlanCoachChat hasPlan={plan != null} />
-      <PlanBuilder initialPlan={plan} evidenceCaveat={EVIDENCE_CAVEAT} />
+      <PlanBuilder initialPlan={plan} evidenceCaveat={EVIDENCE_CAVEAT} library={pickerLibrary} />
     </div>
   );
 }

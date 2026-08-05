@@ -12,6 +12,7 @@ import {
 } from "@/lib/plan-generation";
 import type { PlanGoal, PlanWithDays } from "@/lib/types";
 import { TRAINING_STYLES, type TrainingStyle } from "@/lib/training-style";
+import { PlanExerciseRow, type PickerExercise } from "@/components/plan-exercise-row";
 
 const EQUIPMENT_LABELS: Record<EquipmentTag, string> = {
   barbell: "Barbell",
@@ -55,9 +56,12 @@ function splitAvoid(value: string): string[] {
 export function PlanBuilder({
   initialPlan,
   evidenceCaveat,
+  library,
 }: {
   initialPlan: PlanWithDays | null;
   evidenceCaveat: string;
+  /** Already filtered to the athlete's equipment by the page. */
+  library: PickerExercise[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(initialPlan == null);
@@ -182,23 +186,15 @@ export function PlanBuilder({
                 <CalendarDays className="h-5 w-5 text-muted" />
               </div>
               <ul className="mt-4 divide-y divide-border">
-                {day.exercises.map((exercise) => (
-                  <li
+                {day.exercises.map((exercise, i) => (
+                  <PlanExerciseRow
                     key={exercise.id}
-                    className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{exercise.name}</p>
-                      <p className="text-xs text-muted">{exercise.muscle_group}</p>
-                    </div>
-                    <p className="flex-shrink-0 text-sm font-semibold tabular-nums">
-                      {exercise.sets} x {exercise.rep_low}
-                      {exercise.rep_high !== exercise.rep_low && ` to ${exercise.rep_high}`}
-                      {exercise.rpe_target != null && (
-                        <span className="font-normal text-muted"> at RPE {exercise.rpe_target}</span>
-                      )}
-                    </p>
-                  </li>
+                    day={day}
+                    exercise={exercise}
+                    index={i}
+                    count={day.exercises.length}
+                    library={library}
+                  />
                 ))}
               </ul>
             </section>
