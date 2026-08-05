@@ -16,6 +16,7 @@ import type {
   PlanIntake,
 } from "@/lib/plan-generation";
 import type { Exercise } from "@/lib/types";
+import { stimulusKey, systemicCost } from "@/lib/exercise-profile";
 
 export type PlanValidationSeverity = "error" | "warning";
 
@@ -27,7 +28,9 @@ export type PlanValidationCode =
   | "deload_missing"
   | "volume_below_target"
   | "volume_above_target"
-  | "session_too_long";
+  | "session_too_long"
+  | "redundant_stimulus"
+  | "fatigue_budget";
 
 export interface PlanValidationIssue {
   severity: PlanValidationSeverity;
@@ -243,7 +246,17 @@ export function validateGeneratedPlan(
   const equipment = new Set<string>(intake.equipment);
   const weeklySets = new Map<string, number>();
 
+  // Both of these are judgement, not measurement, so they warn rather than
+  // block. The rules live in exercise-profile.ts with their reasoning.
+  const HIGH_COST_PER_SESSION = 1;
+  const HIGH_COST_PER_WEEK = 2;
+  const capsApply = intake.goal === "hypertrophy";
+  let weeklyHighCost = 0;
+
   const sessionEstimates = plan.days.map((day, dayIndex): SessionEstimate => {
+    const seenStimulus = new Map<string, string>();
+    let dayHighCost = 0;
+
     for (const planned of day.exercises) {
       const exercise = libraryById.get(planned.exercise_id);
       if (!exercise || exercise.hidden === true) {
@@ -278,6 +291,39 @@ export function validateGeneratedPlan(
         });
       }
 
+      // Two lifts that train the same thing at the same angle are one lift's
+      // worth of stimulus for two lifts' worth of time. The founder's example:
+      // a flat barbell bench and a flat dumbbell bench in the same session.
+      const key = stimulusKey(exercise);
+      if (key) {
+        const twin = seenStimulus.get(key);
+        if (twin) {
+          warnings.push({
+            severity: "warning",
+            code: "redundant_stimulus",
+            message: `${day.name} has ${exercise.name} and ${twin}, which train the same thing the same way. One of them is probably enough.`,
+            dayIndex,
+            exerciseId: exercise.id,
+          });
+        } else {
+          seenStimulus.set(key, exercise.name);
+        }
+      }
+
+      if (systemicCost(exercise) === "high") {
+        dayHighCost += 1;
+        weeklyHighCost += 1;
+        if (capsApply && dayHighCost > HIGH_COST_PER_SESSION) {
+          warnings.push({
+            severity: "warning",
+            code: "fatigue_budget",
+            message: `${day.name} has ${dayHighCost} heavy systemic lifts. For a muscle goal that recovery usually buys more growth spent on volume elsewhere.`,
+            dayIndex,
+            exerciseId: exercise.id,
+          });
+        }
+      }
+
       weeklySets.set(
         exercise.muscle_group,
         (weeklySets.get(exercise.muscle_group) ?? 0) + planned.sets,
@@ -295,6 +341,14 @@ export function validateGeneratedPlan(
     }
     return { dayIndex, dayName: day.name, minutes };
   });
+
+  if (capsApply && weeklyHighCost > HIGH_COST_PER_WEEK) {
+    warnings.push({
+      severity: "warning",
+      code: "fatigue_budget",
+      message: `This week has ${weeklyHighCost} heavy systemic lifts. For a muscle goal, two is usually where the returns stop.`,
+    });
+  }
 
   if (
     !Number.isInteger(plan.deload_week) ||

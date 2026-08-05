@@ -346,3 +346,98 @@ describe("validateGeneratedPlan surfaces unenforced restrictions", () => {
     expect(msg).not.toContain("!");
   });
 });
+
+describe("selection rules (v2 step 5)", () => {
+  // The founder's third complaint, in test form: "dumbbell bench press is
+  // unnecessary" next to a flat bench, and heavy CNS lifts on a muscle goal.
+  const bench = libraryExercise("bb-bench", {
+    name: "Bench Press",
+    muscle_group: "Chest",
+    movement_pattern: "Horizontal Press",
+  });
+  const dbBench = libraryExercise("db-bench", {
+    name: "Dumbbell Bench Press",
+    muscle_group: "Chest",
+    movement_pattern: "Horizontal Press",
+    equipment: "dumbbell",
+  });
+  const inclineDb = libraryExercise("db-incline", {
+    name: "Incline Dumbbell Bench Press",
+    muscle_group: "Chest",
+    movement_pattern: "Horizontal Press",
+    equipment: "dumbbell",
+  });
+  const squat = libraryExercise("squat", { name: "Squat" });
+  const deadlift = libraryExercise("deadlift", {
+    name: "Deadlift",
+    muscle_group: "Back",
+    movement_pattern: "Hinge",
+  });
+  const curl = libraryExercise("curl", {
+    name: "Barbell Curl",
+    muscle_group: "Biceps",
+    movement_pattern: "Curl",
+    is_major: false,
+  });
+
+  const gymIntake: PlanIntake = {
+    ...intake,
+    equipment: ["barbell", "dumbbell", "bodyweight"],
+    goal: "hypertrophy",
+  };
+
+  function codes(result: ReturnType<typeof validateGeneratedPlan>): string[] {
+    return result.warnings.map((w) => w.code);
+  }
+
+  it("flags two lifts that train the same thing the same way", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("bb-bench"), plannedExercise("db-bench")]),
+      gymIntake,
+      [bench, dbBench],
+    );
+    expect(codes(result)).toContain("redundant_stimulus");
+    // A warning, never an error: this is judgement, and the athlete may have
+    // a reason. Blocking would claim more certainty than we have.
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("leaves incline next to flat alone, because the angle differs", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("bb-bench"), plannedExercise("db-incline")]),
+      gymIntake,
+      [bench, inclineDb],
+    );
+    expect(codes(result)).not.toContain("redundant_stimulus");
+  });
+
+  it("warns when a muscle-goal session stacks heavy systemic lifts", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat"), plannedExercise("deadlift")]),
+      gymIntake,
+      [squat, deadlift],
+    );
+    expect(codes(result)).toContain("fatigue_budget");
+  });
+
+  it("leaves the same session alone for a strength goal", () => {
+    // The heavy lifts ARE the plan when the goal is strength. High cost is a
+    // price, not a defect.
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat"), plannedExercise("deadlift")]),
+      { ...gymIntake, goal: "strength" },
+      [squat, deadlift],
+    );
+    expect(codes(result)).not.toContain("fatigue_budget");
+  });
+
+  it("does not warn about a single heavy lift plus isolation work", () => {
+    const result = validateGeneratedPlan(
+      plan([plannedExercise("squat"), plannedExercise("curl")]),
+      gymIntake,
+      [squat, curl],
+    );
+    expect(codes(result)).not.toContain("fatigue_budget");
+    expect(codes(result)).not.toContain("redundant_stimulus");
+  });
+});
