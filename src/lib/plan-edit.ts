@@ -165,9 +165,18 @@ export async function getRevisions(
 /**
  * Step back one revision.
  *
- * Restores the snapshot from the revision BEFORE the latest, then records the
- * undo as its own revision. History moves forward even when the plan moves
- * back, so an undo is never lost and can itself be undone.
+ * Restores the snapshot from the revision BEFORE the latest, then DROPS the
+ * latest. The history is the plan's past, and an undone change is not part of
+ * it any more.
+ *
+ * This used to append the undo as a new revision instead, so that an undo could
+ * itself be undone. That reads well and behaves badly: the next undo then found
+ * the undone change sitting one row back and restored it, so pressing Undo
+ * twice returned the athlete to where they started. Found by pressing it twice.
+ *
+ * The cost is that there is no redo, and an undone change leaves no audit row.
+ * For a training plan that is the right trade. A button labelled Undo has to
+ * walk backwards every time it is pressed.
  *
  * Returns null when there is nothing to undo.
  */
@@ -199,15 +208,14 @@ export async function undoLastRevision(
     await rewriteDay(supabase, day);
   }
 
-  const { error: insErr } = await supabase.from("plan_revisions").insert({
-    plan_id: planId,
-    revision: latest.revision + 1,
-    source: "athlete_direct",
-    ops: [],
-    snapshot: restored,
-    summary: `Undid: ${latest.summary ?? "the last change"}`.slice(0, 300),
-  });
-  if (insErr) throw insErr;
+  // Dropped only after the restore succeeded. If the writes above throw, the
+  // revision stays and the undo can be retried.
+  const { error: delErr } = await supabase
+    .from("plan_revisions")
+    .delete()
+    .eq("plan_id", planId)
+    .eq("revision", latest.revision);
+  if (delErr) throw delErr;
 
   return restored;
 }
