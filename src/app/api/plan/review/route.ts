@@ -26,7 +26,12 @@ import {
   type EquipmentTag,
 } from "@/lib/plan-generation";
 import { parseCoachTurn, PLAN_CHAT_TOOL_SCHEMA } from "@/lib/plan-chat";
-import { buildPlanReview, buildWeeklyReviewPrompt, isBigChange } from "@/lib/plan-review";
+import {
+  buildPlanReview,
+  buildWeeklyReviewPrompt,
+  isBigChange,
+  withoutDayEmptyingOps,
+} from "@/lib/plan-review";
 import { getActivePlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 
@@ -110,14 +115,15 @@ export async function POST() {
     }
 
     const { turn, dropped } = parseCoachTurn(toolUse.input, exerciseIdByRef);
+    const guarded = withoutDayEmptyingOps(plan, turn.ops);
 
     return NextResponse.json({
       reply: turn.reply,
-      ops: turn.ops,
-      dropped,
+      ops: guarded.ops,
+      dropped: [...dropped, ...guarded.dropped],
       // The design's continuity rule, surfaced rather than enforced: a big
       // change is still the athlete's to accept, they just get told first.
-      bigChange: isBigChange(plan, turn.ops),
+      bigChange: isBigChange(plan, guarded.ops),
       week: {
         from: review.from,
         to: review.to,

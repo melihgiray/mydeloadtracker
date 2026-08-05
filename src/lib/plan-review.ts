@@ -224,14 +224,15 @@ Rules:
 1. ADJUST, DO NOT REBUILD. Continuity is the point. Most weeks need one to three ops, and a week that went well needs none at all. Returning no ops is a good answer.
 2. A lift that progressed is working. Leave it alone, or add load by raising the rep range only if they are at the top of it.
 3. A lift that stalled two weeks running needs a change: a different rep range, or a swap to a close variant. Do not swap on one bad week.
-4. A lift they did not train once is a signal about the plan, not about them. If a whole day was missed, say so and consider proposing fewer days rather than pretending the day exists.
-5. Never add volume to a muscle that is already leading while one is lagging.
-6. Address exercises by dayIndex and position, exactly as they appear below.
-7. exerciseRef must be a reference such as e14 from the exercises list. Never a name, never a database id.
-8. Every op needs a reason: one short sentence naming the evidence, for example "you hit 65kg twice, so the range moves up".
-9. Never place an isolation movement immediately before a compound that works the same muscle.
-10. Do not invent numbers. If a lift has no prior week, say there is nothing to compare yet.
-11. Write like a human. Never use em dashes, en dashes, or any dash as punctuation. Use commas and periods. No exclamation points. No markdown.
+4. A lift they did not train once is a signal about the plan, not about them. Say so in the reply.
+5. YOU CANNOT CHANGE THE NUMBER OF TRAINING DAYS. There is no operation for adding or removing a day, and removing every exercise from one is a rebuild, not an adjustment. If the week suggests they need fewer days, say that in the reply and tell them to replace the plan. Never describe an op as doing more than it does.
+6. Never add volume to a muscle that is already leading while one is lagging.
+7. Address exercises by dayIndex and position, exactly as they appear below.
+8. exerciseRef must be a reference such as e14 from the exercises list. Never a name, never a database id.
+9. Every op needs a reason: one short sentence naming the evidence, for example "you hit 65kg twice, so the range moves up".
+10. Never place an isolation movement immediately before a compound that works the same muscle.
+11. Do not invent numbers. If a lift has no prior week, say there is nothing to compare yet.
+12. Write like a human. Never use em dashes, en dashes, or any dash as punctuation. Use commas and periods. No exclamation points. No markdown.
 
 The reply is what they read first. Two or three sentences on how the week actually went, then what you changed.
 
@@ -268,4 +269,48 @@ AVAILABLE_EXERCISES
 ${JSON.stringify(
   exercises.map((r) => ({ id: r.reference, name: r.exercise.name, muscle: r.exercise.muscle_group })),
 )}`;
+}
+
+/**
+ * Drop review ops that would empty a training day.
+ *
+ * Found in production: with a week of zero logged sessions the model proposed a
+ * single remove_exercise whose reason read "removing Lower 2 entirely to reduce
+ * load". One op cannot do that, so accepting would have deleted one exercise
+ * while the athlete read that a whole day was going.
+ *
+ * The prompt now says the day count cannot change. This is the second layer,
+ * because a prompt rule is a request. Removing a day is a rebuild, and the
+ * review's entire premise is that it adjusts instead.
+ */
+export function withoutDayEmptyingOps(
+  plan: PlanWithDays,
+  ops: PlanOp[],
+): { ops: PlanOp[]; dropped: string[] } {
+  const remaining = new Map(plan.days.map((d) => [d.day_index, d.exercises.length]));
+  const kept: PlanOp[] = [];
+  const dropped: string[] = [];
+
+  for (const op of ops) {
+    if (op.op !== "remove_exercise") {
+      kept.push(op);
+      continue;
+    }
+    const left = remaining.get(op.dayIndex);
+    if (left == null) {
+      kept.push(op);
+      continue;
+    }
+    if (left <= 1) {
+      const day = plan.days.find((d) => d.day_index === op.dayIndex);
+      dropped.push(
+        `A change would have emptied ${day?.name ?? `day ${op.dayIndex + 1}`}. A review adjusts a plan, it does not remove a training day, so that one was not applied.`,
+      );
+      continue;
+    }
+    remaining.set(op.dayIndex, left - 1);
+    kept.push(op);
+  }
+
+  return { ops: kept, dropped };
 }

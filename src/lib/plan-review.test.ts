@@ -5,6 +5,7 @@ import {
   isBigChange,
   isReviewDue,
   summariseReview,
+  withoutDayEmptyingOps,
 } from "@/lib/plan-review";
 import type { PlanOp } from "@/lib/plan-patch";
 import type { PlanWithDays, TrainingSet } from "@/lib/types";
@@ -213,5 +214,54 @@ describe("summariseReview", () => {
     expect(text).toContain("no prior week");
     expect(text).toContain("Barbell Row: not trained this week");
     expect(text).not.toMatch(/RPE (null|undefined|NaN)/);
+  });
+});
+
+describe("withoutDayEmptyingOps", () => {
+  // Found in production, not in review: with a week of zero logged sessions the
+  // model proposed one remove_exercise whose reason read "removing Lower 2
+  // entirely". Positions are 0-based, so that op would have APPLIED, deleting
+  // one exercise while the athlete read that a whole day was going.
+  const remove = (dayIndex: number, position: number): PlanOp => ({
+    op: "remove_exercise",
+    dayIndex,
+    position,
+    reason: "test",
+  });
+
+  it("drops a removal that would leave a day with nothing in it", () => {
+    const oneLift = plan({
+      days: [
+        {
+          id: "d1",
+          plan_id: "p1",
+          day_index: 0,
+          name: "Lower 2",
+          focus: null,
+          exercises: [planExercise("squat", "Squat", 0)],
+        },
+      ],
+    });
+    const result = withoutDayEmptyingOps(oneLift, [remove(0, 0)]);
+    expect(result.ops).toHaveLength(0);
+    // Never silent. The athlete reads why it did not happen.
+    expect(result.dropped[0]).toContain("Lower 2");
+  });
+
+  it("drops only the removal that crosses the line, not the ones before it", () => {
+    // Two exercises: the first removal is fine, the second would empty the day.
+    const result = withoutDayEmptyingOps(plan(), [remove(0, 0), remove(0, 1)]);
+    expect(result.ops).toHaveLength(1);
+    expect(result.dropped).toHaveLength(1);
+  });
+
+  it("leaves every other kind of op alone", () => {
+    const ops: PlanOp[] = [
+      { op: "set_prescription", dayIndex: 0, position: 0, sets: 4, reason: "test" },
+      { op: "reorder", dayIndex: 0, fromPosition: 0, toPosition: 1, reason: "test" },
+    ];
+    const result = withoutDayEmptyingOps(plan(), ops);
+    expect(result.ops).toHaveLength(2);
+    expect(result.dropped).toHaveLength(0);
   });
 });
