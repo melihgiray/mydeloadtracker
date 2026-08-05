@@ -72,7 +72,13 @@ export async function getExercises(supabase: SupabaseClient): Promise<Exercise[]
 
 export async function getProfile(supabase: SupabaseClient): Promise<Profile | null> {
   const { data, error } = await supabase.from("profiles").select("*").single();
-  if (error) return null;
+  if (error) {
+    // A missing row is the onboarding state. Other failures must not erase the
+    // athlete's units and bodyweight by pretending the profile is blank.
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+  if (!data) return null;
   const profile = data as Profile;
   // Bodyweight is stored in kg; present it in the athlete's display unit so the
   // rest of the app can treat profile.bodyweight as already-in-display-units.
@@ -82,7 +88,7 @@ export async function getProfile(supabase: SupabaseClient): Promise<Profile | nu
   return profile;
 }
 
-/** Recent daily check-ins (newest first). Returns [] if the table is absent. */
+/** Recent daily check-ins (newest first). Returns [] only if the table is absent. */
 export async function getCheckins(
   supabase: SupabaseClient,
   days: number = 14,
@@ -95,7 +101,12 @@ export async function getCheckins(
     .select("*")
     .gte("date", localDateKey(since))
     .order("date", { ascending: false });
-  if (error) return []; // table may not exist yet (migration 0003 not applied)
+  if (error) {
+    // Migration 0003 was originally optional. Preserve that compatibility,
+    // but do not turn a real outage into invented empty recovery history.
+    if (error.code === "PGRST205") return [];
+    throw error;
+  }
   return (data ?? []) as DailyCheckin[];
 }
 
