@@ -109,6 +109,30 @@ async function restoreTouchedDays(
   if (failures.length > 0) throw new Error(failures.join("; "));
 }
 
+/** Write a complete snapshot, continuing across days so one failure does not hide another. */
+async function restorePlanSnapshot(
+  supabase: SupabaseClient,
+  snapshot: PlanWithDays,
+): Promise<void> {
+  const failures: string[] = [];
+
+  for (const day of snapshot.days) {
+    const { error: dayError } = await supabase
+      .from("plan_days")
+      .update({ name: day.name, focus: day.focus })
+      .eq("id", day.id);
+    if (dayError) failures.push(`${day.name} name: ${errorMessage(dayError)}`);
+
+    try {
+      await rewriteDay(supabase, day);
+    } catch (error) {
+      failures.push(`${day.name} exercises: ${errorMessage(error)}`);
+    }
+  }
+
+  if (failures.length > 0) throw new Error(failures.join("; "));
+}
+
 /** The next revision number for a plan. Revision 0 is the plan as generated. */
 async function nextRevision(supabase: SupabaseClient, planId: string): Promise<number> {
   const { data, error } = await supabase
@@ -265,25 +289,29 @@ export async function undoLastRevision(
   const [latest, previous] = rows;
   const restored = previous.snapshot;
 
-  for (const day of restored.days) {
-    const { error: dayErr } = await supabase
-      .from("plan_days")
-      .update({ name: day.name, focus: day.focus })
-      .eq("id", day.id);
-    if (dayErr) throw dayErr;
-    await rewriteDay(supabase, day);
+  try {
+    await restorePlanSnapshot(supabase, restored);
+
+    // Dropped only after the restore succeeded. If the delete fails, the
+    // latest snapshot is put back so live state and revision history agree.
+    const { error: delErr } = await supabase
+      .from("plan_revisions")
+      .delete()
+      .eq("plan_id", planId)
+      .eq("revision", latest.revision);
+    if (delErr) throw delErr;
+
+    return restored;
+  } catch (undoError) {
+    try {
+      await restorePlanSnapshot(supabase, latest.snapshot);
+    } catch (rollbackError) {
+      throw new Error(
+        `Plan undo failed: ${errorMessage(undoError)}. Rollback also failed: ${errorMessage(rollbackError)}`,
+      );
+    }
+    throw undoError;
   }
-
-  // Dropped only after the restore succeeded. If the writes above throw, the
-  // revision stays and the undo can be retried.
-  const { error: delErr } = await supabase
-    .from("plan_revisions")
-    .delete()
-    .eq("plan_id", planId)
-    .eq("revision", latest.revision);
-  if (delErr) throw delErr;
-
-  return restored;
 }
 
 /**

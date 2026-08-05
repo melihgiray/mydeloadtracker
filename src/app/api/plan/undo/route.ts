@@ -1,8 +1,8 @@
 // Step back one revision on the active plan.
 //
 // Part of step 2 in docs/PLANNER_V2_DESIGN.md. Restores the previous snapshot
-// and records the undo as its own revision, so history moves forward even when
-// the plan moves back.
+// and drops the reverted revision, so every press walks backward rather than
+// toggling between the latest two states.
 
 import { NextResponse } from "next/server";
 import { getActivePlan } from "@/lib/plans";

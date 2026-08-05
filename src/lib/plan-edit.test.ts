@@ -216,6 +216,114 @@ function editablePlan(): PlanWithDays {
   return plan;
 }
 
+function planAtSets(sets: number): PlanWithDays {
+  const plan = editablePlan();
+  plan.days[0].exercises[0].sets = sets;
+  return plan;
+}
+
+describe("undoLastRevision compensation", () => {
+  const revisions = () => [
+    { revision: 2, snapshot: planAtSets(4), summary: "Four sets" },
+    { revision: 1, snapshot: planAtSets(3), summary: "Three sets" },
+  ];
+
+  it("restores the current snapshot when stepping back fails", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [
+          {
+            data: revisions(),
+            error: null,
+          },
+        ],
+        "plan_days.update": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: { message: "previous snapshot failed" } },
+          { data: null, error: null },
+        ],
+      },
+      log,
+    );
+
+    await expect(undoLastRevision(supabase, "p1")).rejects.toThrow(/previous snapshot failed/);
+
+    const insertedSets = log
+      .filter((entry) => entry.table === "plan_exercises" && entry.op === "insert")
+      .map((entry) => (entry.value as { sets: number }[])[0].sets);
+    expect(insertedSets).toEqual([3, 4]);
+    expect(
+      log.filter((entry) => entry.table === "plan_revisions" && entry.op === "delete"),
+    ).toHaveLength(0);
+  });
+
+  it("restores the current snapshot when dropping the undone revision fails", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [{ data: revisions(), error: null }],
+        "plan_revisions.delete": [
+          { data: null, error: { message: "revision delete failed" } },
+        ],
+        "plan_days.update": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+      },
+      log,
+    );
+
+    await expect(undoLastRevision(supabase, "p1")).rejects.toThrow(/revision delete failed/);
+
+    const insertedSets = log
+      .filter((entry) => entry.table === "plan_exercises" && entry.op === "insert")
+      .map((entry) => (entry.value as { sets: number }[])[0].sets);
+    expect(insertedSets).toEqual([3, 4]);
+  });
+
+  it("reports when restoring the current snapshot also fails", async () => {
+    const log: Mutation[] = [];
+    const supabase = fakeEditSupabase(
+      {
+        "plan_revisions.select": [{ data: revisions(), error: null }],
+        "plan_days.update": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.delete": [
+          { data: null, error: null },
+          { data: null, error: null },
+        ],
+        "plan_exercises.insert": [
+          { data: null, error: { message: "previous snapshot failed" } },
+          { data: null, error: { message: "current restore failed" } },
+        ],
+      },
+      log,
+    );
+
+    await expect(undoLastRevision(supabase, "p1")).rejects.toThrow(
+      /Plan undo failed:.*previous snapshot failed.*Rollback also failed:.*current restore failed/,
+    );
+  });
+});
+
 describe("applyPatchToPlan compensation", () => {
   const fourSetPatch = [
     {
