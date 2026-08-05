@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -171,6 +171,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
   const intervalRef = useRef<number | null>(null);
   const lastFramesRef = useRef<string[]>([]); // retry without re-capturing
   const stageRef = useRef<number | null>(null);
+  const captureRunRef = useRef(0);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [recording, setRecording] = useState(false);
@@ -210,7 +211,32 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
     e1rm: number;
   } | null>(null);
 
-  useEffect(() => () => teardown(), []); // release the camera on unmount
+  const clearTimers = useCallback(() => {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (stageRef.current !== null) {
+      clearInterval(stageRef.current);
+      stageRef.current = null;
+    }
+  }, []);
+
+  const disposeCapture = useCallback(() => {
+    captureRunRef.current += 1;
+    clearTimers();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }, [clearTimers]);
+
+  const teardown = useCallback(() => {
+    disposeCapture();
+    setStream(null);
+    setVideoReady(false);
+    setNeedsTap(false);
+  }, [disposeCapture]);
+
+  useEffect(() => disposeCapture, [disposeCapture]); // release the camera on unmount
 
   useEffect(() => {
     setStandalone(
@@ -242,26 +268,6 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
       cancelled = true;
     };
   }, [phase, stream]);
-
-  function clearTimers() {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (stageRef.current !== null) {
-      clearInterval(stageRef.current);
-      stageRef.current = null;
-    }
-  }
-
-  function teardown() {
-    clearTimers();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setStream(null);
-    setVideoReady(false);
-    setNeedsTap(false);
-  }
 
   function stopLive() {
     teardown();
@@ -349,10 +355,13 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
   async function startRecording() {
     const v = videoRef.current;
     if (!v) return;
+    const captureRun = captureRunRef.current + 1;
+    captureRunRef.current = captureRun;
     setRecording(true);
     for (let n = 3; n >= 1; n--) {
       setCountdown(n);
       await sleep(650);
+      if (captureRunRef.current !== captureRun) return;
     }
     setCountdown(0);
     bufRef.current = [];
