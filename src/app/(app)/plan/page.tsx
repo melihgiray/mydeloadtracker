@@ -1,6 +1,8 @@
 import { EVIDENCE_CAVEAT } from "@/lib/analytics/volume-landmarks";
 import { PlanBuilder } from "@/components/plan-builder";
 import { PlanCoachChat } from "@/components/plan-coach-chat";
+import { WeeklyReview } from "@/components/weekly-review";
+import { isReviewDue } from "@/lib/plan-review";
 import { getActivePlan } from "@/lib/plans";
 import { coldStartQuestions, getAthleteLifts } from "@/lib/athlete-lifts";
 import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
@@ -53,6 +55,10 @@ export default async function PlanPage() {
           knowing anything about the athlete is the thing being fixed. Disappears
           once every lift is either answered or logged. */}
       <LiftIntake questions={questions} units={profile?.units ?? "kg"} />
+
+      {/* Above the chat: a week that is ready to review is the most useful
+          thing on the screen, and it disappears the moment it is answered. */}
+      {plan && <WeeklyReview due={isReviewDue(plan)} />}
 
       <PlanCoachChat hasPlan={plan != null} />
       <PlanBuilder initialPlan={plan} evidenceCaveat={EVIDENCE_CAVEAT} />
