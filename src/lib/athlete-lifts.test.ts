@@ -3,6 +3,8 @@ import { describe, it, expect } from "vitest";
 import {
   COLD_START_LIFTS,
   coldStartQuestions,
+  getAthleteLifts,
+  liftClaimToKg,
   mergeSelfReported,
   parseLiftClaims,
   saveAthleteLifts,
@@ -238,5 +240,45 @@ describe("parseLiftClaims", () => {
     expect(parseLiftClaims([{ exerciseId: "bench", weight: 100, reps: 5 }])).toEqual([
       { exerciseId: "bench", weight: 100, reps: 5 },
     ]);
+  });
+});
+
+function fakeReadSupabase(rows: unknown[]): SupabaseClient {
+  return {
+    from: () => ({
+      select: async () => ({ data: rows, error: null }),
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe("getAthleteLifts unit seam", () => {
+  it("converts canonical kilograms to the athlete's display unit", async () => {
+    const lifts = await getAthleteLifts(
+      fakeReadSupabase([
+        {
+          exercise_id: "bench",
+          weight: "100.00",
+          reps: 5,
+          source: "self_reported",
+          recorded_on: "2026-08-05",
+        },
+      ]),
+      "lb",
+    );
+    expect(lifts[0].weight).toBe(220.46);
+  });
+
+  it("converts a pound form claim to canonical kilograms before storage", () => {
+    const stored = liftClaimToKg({ exerciseId: "bench", weight: 225, reps: 5 }, "lb");
+    expect(stored).toMatchObject({ exerciseId: "bench", reps: 5 });
+    expect(stored.weight).toBeCloseTo(102.058, 3);
+  });
+
+  it("leaves a kilogram form claim unchanged", () => {
+    expect(liftClaimToKg({ exerciseId: "bench", weight: 100, reps: 5 }, "kg")).toEqual({
+      exerciseId: "bench",
+      weight: 100,
+      reps: 5,
+    });
   });
 });

@@ -18,16 +18,20 @@ export default async function PlanPage() {
 
   // Only ask about lifts the athlete has not already logged. The rule from v1
   // still holds: never ask for something the app can work out.
+  const profilePromise = getProfile(supabase);
   const [library, profile, sets, claims] = await Promise.all([
     getExercises(supabase),
-    getProfile(supabase),
+    profilePromise,
     // Five years, not the usual eight weeks. This window decides whether the
     // app already KNOWS a lift, and a bench logged three months ago is still
     // known. The eight-week window is for "what are they training now", which
     // is a different question.
     getTrainingSets(supabase, "kg", 260).catch(() => []),
-    getAthleteLifts(supabase).catch(() => []),
+    profilePromise
+      .then((value) => getAthleteLifts(supabase, value?.units ?? "kg"))
+      .catch(() => []),
   ]);
+  const units = profile?.units ?? "kg";
   const loggedIds = new Set(buildRecords(sets).map((r) => r.exerciseId));
   const questions = coldStartQuestions(library, claims)
     .filter((q) => !loggedIds.has(q.exercise.id))
@@ -62,7 +66,7 @@ export default async function PlanPage() {
       {/* Above the plan, and above the chat, because a plan built without
           knowing anything about the athlete is the thing being fixed. Disappears
           once every lift is either answered or logged. */}
-      <LiftIntake questions={questions} units={profile?.units ?? "kg"} />
+      <LiftIntake questions={questions} units={units} />
 
       {/* Above the chat: a week that is ready to review is the most useful
           thing on the screen, and it disappears the moment it is answered. */}

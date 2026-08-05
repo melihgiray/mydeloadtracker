@@ -21,7 +21,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimate1RM, round1 } from "@/lib/analytics/epley";
 import type { PersonalRecord } from "@/lib/analytics/records";
-import type { Exercise } from "@/lib/types";
+import type { Exercise, Units } from "@/lib/types";
+import { fromKg, toKg } from "@/lib/units";
 
 /**
  * The lifts worth asking a new athlete about.
@@ -46,7 +47,7 @@ export const COLD_START_LIFTS = [
 
 export interface AthleteLift {
   exercise_id: string;
-  /** In the athlete's own units, exactly as they typed it. */
+  /** In the athlete's display units; converted from canonical kg on read. */
   weight: number;
   reps: number;
   source: "self_reported" | "logged";
@@ -125,7 +126,10 @@ export function mergeSelfReported(
 }
 
 /** The athlete's self-reported bests. */
-export async function getAthleteLifts(supabase: SupabaseClient): Promise<AthleteLift[]> {
+export async function getAthleteLifts(
+  supabase: SupabaseClient,
+  units: Units,
+): Promise<AthleteLift[]> {
   const { data, error } = await supabase
     .from("athlete_lifts")
     .select("exercise_id, weight, reps, source, recorded_on");
@@ -133,7 +137,7 @@ export async function getAthleteLifts(supabase: SupabaseClient): Promise<Athlete
   return ((data ?? []) as { weight: number | string; [k: string]: unknown }[]).map((r) => ({
     ...(r as unknown as AthleteLift),
     // numeric(6,2) arrives as a string over PostgREST.
-    weight: Number(r.weight),
+    weight: fromKg(Number(r.weight), units),
   }));
 }
 
@@ -141,6 +145,11 @@ export interface LiftClaim {
   exerciseId: string;
   weight: number;
   reps: number;
+}
+
+/** Convert a form claim from the athlete's display unit to canonical kg. */
+export function liftClaimToKg(claim: LiftClaim, units: Units): LiftClaim {
+  return { ...claim, weight: toKg(claim.weight, units) };
 }
 
 /** One shared write invariant for every current and future claim entry point. */

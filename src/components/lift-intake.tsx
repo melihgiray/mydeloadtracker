@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
+import { liftClaimToKg } from "@/lib/athlete-lifts";
 import type { Units } from "@/lib/types";
 
 /**
@@ -54,11 +55,16 @@ export function LiftIntake({
         ? []
         : rows
             .filter((r) => r.weight.trim() && r.reps.trim())
-            .map((r) => ({
-              exerciseId: r.exerciseId,
-              weight: Number(r.weight),
-              reps: Number(r.reps),
-            }));
+            .map((r) =>
+              liftClaimToKg(
+                {
+                  exerciseId: r.exerciseId,
+                  weight: Number(r.weight),
+                  reps: Number(r.reps),
+                },
+                units,
+              ),
+            );
       const res = await fetch("/api/athlete-lifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

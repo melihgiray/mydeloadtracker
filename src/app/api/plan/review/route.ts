@@ -80,7 +80,7 @@ export async function POST() {
     const referenced = referenceExercises(filterExercisesForEquipment(library, equipment));
     const exerciseIdByRef = new Map(referenced.map((r) => [r.reference, r.exercise.id]));
 
-    const claims = await getAthleteLifts(supabase).catch(() => []);
+    const claims = await getAthleteLifts(supabase, units).catch(() => []);
     const weakPoints = assessWeakPoints(
       mergeSelfReported(buildRecords(sets), claims, library),
       buildSetVolume(sets, 4, 8, new Date()),

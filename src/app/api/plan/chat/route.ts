@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 
     // The coach should know what the app knows, so it does not ask the athlete
     // to explain their own weak points again.
-    const claims = await getAthleteLifts(supabase).catch(() => []);
+    const claims = await getAthleteLifts(supabase, units).catch(() => []);
     const weakPoints = assessWeakPoints(
       mergeSelfReported(buildRecords(sets), claims, library),
       buildSetVolume(sets, 4, 8, new Date()),
