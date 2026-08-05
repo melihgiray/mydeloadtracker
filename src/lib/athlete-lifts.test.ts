@@ -1,8 +1,11 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect } from "vitest";
 import {
   COLD_START_LIFTS,
   coldStartQuestions,
   mergeSelfReported,
+  parseLiftClaims,
+  saveAthleteLifts,
   type AthleteLift,
 } from "@/lib/athlete-lifts";
 import { assessWeakPoints } from "@/lib/analytics/weak-points";
@@ -176,5 +179,64 @@ describe("cold start feeds the weak-point engine", () => {
     );
     // Two scored muscles is the minimum for a median to mean anything.
     expect(report.insufficientData).toBe(false);
+  });
+});
+
+function fakeSaveSupabase(writes: unknown[][]): SupabaseClient {
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: { id: "u1" } }, error: null }),
+    },
+    from: () => ({
+      upsert: async (rows: unknown[]) => {
+        writes.push(rows);
+        return { error: null };
+      },
+    }),
+  } as unknown as SupabaseClient;
+}
+
+describe("saveAthleteLifts", () => {
+  it("never writes a zero-weight claim", async () => {
+    const writes: unknown[][] = [];
+    await saveAthleteLifts(fakeSaveSupabase(writes), [
+      { exerciseId: "bench", weight: 0, reps: 5 },
+    ]);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("writes valid claims and drops invalid claims in the same request", async () => {
+    const writes: unknown[][] = [];
+    await saveAthleteLifts(fakeSaveSupabase(writes), [
+      { exerciseId: "bench", weight: 100, reps: 5 },
+      { exerciseId: "curl", weight: -1, reps: 8 },
+      { exerciseId: "squat", weight: 140, reps: 0 },
+    ]);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toEqual([
+      {
+        user_id: "u1",
+        exercise_id: "bench",
+        weight: 100,
+        reps: 5,
+        source: "self_reported",
+      },
+    ]);
+  });
+});
+
+describe("parseLiftClaims", () => {
+  it("accepts an empty array as an intentional skip", () => {
+    expect(parseLiftClaims([])).toEqual([]);
+  });
+
+  it("rejects zero weight instead of reporting a silent zero-row save", () => {
+    expect(parseLiftClaims([{ exerciseId: "bench", weight: 0, reps: 5 }])).toBeNull();
+  });
+
+  it("accepts a valid numeric claim", () => {
+    expect(parseLiftClaims([{ exerciseId: "bench", weight: 100, reps: 5 }])).toEqual([
+      { exerciseId: "bench", weight: 100, reps: 5 },
+    ]);
   });
 });

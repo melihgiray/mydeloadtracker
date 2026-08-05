@@ -143,6 +143,44 @@ export interface LiftClaim {
   reps: number;
 }
 
+/** One shared write invariant for every current and future claim entry point. */
+export function isValidLiftClaim(claim: LiftClaim): boolean {
+  return (
+    claim.exerciseId.trim().length > 0 &&
+    Number.isFinite(claim.weight) &&
+    claim.weight > 0 &&
+    Number.isInteger(claim.reps) &&
+    claim.reps >= 1 &&
+    claim.reps <= 100
+  );
+}
+
+/** Parse the API payload. An empty array is an intentional skip; invalid rows are not. */
+export function parseLiftClaims(raw: unknown): LiftClaim[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const claims: LiftClaim[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return null;
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.exerciseId !== "string" ||
+      typeof candidate.weight !== "number" ||
+      typeof candidate.reps !== "number"
+    ) {
+      return null;
+    }
+    const claim = {
+      exerciseId: candidate.exerciseId,
+      weight: candidate.weight,
+      reps: candidate.reps,
+    };
+    if (!isValidLiftClaim(claim)) return null;
+    claims.push(claim);
+  }
+  return claims;
+}
+
 /**
  * Save the athlete's answers, replacing any previous claim for the same lift.
  *
@@ -158,10 +196,11 @@ export async function saveAthleteLifts(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated.");
-  if (claims.length === 0) return;
+  const validClaims = claims.filter(isValidLiftClaim);
+  if (validClaims.length === 0) return;
 
   const { error } = await supabase.from("athlete_lifts").upsert(
-    claims.map((c) => ({
+    validClaims.map((c) => ({
       user_id: user.id,
       exercise_id: c.exerciseId,
       weight: c.weight,

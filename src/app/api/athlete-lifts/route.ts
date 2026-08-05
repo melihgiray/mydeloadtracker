@@ -4,7 +4,7 @@
 // nobody knows their true 1RM and asking for one invites invention.
 
 import { NextResponse } from "next/server";
-import { saveAthleteLifts, type LiftClaim } from "@/lib/athlete-lifts";
+import { parseLiftClaims, saveAthleteLifts, type LiftClaim } from "@/lib/athlete-lifts";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -19,19 +19,14 @@ export async function POST(req: Request) {
   let claims: LiftClaim[];
   try {
     const body = (await req.json()) as { lifts?: unknown };
-    const raw = Array.isArray(body.lifts) ? body.lifts : [];
-    claims = raw.flatMap((item) => {
-      const c = (item ?? {}) as Record<string, unknown>;
-      const exerciseId = typeof c.exerciseId === "string" ? c.exerciseId : null;
-      const weight = Number(c.weight);
-      const reps = Number(c.reps);
-      // A skipped question arrives as blank and is simply absent. Never write a
-      // zero: that reads as "I can lift nothing" rather than "I would rather
-      // not say".
-      if (!exerciseId || !Number.isFinite(weight) || weight < 0) return [];
-      if (!Number.isInteger(reps) || reps < 1 || reps > 100) return [];
-      return [{ exerciseId, weight, reps }];
-    });
+    const parsed = parseLiftClaims(body.lifts);
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "Check that every lift has a positive weight and 1 to 100 reps." },
+        { status: 400 },
+      );
+    }
+    claims = parsed;
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
