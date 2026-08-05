@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const units = profile?.units ?? "kg";
     const [library, sets] = await Promise.all([
       getExercises(supabase),
-      getTrainingSets(supabase, units, 8).catch(() => []),
+      getTrainingSets(supabase, units, 8),
     ]);
 
     // Same equipment filter the generator uses, so the coach cannot offer a
@@ -93,13 +93,13 @@ export async function POST(req: Request) {
 
     // The coach should know what the app knows, so it does not ask the athlete
     // to explain their own weak points again.
-    const claims = await getAthleteLifts(supabase, units).catch(() => []);
+    const claims = await getAthleteLifts(supabase, units);
     const weakPoints = assessWeakPoints(
       mergeSelfReported(buildRecords(sets), claims, library),
       buildSetVolume(sets, 4, 8, new Date()),
       {
-      bodyweight: profile?.bodyweight ?? null,
-      sex: profile?.sex ?? null,
+        bodyweight: profile?.bodyweight ?? null,
+        sex: profile?.sex ?? null,
         units,
       },
     );

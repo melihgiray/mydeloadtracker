@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   messagesCreate: vi.fn(),
   createPlan: vi.fn(),
+  getAthleteLifts: vi.fn(),
   library: [
     {
       id: "squat-id",
@@ -52,6 +53,13 @@ vi.mock("@/lib/data", () => ({
 vi.mock("@/lib/plans", () => ({
   createPlan: mocks.createPlan,
 }));
+
+vi.mock("@/lib/athlete-lifts", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/athlete-lifts")>(
+    "@/lib/athlete-lifts",
+  );
+  return { ...actual, getAthleteLifts: mocks.getAthleteLifts };
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({
@@ -122,7 +130,9 @@ beforeEach(() => {
   delete process.env.OLLAMA_BASE_URL;
   mocks.messagesCreate.mockReset();
   mocks.createPlan.mockReset();
+  mocks.getAthleteLifts.mockReset();
   mocks.createPlan.mockResolvedValue("plan-id");
+  mocks.getAthleteLifts.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -130,6 +140,25 @@ afterEach(() => {
 });
 
 describe("POST /api/plan validation and regeneration", () => {
+  it("does not invent empty PR history when lift claims are unavailable", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.getAthleteLifts.mockRejectedValue(new Error("claims unavailable"));
+    mocks.messagesCreate.mockResolvedValue(toolResponse(generated("e1")));
+
+    try {
+      const response = await POST(request());
+      const body = (await response.json()) as { error?: string };
+
+      expect(response.status).toBe(502);
+      expect(body.error).toContain("could not build a valid plan");
+      expect(mocks.messagesCreate).not.toHaveBeenCalled();
+      expect(mocks.createPlan).not.toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalledWith("Plan generation error:", expect.any(Error));
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it("regenerates once with the named avoid conflict, then persists the valid plan", async () => {
     mocks.messagesCreate
       .mockResolvedValueOnce(toolResponse(generated("e2")))

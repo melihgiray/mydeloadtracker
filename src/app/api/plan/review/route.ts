@@ -69,7 +69,7 @@ export async function POST() {
       // Three weeks covers the two the review compares plus a margin for
       // sessions dated slightly off. Anything older is not evidence about
       // this week.
-      getTrainingSets(supabase, units, 3).catch(() => []),
+      getTrainingSets(supabase, units, 3),
     ]);
 
     const review = buildPlanReview(plan, sets, localDateKey(new Date()));
@@ -80,7 +80,7 @@ export async function POST() {
     const referenced = referenceExercises(filterExercisesForEquipment(library, equipment));
     const exerciseIdByRef = new Map(referenced.map((r) => [r.reference, r.exercise.id]));
 
-    const claims = await getAthleteLifts(supabase, units).catch(() => []);
+    const claims = await getAthleteLifts(supabase, units);
     const weakPoints = assessWeakPoints(
       mergeSelfReported(buildRecords(sets), claims, library),
       buildSetVolume(sets, 4, 8, new Date()),

@@ -195,7 +195,7 @@ export async function POST(req: Request) {
     // Fold in what the athlete told us about themselves. Without this a
     // first-time user has no logged history, the assessment gives up, and they
     // get a generic plan. Logged history still wins where both exist.
-    const claims = await getAthleteLifts(supabase, units).catch(() => []);
+    const claims = await getAthleteLifts(supabase, units);
     const weakPoints = assessWeakPoints(mergeSelfReported(records, claims, library), setVolume, {
       bodyweight: profile?.bodyweight ?? null,
       sex: profile?.sex ?? null,

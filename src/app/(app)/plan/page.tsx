@@ -26,10 +26,8 @@ export default async function PlanPage() {
     // app already KNOWS a lift, and a bench logged three months ago is still
     // known. The eight-week window is for "what are they training now", which
     // is a different question.
-    getTrainingSets(supabase, "kg", 260).catch(() => []),
-    profilePromise
-      .then((value) => getAthleteLifts(supabase, value?.units ?? "kg"))
-      .catch(() => []),
+    getTrainingSets(supabase, "kg", 260),
+    profilePromise.then((value) => getAthleteLifts(supabase, value?.units ?? "kg")),
   ]);
   const units = profile?.units ?? "kg";
   const loggedIds = new Set(buildRecords(sets).map((r) => r.exerciseId));
