@@ -12,7 +12,7 @@ import { aliasesFor } from "@/lib/exercise-aliases";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
-import { targetLabel, type PlannedExercise } from "@/lib/plan-session";
+import { mergePlannedIntoDraft, targetLabel, type PlannedExercise } from "@/lib/plan-session";
 import type { Exercise, Units } from "@/lib/types";
 
 const DRAFT_KEY = "mdt_workout_draft_v1";
@@ -115,7 +115,18 @@ export function LogForm({
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw);
-        if (Array.isArray(d.entries) && d.entries.length) setEntries(d.entries);
+        if (Array.isArray(d.entries) && d.entries.length) {
+          // Merge rather than replace. See mergePlannedIntoDraft for why this
+          // only ever adds, and what it deliberately refuses to remove.
+          setEntries(
+            mergePlannedIntoDraft(
+              d.entries as ExerciseEntry[],
+              planned ?? [],
+              typeof d.date === "string" ? d.date : null,
+              today,
+            ),
+          );
+        }
         if (typeof d.date === "string") setDate(d.date);
         if (typeof d.notes === "string") setNotes(d.notes);
       }

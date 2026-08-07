@@ -2,8 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   buildPlannedSession,
   completedSetCount,
+  mergePlannedIntoDraft,
   repsWithinRange,
   targetLabel,
+  type DraftEntry,
+  type PlannedExercise,
+  type PlannedSet,
 } from "@/lib/plan-session";
 import type { NextSession } from "@/lib/analytics/progression";
 import type { PlanDayWithExercises } from "@/lib/types";
@@ -302,5 +306,106 @@ describe("plan versus history conflicts", () => {
       expect(c.conflict).not.toMatch(/[—–]/);
       expect(c.conflict).not.toContain("!");
     }
+  });
+});
+
+describe("mergePlannedIntoDraft", () => {
+  // Found by opening Log, adding an exercise to today's plan on the Coach tab,
+  // and coming back. The exercise was simply not there. Opening Log writes a
+  // draft immediately, because the plan prefill itself counts as entries, so
+  // this needed no typing to reproduce.
+  const set = (): PlannedSet => ({ reps: "8", weight: "60", rpe: "9" });
+
+  function plannedExercise(exerciseId: string, name = exerciseId): PlannedExercise {
+    return {
+      exerciseId,
+      name,
+      muscleGroup: "Chest",
+      target: { sets: 3, repLow: 8, repHigh: 12, rpe: 9, restSeconds: null, role: null },
+      sets: [set(), set(), set()],
+      weightBasis: "no_history",
+      note: null,
+      repsAdjusted: "none",
+      conflict: null,
+    };
+  }
+
+  const draftEntry = (exerciseId: string): DraftEntry => ({
+    key: `${exerciseId}-draft`,
+    exerciseId,
+    sets: [{ reps: "5", weight: "100", rpe: "8" }],
+  });
+
+  it("appends an exercise added to the plan after the draft was written", () => {
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench")],
+      [plannedExercise("bench"), plannedExercise("facepull")],
+      "2026-08-07",
+      "2026-08-07",
+    );
+    expect(merged.map((e) => e.exerciseId)).toEqual(["bench", "facepull"]);
+  });
+
+  it("never touches work already in the draft", () => {
+    // The whole reason this only adds. The athlete's typed sets outrank any
+    // prescription.
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench")],
+      [plannedExercise("bench")],
+      "2026-08-07",
+      "2026-08-07",
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0].sets).toEqual([{ reps: "5", weight: "100", rpe: "8" }]);
+  });
+
+  it("keeps an exercise the athlete added by hand and the plan does not have", () => {
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench"), draftEntry("curl")],
+      [plannedExercise("bench")],
+      "2026-08-07",
+      "2026-08-07",
+    );
+    expect(merged.map((e) => e.exerciseId)).toEqual(["bench", "curl"]);
+  });
+
+  it("keeps an exercise that was taken OFF the plan, deliberately", () => {
+    // Sets carry no confirmed flag, so a prefilled row and a typed one are
+    // indistinguishable. Dropping the wrong one loses real work, and a stale
+    // row is visible and removable while a missing one is neither.
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench"), draftEntry("removed")],
+      [plannedExercise("bench")],
+      "2026-08-07",
+      "2026-08-07",
+    );
+    expect(merged.map((e) => e.exerciseId)).toContain("removed");
+  });
+
+  it("refuses to mix yesterday's draft with today's plan", () => {
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench")],
+      [plannedExercise("squat")],
+      "2026-08-06",
+      "2026-08-07",
+    );
+    expect(merged.map((e) => e.exerciseId)).toEqual(["bench"]);
+  });
+
+  it("merges when the draft carries no date at all", () => {
+    const merged = mergePlannedIntoDraft(
+      [draftEntry("bench")],
+      [plannedExercise("squat")],
+      null,
+      "2026-08-07",
+    );
+    expect(merged.map((e) => e.exerciseId)).toEqual(["bench", "squat"]);
+  });
+
+  it("copies the planned sets rather than sharing them", () => {
+    const planned = plannedExercise("facepull");
+    const merged = mergePlannedIntoDraft([draftEntry("bench")], [planned], null, "2026-08-07");
+    merged[1].sets[0].reps = "99";
+    expect(planned.sets[0].reps).toBe("8");
   });
 });

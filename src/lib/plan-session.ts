@@ -190,3 +190,50 @@ export function targetLabel(t: PlannedExercise["target"]): string {
 export function completedSetCount(sets: PlannedSet[]): number {
   return sets.filter((s) => s.reps !== "" && s.weight !== "").length;
 }
+
+/** One exercise in the Log form: an id plus its editable set rows. */
+export interface DraftEntry {
+  key: string;
+  exerciseId: string;
+  sets: PlannedSet[];
+}
+
+/**
+ * Reconcile a restored draft with today's plan.
+ *
+ * The Log used to let a restored draft REPLACE the plan prefill outright, which
+ * froze the session to whatever the plan looked like the first time Log was
+ * opened that day. Opening Log writes a draft immediately, because the prefill
+ * itself counts as entries, so this needed no typing at all: open Log, add an
+ * exercise to today's day on the Coach tab, come back, and the new exercise was
+ * simply not there. Nothing said so.
+ *
+ * This only ever ADDS. A planned exercise the draft has not seen is appended;
+ * nothing already in the draft is dropped, including exercises the athlete
+ * added by hand. A set row carries no "confirmed" flag, so a prefilled row and
+ * one the athlete typed over are indistinguishable here, and dropping either
+ * could throw away real work. An exercise taken OFF the plan therefore stays
+ * until they remove it, which is visible and reversible. The reverse mistake
+ * is not.
+ */
+export function mergePlannedIntoDraft(
+  draft: DraftEntry[],
+  planned: PlannedExercise[],
+  draftDate: string | null,
+  today: string,
+): DraftEntry[] {
+  // A draft from an earlier session restores with its own date. Appending
+  // today's plan to it would merge two different workouts.
+  if (draftDate != null && draftDate !== today) return draft;
+
+  const inDraft = new Set(draft.map((e) => e.exerciseId));
+  const missing = planned
+    .filter((p) => !inDraft.has(p.exerciseId))
+    .map((p, i) => ({
+      key: `${p.exerciseId}-plan-added-${i}`,
+      exerciseId: p.exerciseId,
+      sets: p.sets.map((s) => ({ ...s })),
+    }));
+
+  return [...draft, ...missing];
+}
