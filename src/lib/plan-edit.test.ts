@@ -506,7 +506,7 @@ function statefulSupabase(seed: { revision: number; snapshot: PlanWithDays }[]) 
       return builder;
     },
   };
-  return client as unknown as SupabaseClient & { rows: typeof rows };
+  return client as unknown as SupabaseClient & { rows: typeof rows; plan: typeof plan };
 }
 
 describe("undo chains", () => {
