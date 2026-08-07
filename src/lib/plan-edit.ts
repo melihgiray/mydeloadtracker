@@ -292,6 +292,24 @@ export async function undoLastRevision(
   try {
     await restorePlanSnapshot(supabase, restored);
 
+    // Undoing an accepted weekly review has to give the review back.
+    //
+    // Accepting stamps last_reviewed_on, and that stamp lives on
+    // training_plans rather than in the ops, so restoring days and exercises
+    // left it behind: the plan reverted but the athlete could not ask for
+    // another proposal for a week. The done-state copy tells them to undo if
+    // they do not like it, so the app was pointing straight at this.
+    //
+    // The snapshot is the whole plan and was written BEFORE the stamp, so it
+    // already carries the right value. Deliberately only this column: nothing
+    // else on training_plans is changed outside the op system, and blanket
+    // restoring would clobber fields no op ever touched.
+    const { error: stampErr } = await supabase
+      .from("training_plans")
+      .update({ last_reviewed_on: restored.last_reviewed_on ?? null })
+      .eq("id", planId);
+    if (stampErr) throw stampErr;
+
     // Dropped only after the restore succeeded. If the delete fails, the
     // latest snapshot is put back so live state and revision history agree.
     const { error: delErr } = await supabase

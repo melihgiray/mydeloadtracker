@@ -427,3 +427,169 @@ describe("applyPatchToPlan compensation", () => {
     ).rejects.toThrow(/Rollback also failed:.*original restore failed/);
   });
 });
+
+/**
+ * A revision store that actually mutates, so consecutive calls see each other.
+ *
+ * The fakes above serve a FIXED list, which is enough to prove what one call
+ * does and nothing about what two calls do in sequence. That is the gap this
+ * closes: the defect these tests exist for was specifically about the SECOND
+ * press of Undo, and a fixed list cannot express a second press.
+ */
+function statefulSupabase(seed: { revision: number; snapshot: PlanWithDays }[]) {
+  const rows = seed.map((r) => ({ ...r, summary: `change ${r.revision}` }));
+  const plan: { last_reviewed_on: string | null } = { last_reviewed_on: null };
+
+  const client = {
+    rows,
+    plan,
+    from(table: string) {
+      const builder: Record<string, unknown> = {};
+      let pending = "select";
+      let revisionArg: number | undefined;
+      let inserted: { revision?: number; snapshot?: PlanWithDays } | null = null;
+      let limit = Infinity;
+
+      const chain = () => builder;
+      for (const m of ["select", "order"]) builder[m] = vi.fn(chain);
+      builder.limit = vi.fn((n: number) => {
+        limit = n;
+        return builder;
+      });
+      builder.eq = vi.fn((column: string, value: unknown) => {
+        if (column === "revision") revisionArg = value as number;
+        return builder;
+      });
+      builder.delete = vi.fn(() => {
+        pending = "delete";
+        return builder;
+      });
+      builder.update = vi.fn((value: unknown) => {
+        pending = "update";
+        if (table === "training_plans") {
+          const patch = value as { last_reviewed_on?: string | null };
+          if ("last_reviewed_on" in patch) plan.last_reviewed_on = patch.last_reviewed_on ?? null;
+        }
+        return builder;
+      });
+      builder.insert = vi.fn((value: unknown) => {
+        pending = "insert";
+        inserted = value as { revision?: number; snapshot?: PlanWithDays };
+        return builder;
+      });
+
+      const settle = () => {
+        if (table === "plan_revisions") {
+          if (pending === "delete" && revisionArg != null) {
+            const at = rows.findIndex((r) => r.revision === revisionArg);
+            if (at >= 0) rows.splice(at, 1);
+            return Promise.resolve({ data: null, error: null });
+          }
+          if (pending === "insert" && inserted?.revision != null) {
+            rows.push({
+              revision: inserted.revision,
+              snapshot: inserted.snapshot as PlanWithDays,
+              summary: "inserted",
+            });
+            return Promise.resolve({ data: null, error: null });
+          }
+          if (pending === "select") {
+            const sorted = rows.slice().sort((a, b) => b.revision - a.revision);
+            return Promise.resolve({ data: sorted.slice(0, limit), error: null });
+          }
+        }
+        return Promise.resolve({ data: null, error: null });
+      };
+
+      builder.then = (ok: (r: unknown) => unknown, err?: (e: unknown) => unknown) =>
+        settle().then(ok, err);
+      return builder;
+    },
+  };
+  return client as unknown as SupabaseClient & { rows: typeof rows };
+}
+
+describe("undo chains", () => {
+  const three = () => [
+    { revision: 0, snapshot: snapshot("Baseline") },
+    { revision: 1, snapshot: snapshot("First") },
+    { revision: 2, snapshot: snapshot("Second") },
+  ];
+
+  it("walks further back on every press, instead of toggling", async () => {
+    // THE regression. Before the fix, undo appended the restored state, so the
+    // second press found the undone change one row back and restored it. The
+    // single-step test above cannot see that; only a chain can.
+    const supabase = statefulSupabase(three());
+
+    const first = await undoLastRevision(supabase, "p1");
+    expect(first?.days[0].name).toBe("First");
+
+    const second = await undoLastRevision(supabase, "p1");
+    expect(second?.days[0].name).toBe("Baseline");
+  });
+
+  it("stops at the baseline instead of destroying it", async () => {
+    const supabase = statefulSupabase(three());
+    await undoLastRevision(supabase, "p1");
+    await undoLastRevision(supabase, "p1");
+
+    const third = await undoLastRevision(supabase, "p1");
+    expect(third).toBeNull();
+    // The baseline survives, so the plan can never be left with no history to
+    // stand on.
+    expect(supabase.rows.map((r) => r.revision)).toEqual([0]);
+  });
+
+  it("reuses the freed revision number without colliding after an undo", async () => {
+    // nextRevision is latest + 1, and undo now deletes the latest, so numbers
+    // are reused. Harmless only because the old row is gone. Pin it, because a
+    // future change to either half would collide on the unique index.
+    const supabase = statefulSupabase(three());
+    await undoLastRevision(supabase, "p1");
+    expect(supabase.rows.map((r) => r.revision)).toEqual([0, 1]);
+
+    await supabase
+      .from("plan_revisions")
+      .insert({ plan_id: "p1", revision: 2, snapshot: snapshot("Third") });
+    expect(supabase.rows.map((r) => r.revision).sort()).toEqual([0, 1, 2]);
+  });
+});
+
+describe("undoing an accepted weekly review", () => {
+  // Found against the live database, not by reading. Accepting a review stamps
+  // last_reviewed_on on training_plans, which is not part of the ops, so
+  // restoring days and exercises left the stamp behind. The plan reverted and
+  // the athlete still could not ask for another proposal for a week, while the
+  // done-state copy was telling them to undo if they did not like it.
+  function reviewed(name: string, stamp: string | null): PlanWithDays {
+    return { ...snapshot(name), last_reviewed_on: stamp };
+  }
+
+  it("gives the review back by restoring the stamp from the snapshot", async () => {
+    const supabase = statefulSupabase([
+      // Written before the stamp, so it carries the pre-review value.
+      { revision: 0, snapshot: reviewed("Baseline", null) },
+      { revision: 1, snapshot: reviewed("Reviewed", null) },
+    ]);
+    supabase.plan.last_reviewed_on = "2026-08-06";
+
+    await undoLastRevision(supabase, "p1");
+
+    expect(supabase.plan.last_reviewed_on).toBeNull();
+  });
+
+  it("restores an earlier review date rather than always clearing it", async () => {
+    // An athlete on their second review should fall back to the first one's
+    // date, not to never-reviewed.
+    const supabase = statefulSupabase([
+      { revision: 0, snapshot: reviewed("Baseline", "2026-07-30") },
+      { revision: 1, snapshot: reviewed("Reviewed", "2026-07-30") },
+    ]);
+    supabase.plan.last_reviewed_on = "2026-08-06";
+
+    await undoLastRevision(supabase, "p1");
+
+    expect(supabase.plan.last_reviewed_on).toBe("2026-07-30");
+  });
+});
