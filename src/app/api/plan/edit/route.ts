@@ -110,7 +110,10 @@ export async function POST(req: Request) {
 
     const result = await applyPatchToPlan(supabase, plan, ops, source, available);
 
-    if (source === "weekly_review") {
+    // Only a review that actually changed something counts as used. If every
+    // op was rejected the plan is untouched, so the athlete keeps their week
+    // and can run it again. Dismissing is handled above and always counts.
+    if (source === "weekly_review" && result.applied.length > 0) {
       await supabase
         .from("training_plans")
         .update({ last_reviewed_on: localDateKey(new Date()) })

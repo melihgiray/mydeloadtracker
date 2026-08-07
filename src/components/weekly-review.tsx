@@ -43,6 +43,8 @@ export function WeeklyReview({ due }: { due: boolean }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
+  // Ops the engine refused, shown alongside the ones that landed.
+  const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
 
@@ -72,8 +74,27 @@ export function WeeklyReview({ due }: { due: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = (await res.json()) as { error?: string; summary?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        summary?: string;
+        applied?: unknown[];
+        rejected?: { error: string }[];
+        dismissed?: boolean;
+      };
       if (!res.ok) throw new Error(body.error ?? "Those changes could not be saved.");
+
+      // A rejected op is not a failed request, and it must not read like a
+      // success. Reachable without anything going wrong: the proposal's
+      // positions come from the model, so editing the plan while the proposal
+      // is still on screen moves the exercises out from under them.
+      const rejected = body.rejected ?? [];
+      const appliedCount = (body.applied ?? []).length;
+      if (!body.dismissed && appliedCount === 0 && rejected.length > 0) {
+        throw new Error(
+          `${rejected[0].error} Your plan is unchanged, so run the review again.`,
+        );
+      }
+      setProblems(rejected.map((r) => r.error));
       setSummary(body.summary ?? null);
       setPhase("done");
       router.refresh();
@@ -91,8 +112,19 @@ export function WeeklyReview({ due }: { due: boolean }) {
           <div className="min-w-0">
             <p className="text-sm font-semibold">Plan updated for this week.</p>
             {summary && <p className="mt-1 text-xs leading-relaxed text-muted">{summary}</p>}
+            {/* Partly applied must not read as fully applied. */}
+            {problems.length > 0 && (
+              <ul className="mt-1.5 space-y-1">
+                {problems.map((p, i) => (
+                  <li key={i} className="text-xs text-warning">
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="mt-1 text-xs text-muted">
-              You can undo this from the coach above if it is not what you wanted.
+              You can undo this from the coach above if it is not what you wanted, and it gives you
+              the review back.
             </p>
           </div>
         </div>
