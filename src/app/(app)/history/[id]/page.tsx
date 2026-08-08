@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function EditSessionPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
   const profile = await getProfile(supabase);
+  const units = profile?.units ?? "kg";
   const [session, exercises] = await Promise.all([
-    getSessionWithSets(supabase, profile?.units ?? "kg", params.id),
+    getSessionWithSets(supabase, units, params.id),
     getExercises(supabase),
   ]);
 
@@ -39,8 +40,9 @@ export default async function EditSessionPage({ params }: { params: { id: string
       </div>
 
       <LogForm
+        key={units}
         exercises={exercises}
-        units={profile?.units ?? "kg"}
+        units={units}
         sessionId={session.id}
         initialDate={session.performed_at.slice(0, 10)}
         initialNotes={session.notes ?? ""}

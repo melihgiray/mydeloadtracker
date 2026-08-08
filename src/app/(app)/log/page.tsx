@@ -103,7 +103,7 @@ export default async function LogPage() {
         </div>
       )}
 
-      <LogForm exercises={exercises} units={units} planned={planned} />
+      <LogForm key={units} exercises={exercises} units={units} planned={planned} />
 
       <CheckinSection today={todayCheckin} />
     </div>

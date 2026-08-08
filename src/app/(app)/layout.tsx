@@ -16,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   const profile = await getProfile(supabase);
+  const units = profile?.units ?? "kg";
 
   return (
     <div className="flex min-h-screen">
@@ -27,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface/80 px-5 py-2 backdrop-blur sm:px-8">
           <span className="text-xs text-muted">Weight units</span>
           <div className="flex items-center gap-2">
-            <UnitToggle initial={profile?.units ?? "kg"} />
+            <UnitToggle key={units} initial={units} />
             {/* Settings has no bottom-nav tab, so this gear is its mobile home. */}
             <Link
               href="/settings"

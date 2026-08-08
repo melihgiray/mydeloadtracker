@@ -15,6 +15,7 @@ import { IconBadge } from "@/components/icon-badge";
 import {
   isWorkoutDraft,
   mergePlannedIntoDraft,
+  reconcileDraftUnits,
   targetLabel,
   WORKOUT_DRAFT_KEY,
   type DraftSetOrigin,
@@ -126,18 +127,19 @@ export function LogForm({
       if (raw) {
         const d = JSON.parse(raw);
         if (isWorkoutDraft(d) && d.entries.length) {
+          const reconciled = reconcileDraftUnits(d, units);
           // Merge rather than replace. See mergePlannedIntoDraft for why this
           // only ever adds, and what it deliberately refuses to remove.
           setEntries(
             mergePlannedIntoDraft(
-              d.entries,
+              reconciled.entries,
               planned ?? [],
-              d.date,
+              reconciled.date,
               today,
             ),
           );
-          setDate(d.date);
-          setNotes(d.notes);
+          setDate(reconciled.date);
+          setNotes(reconciled.notes);
         }
       }
     } catch {
@@ -152,12 +154,15 @@ export function LogForm({
     if (isEdit || !loaded) return;
     try {
       if (entries.length)
-        localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({ date, notes, entries }));
+        localStorage.setItem(
+          WORKOUT_DRAFT_KEY,
+          JSON.stringify({ date, notes, entries, units }),
+        );
       else localStorage.removeItem(WORKOUT_DRAFT_KEY);
     } catch {
       /* storage might be unavailable; the workout still works in-memory */
     }
-  }, [entries, date, notes, loaded, isEdit]);
+  }, [entries, date, notes, loaded, isEdit, units]);
 
   function discardDraft() {
     setEntries([]);

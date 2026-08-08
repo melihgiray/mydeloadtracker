@@ -24,7 +24,12 @@ export default async function ScanPage({
           reps.
         </p>
       </div>
-      <BarScanner exercises={exercises} units={units} draftMode={searchParams.draft === "1"} />
+      <BarScanner
+        key={units}
+        exercises={exercises}
+        units={units}
+        draftMode={searchParams.draft === "1"}
+      />
     </div>
   );
 }

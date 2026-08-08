@@ -21,6 +21,7 @@ import { estimate1RM } from "@/lib/analytics/epley";
 import {
   isWorkoutDraft,
   mergeScanIntoDraft,
+  reconcileDraftUnits,
   WORKOUT_DRAFT_KEY,
   type WorkoutDraft,
 } from "@/lib/plan-session";
@@ -506,11 +507,11 @@ export function BarScanner({
       if (draftMode) {
         try {
           const raw = localStorage.getItem(WORKOUT_DRAFT_KEY);
-          let draft: WorkoutDraft = { date: todayKey(), notes: "", entries: [] };
+          let draft: WorkoutDraft = { date: todayKey(), notes: "", entries: [], units };
           if (raw) {
             const parsed: unknown = JSON.parse(raw);
             if (!isWorkoutDraft(parsed)) throw new Error("invalid draft");
-            draft = parsed;
+            draft = reconcileDraftUnits(parsed, units);
           }
 
           const merged = mergeScanIntoDraft(draft, exerciseId, {

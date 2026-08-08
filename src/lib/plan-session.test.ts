@@ -5,6 +5,7 @@ import {
   isWorkoutDraft,
   mergePlannedIntoDraft,
   mergeScanIntoDraft,
+  reconcileDraftUnits,
   repsWithinRange,
   targetLabel,
   type DraftEntry,
@@ -507,5 +508,51 @@ describe("mergeScanIntoDraft", () => {
   it("rejects a corrupt stored shape rather than letting Scan overwrite it", () => {
     expect(isWorkoutDraft({ date: "2026-08-08", notes: "", entries: "broken" })).toBe(false);
     expect(isWorkoutDraft(draft([planSet()]))).toBe(true);
+  });
+});
+
+describe("reconcileDraftUnits", () => {
+  const draftIn = (units?: "kg" | "lb"): WorkoutDraft => ({
+    date: "2026-08-08",
+    notes: "unit seam",
+    units,
+    entries: [
+      {
+        key: "bench-plan",
+        exerciseId: "bench",
+        sets: [
+          { reps: "5", weight: "225", rpe: "8", origin: "manual" },
+          { reps: "5", weight: "", rpe: "", origin: "plan" },
+        ],
+      },
+    ],
+  });
+
+  it("converts pound draft weights before a kilogram Log can save them", () => {
+    const source = draftIn("lb");
+    const result = reconcileDraftUnits(source, "kg");
+    expect(result.units).toBe("kg");
+    expect(result.entries[0].sets[0].weight).toBe("102.06");
+    expect(result.entries[0].sets[1].weight).toBe("");
+    expect(source.entries[0].sets[0].weight).toBe("225");
+  });
+
+  it("converts kilogram draft weights before a pound Log can save them", () => {
+    const source = draftIn("kg");
+    source.entries[0].sets[0].weight = "100";
+    const result = reconcileDraftUnits(source, "lb");
+    expect(result.units).toBe("lb");
+    expect(result.entries[0].sets[0].weight).toBe("220.46");
+  });
+
+  it("marks a legacy unit-less draft as current without guessing a conversion", () => {
+    const result = reconcileDraftUnits(draftIn(), "lb");
+    expect(result.units).toBe("lb");
+    expect(result.entries[0].sets[0].weight).toBe("225");
+  });
+
+  it("rejects an unknown stored unit", () => {
+    const invalid = { ...draftIn("kg"), units: "stone" };
+    expect(isWorkoutDraft(invalid)).toBe(false);
   });
 });

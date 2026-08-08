@@ -13,22 +13,28 @@ import type { Units } from "@/lib/types";
  */
 export function UnitToggle({ initial }: { initial: Units }) {
   const [units, setUnits] = useState<Units>(initial);
+  const [saving, setSaving] = useState(false);
   const [, startTransition] = useTransition();
   const router = useRouter();
 
   async function pick(u: Units) {
-    if (u === units) return;
+    if (u === units || saving) return;
     setUnits(u); // optimistic
+    setSaving(true);
     try {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) await supabase.from("profiles").update({ units: u }).eq("id", user.id);
+      if (!user) throw new Error("not signed in");
+      const { error } = await supabase.from("profiles").update({ units: u }).eq("id", user.id);
+      if (error) throw error;
     } catch {
-      /* best effort; the refresh below will reflect the saved value */
+      setUnits(initial);
+    } finally {
+      setSaving(false);
+      startTransition(() => router.refresh());
     }
-    startTransition(() => router.refresh());
   }
 
   return (
@@ -41,8 +47,9 @@ export function UnitToggle({ initial }: { initial: Units }) {
         <button
           key={u}
           onClick={() => pick(u)}
+          disabled={saving}
           aria-pressed={units === u}
-          className={`rounded-md px-2.5 py-1 transition-colors ${
+          className={`rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
             units === u ? "bg-brand text-brand-foreground" : "text-muted hover:text-foreground"
           }`}
         >

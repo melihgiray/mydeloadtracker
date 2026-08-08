@@ -16,6 +16,7 @@
 
 import type { NextSession } from "@/lib/analytics/progression";
 import type { PlanDayWithExercises, Units } from "@/lib/types";
+import { fromKg, toKg } from "@/lib/units";
 
 export const WORKOUT_DRAFT_KEY = "mdt_workout_draft_v1";
 
@@ -209,6 +210,8 @@ export interface WorkoutDraft {
   date: string;
   notes: string;
   entries: DraftEntry[];
+  /** Display unit used by the stored weight strings. Absent on legacy drafts. */
+  units?: Units;
 }
 
 /** Only accept the shape Log itself writes. Never overwrite an unreadable draft. */
@@ -217,6 +220,7 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
   const draft = value as Partial<WorkoutDraft>;
   if (typeof draft.date !== "string" || typeof draft.notes !== "string") return false;
   if (!Array.isArray(draft.entries)) return false;
+  if (draft.units != null && draft.units !== "kg" && draft.units !== "lb") return false;
   return draft.entries.every(
     (entry) =>
       entry != null &&
@@ -232,6 +236,29 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
           (set.origin == null || ["plan", "manual", "scan"].includes(set.origin)),
       ),
   );
+}
+
+/** Reinterpret a stored draft when the athlete changes display units. */
+export function reconcileDraftUnits(draft: WorkoutDraft, units: Units): WorkoutDraft {
+  const sourceUnits = draft.units;
+  if (sourceUnits == null || sourceUnits === units) return { ...draft, units };
+
+  return {
+    ...draft,
+    units,
+    entries: draft.entries.map((entry) => ({
+      ...entry,
+      sets: entry.sets.map((set) => {
+        if (set.weight.trim() === "") return { ...set };
+        const value = Number(set.weight);
+        if (!Number.isFinite(value)) return { ...set };
+        return {
+          ...set,
+          weight: String(fromKg(toKg(value, sourceUnits), units)),
+        };
+      }),
+    })),
+  };
 }
 
 /**
