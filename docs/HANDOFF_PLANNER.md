@@ -226,7 +226,7 @@ a null landmark with a plausible number, that is golden rule 4.
 
 ## Post-v2 hardening, 2026-08-07 and 08-08
 
-Planner v2 shipped complete, and then seven defects were found in it and around
+Planner v2 shipped complete, and then eight defects were found in it and around
 it. Recording them here because the pattern matters more than the individual
 fixes, and the next person should inherit the premise rather than rediscover it.
 
@@ -241,12 +241,14 @@ fixes, and the next person should inherit the premise rather than rediscover it.
 | 5 | A restored Log draft replaced the plan prefill outright, freezing the session to the plan as it stood the first time Log was opened that day | `9ccc8b8` |
 | 6 | Workouts were stamped with the UTC calendar day while check-ins, the rotation and every analytics window key the local day | `c536100` |
 | 7 | Scan inserted into the database while Log kept a stale local draft, so saving could duplicate a planned set and split one workout across sessions | `8f62b82` |
+| 8 | Draft weights stored display numbers without their unit, so changing kg/lb could relabel every in-progress weight and save the wrong canonical value | `abd4a1e` |
 
 Defects 1 and 2 were found by using the feature twice in a row. 3 and 4 by
 following state across two tables. 5 by asking what reads the plan after
 changing how the plan is edited. 6 by noticing two files computed "today"
 differently. 7 by following one workout across its two writers, the database
-scanner and the local Log draft.
+scanner and the local Log draft. 8 by following a global display preference
+through state React preserves across a server refresh.
 
 ### What this implies for review
 
@@ -261,11 +263,11 @@ suite. Three habits did:
   needed the actual DOM: the exercise was in the server payload and absent from
   the page.
 
-Regression tests for all seven were checked in BOTH directions, failing against
+Regression tests for all eight were checked in BOTH directions, failing against
 the unfixed code and passing against the fix. A test that has never been seen to
 fail is not evidence.
 
 ### Still unswept
 
 A deload week interacting with plan edits, and saving against a draft whose
-plan or display unit changed underneath it.
+plan changed underneath it.

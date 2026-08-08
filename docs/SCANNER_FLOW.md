@@ -62,4 +62,8 @@ Data notes:
 - Draft reconciliation: each scan replaces the next untouched planned slot for
   that exercise. Manual rows and drafts written before origin tracking are
   never overwritten. Once planned slots are exhausted, later scans append.
+- Draft weights carry their display unit. If the athlete changes kg/lb, Log
+  and draft-mode Scan convert every stored number through canonical kilograms
+  before interpreting or saving it. Legacy unit-less drafts are left numeric
+  and marked as current because their historical unit cannot be inferred.
 - Failure reasons are tracked to PostHog as scan_failed with a reason field.
