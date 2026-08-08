@@ -226,3 +226,47 @@ a null landmark with a plausible number, that is golden rule 4.
 - `AGENTS.md` is untracked and still a full duplicate of `CLAUDE.md`. Reducing
   it to a pointer is the founder's call, and it should happen before another
   agent reads it.
+
+## Post-v2 hardening, 2026-08-07 and 08-08
+
+Planner v2 shipped complete, and then six defects were found in it and around
+it. Recording them here because the pattern matters more than the individual
+fixes, and the next person should inherit the premise rather than rediscover it.
+
+**Every one was invisible to reading.** Each needed two operations to interact:
+
+| # | Defect | Commit |
+|---|--------|--------|
+| 1 | The review prompt asked the model for an op that does not exist, so it emitted a `remove_exercise` whose stated reason claimed to delete a whole training day | `1fbefaa` |
+| 2 | Undo appended the restored state as a new revision, so the SECOND press restored the change the first press had just reverted | `817d9e7` |
+| 3 | Accepting a review stamped `last_reviewed_on`, which is not part of the ops, so undoing reverted the plan but still consumed the athlete's week | `d9243c6` |
+| 4 | The review card read only the HTTP status, so a patch the engine rejected reported "Plan updated for this week" over a summary of "No changes" | `5cf8b12` |
+| 5 | A restored Log draft replaced the plan prefill outright, freezing the session to the plan as it stood the first time Log was opened that day | `9ccc8b8` |
+| 6 | Workouts were stamped with the UTC calendar day while check-ins, the rotation and every analytics window key the local day | `c536100` |
+
+Defects 1 and 2 were found by using the feature twice in a row. 3 and 4 by
+following state across two tables. 5 by asking what reads the plan after
+changing how the plan is edited. 6 by noticing two files computed "today"
+differently.
+
+### What this implies for review
+
+Single-function review found none of these, and neither did a passing test
+suite. Three habits did:
+
+- **Press it twice.** A toggle that looks like a step back is only visible on
+  the second press.
+- **Follow the state across the seam.** If call A writes something call B does
+  not know about, that is the shape.
+- **Verify against the real thing.** Defect 1 needed a live model call. Defect 5
+  needed the actual DOM: the exercise was in the server payload and absent from
+  the page.
+
+Regression tests for all six were checked in BOTH directions, failing against
+the unfixed code and passing against the fix. A test that has never been seen to
+fail is not evidence.
+
+### Still unswept
+
+The scanner writing into the Log draft, a deload week interacting with plan
+edits, and saving against a draft whose plan changed underneath it.
