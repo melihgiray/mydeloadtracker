@@ -223,13 +223,10 @@ a null landmark with a plausible number, that is golden rule 4.
 - The scanner stays on Claude in production until the gym benchmark in
   `docs/AI_COST.md` passes. Local inference in production is not planned:
   it would make every user's request depend on one laptop being awake.
-- `AGENTS.md` is untracked and still a full duplicate of `CLAUDE.md`. Reducing
-  it to a pointer is the founder's call, and it should happen before another
-  agent reads it.
 
 ## Post-v2 hardening, 2026-08-07 and 08-08
 
-Planner v2 shipped complete, and then six defects were found in it and around
+Planner v2 shipped complete, and then seven defects were found in it and around
 it. Recording them here because the pattern matters more than the individual
 fixes, and the next person should inherit the premise rather than rediscover it.
 
@@ -243,11 +240,13 @@ fixes, and the next person should inherit the premise rather than rediscover it.
 | 4 | The review card read only the HTTP status, so a patch the engine rejected reported "Plan updated for this week" over a summary of "No changes" | `5cf8b12` |
 | 5 | A restored Log draft replaced the plan prefill outright, freezing the session to the plan as it stood the first time Log was opened that day | `9ccc8b8` |
 | 6 | Workouts were stamped with the UTC calendar day while check-ins, the rotation and every analytics window key the local day | `c536100` |
+| 7 | Scan inserted into the database while Log kept a stale local draft, so saving could duplicate a planned set and split one workout across sessions | `8f62b82` |
 
 Defects 1 and 2 were found by using the feature twice in a row. 3 and 4 by
 following state across two tables. 5 by asking what reads the plan after
 changing how the plan is edited. 6 by noticing two files computed "today"
-differently.
+differently. 7 by following one workout across its two writers, the database
+scanner and the local Log draft.
 
 ### What this implies for review
 
@@ -262,11 +261,11 @@ suite. Three habits did:
   needed the actual DOM: the exercise was in the server payload and absent from
   the page.
 
-Regression tests for all six were checked in BOTH directions, failing against
+Regression tests for all seven were checked in BOTH directions, failing against
 the unfixed code and passing against the fix. A test that has never been seen to
 fail is not evidence.
 
 ### Still unswept
 
-The scanner writing into the Log draft, a deload week interacting with plan
-edits, and saving against a draft whose plan changed underneath it.
+A deload week interacting with plan edits, and saving against a draft whose
+plan or display unit changed underneath it.
