@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { todayKey } from "@/lib/analytics/dates";
 import { useRouter } from "next/navigation";
 import { Check, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -98,7 +99,9 @@ export function OnboardingForm({
 
       // 3) Optional morning recovery
       if (Number(restingHr) > 0 || Number(hrv) > 0) {
-        const today = new Date().toISOString().slice(0, 10);
+        // Local, matching how every other check-in is keyed. A UTC date
+        // would not collide with the real one on the upsert below.
+        const today = todayKey();
         await supabase.from("daily_checkins").upsert(
           {
             user_id: user.id,

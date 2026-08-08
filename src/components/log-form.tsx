@@ -13,6 +13,7 @@ import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
 import { mergePlannedIntoDraft, targetLabel, type PlannedExercise } from "@/lib/plan-session";
+import { todayKey } from "@/lib/analytics/dates";
 import type { Exercise, Units } from "@/lib/types";
 
 const DRAFT_KEY = "mdt_workout_draft_v1";
@@ -62,7 +63,9 @@ export function LogForm({
 }) {
   const router = useRouter();
   const isEdit = Boolean(sessionId);
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Local, not UTC. toISOString() is a UTC date, so an evening session
+  // anywhere west of UTC was stamped with tomorrow. See dates.test.ts.
+  const today = useMemo(() => todayKey(), []);
 
   const [date, setDate] = useState(initialDate ?? today);
   const [notes, setNotes] = useState(initialNotes ?? "");
