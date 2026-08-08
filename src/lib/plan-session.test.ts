@@ -2,12 +2,15 @@ import { describe, it, expect } from "vitest";
 import {
   buildPlannedSession,
   completedSetCount,
+  isWorkoutDraft,
   mergePlannedIntoDraft,
+  mergeScanIntoDraft,
   repsWithinRange,
   targetLabel,
   type DraftEntry,
   type PlannedExercise,
   type PlannedSet,
+  type WorkoutDraft,
 } from "@/lib/plan-session";
 import type { NextSession } from "@/lib/analytics/progression";
 import type { PlanDayWithExercises } from "@/lib/types";
@@ -407,5 +410,102 @@ describe("mergePlannedIntoDraft", () => {
     const merged = mergePlannedIntoDraft([draftEntry("bench")], [planned], null, "2026-08-07");
     merged[1].sets[0].reps = "99";
     expect(planned.sets[0].reps).toBe("8");
+  });
+});
+
+describe("mergeScanIntoDraft", () => {
+  const planSet = (reps = "8", weight = "60"): PlannedSet => ({
+    reps,
+    weight,
+    rpe: "9",
+    origin: "plan",
+  });
+  const scanSet = (reps = "7", weight = "62.5"): PlannedSet => ({
+    reps,
+    weight,
+    rpe: "",
+    origin: "scan",
+  });
+  const draft = (sets: PlannedSet[]): WorkoutDraft => ({
+    date: "2026-08-08",
+    notes: "working",
+    entries: [{ key: "bench-plan", exerciseId: "bench", sets }],
+  });
+
+  it("replaces the next untouched plan slot instead of creating a duplicate set", () => {
+    const result = mergeScanIntoDraft(
+      draft([planSet(), planSet(), planSet()]),
+      "bench",
+      scanSet(),
+    );
+    expect(result.setNumber).toBe(1);
+    expect(result.draft.entries[0].sets).toHaveLength(3);
+    expect(result.draft.entries[0].sets[0]).toEqual(scanSet());
+    expect(result.draft.entries[0].sets[1].origin).toBe("plan");
+  });
+
+  it("puts a repeated scan into the next untouched plan slot", () => {
+    const first = mergeScanIntoDraft(
+      draft([planSet(), planSet(), planSet()]),
+      "bench",
+      scanSet("7", "62.5"),
+    );
+    const second = mergeScanIntoDraft(first.draft, "bench", scanSet("6", "65"));
+    expect(second.setNumber).toBe(2);
+    expect(second.draft.entries[0].sets.map((set) => set.origin)).toEqual([
+      "scan",
+      "scan",
+      "plan",
+    ]);
+    expect(second.draft.entries[0].sets[1].weight).toBe("65");
+  });
+
+  it("never overwrites manual or legacy rows when no plan slot remains", () => {
+    const existing = draft([
+      { reps: "5", weight: "100", rpe: "8", origin: "manual" },
+      { reps: "6", weight: "95", rpe: "" },
+    ]);
+    const result = mergeScanIntoDraft(existing, "bench", scanSet());
+    expect(result.setNumber).toBe(3);
+    expect(result.draft.entries[0].sets).toEqual([
+      { reps: "5", weight: "100", rpe: "8", origin: "manual" },
+      { reps: "6", weight: "95", rpe: "" },
+      scanSet(),
+    ]);
+  });
+
+  it("finds an untouched plan slot even when a manual entry for the exercise comes first", () => {
+    const existing: WorkoutDraft = {
+      date: "2026-08-08",
+      notes: "",
+      entries: [
+        {
+          key: "bench-manual",
+          exerciseId: "bench",
+          sets: [{ reps: "5", weight: "70", rpe: "", origin: "manual" }],
+        },
+        { key: "bench-plan", exerciseId: "bench", sets: [planSet()] },
+      ],
+    };
+    const result = mergeScanIntoDraft(existing, "bench", scanSet());
+    expect(result.draft.entries[0].sets[0].origin).toBe("manual");
+    expect(result.draft.entries[1].sets[0]).toEqual(scanSet());
+  });
+
+  it("adds a newly scanned exercise without losing the draft date or notes", () => {
+    const existing = draft([planSet()]);
+    const result = mergeScanIntoDraft(existing, "deadlift", scanSet());
+    expect(result.setNumber).toBe(1);
+    expect(result.draft.date).toBe("2026-08-08");
+    expect(result.draft.notes).toBe("working");
+    expect(result.draft.entries.map((entry) => entry.exerciseId)).toEqual([
+      "bench",
+      "deadlift",
+    ]);
+  });
+
+  it("rejects a corrupt stored shape rather than letting Scan overwrite it", () => {
+    expect(isWorkoutDraft({ date: "2026-08-08", notes: "", entries: "broken" })).toBe(false);
+    expect(isWorkoutDraft(draft([planSet()]))).toBe(true);
   });
 });

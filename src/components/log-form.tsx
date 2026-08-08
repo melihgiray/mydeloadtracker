@@ -12,16 +12,22 @@ import { aliasesFor } from "@/lib/exercise-aliases";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
-import { mergePlannedIntoDraft, targetLabel, type PlannedExercise } from "@/lib/plan-session";
+import {
+  isWorkoutDraft,
+  mergePlannedIntoDraft,
+  targetLabel,
+  WORKOUT_DRAFT_KEY,
+  type DraftSetOrigin,
+  type PlannedExercise,
+} from "@/lib/plan-session";
 import { todayKey } from "@/lib/analytics/dates";
 import type { Exercise, Units } from "@/lib/types";
-
-const DRAFT_KEY = "mdt_workout_draft_v1";
 
 interface SetEntry {
   reps: string;
   weight: string;
   rpe: string;
+  origin?: DraftSetOrigin;
 }
 
 interface ExerciseEntry {
@@ -31,7 +37,7 @@ interface ExerciseEntry {
 }
 
 function emptySet(): SetEntry {
-  return { reps: "", weight: "", rpe: "" };
+  return { reps: "", weight: "", rpe: "", origin: "manual" };
 }
 
 export interface InitialEntry {
@@ -78,6 +84,7 @@ export function LogForm({
           reps: String(s.reps),
           weight: String(s.weight),
           rpe: s.rpe == null ? "" : String(s.rpe),
+          origin: "manual" as const,
         })),
       }));
     }
@@ -115,23 +122,23 @@ export function LogForm({
       return;
     }
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(WORKOUT_DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw);
-        if (Array.isArray(d.entries) && d.entries.length) {
+        if (isWorkoutDraft(d) && d.entries.length) {
           // Merge rather than replace. See mergePlannedIntoDraft for why this
           // only ever adds, and what it deliberately refuses to remove.
           setEntries(
             mergePlannedIntoDraft(
-              d.entries as ExerciseEntry[],
+              d.entries,
               planned ?? [],
-              typeof d.date === "string" ? d.date : null,
+              d.date,
               today,
             ),
           );
+          setDate(d.date);
+          setNotes(d.notes);
         }
-        if (typeof d.date === "string") setDate(d.date);
-        if (typeof d.notes === "string") setNotes(d.notes);
       }
     } catch {
       /* ignore a corrupt draft */
@@ -144,8 +151,9 @@ export function LogForm({
   useEffect(() => {
     if (isEdit || !loaded) return;
     try {
-      if (entries.length) localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, notes, entries }));
-      else localStorage.removeItem(DRAFT_KEY);
+      if (entries.length)
+        localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({ date, notes, entries }));
+      else localStorage.removeItem(WORKOUT_DRAFT_KEY);
     } catch {
       /* storage might be unavailable; the workout still works in-memory */
     }
@@ -155,7 +163,7 @@ export function LogForm({
     setEntries([]);
     setNotes("");
     try {
-      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(WORKOUT_DRAFT_KEY);
     } catch {
       /* no-op */
     }
@@ -203,7 +211,7 @@ export function LogForm({
       prev.map((e) => {
         if (e.key !== key) return e;
         const last = e.sets[e.sets.length - 1] ?? emptySet();
-        return { ...e, sets: [...e.sets, { ...last }] };
+        return { ...e, sets: [...e.sets, { ...last, origin: "manual" }] };
       }),
     );
   }
@@ -214,10 +222,17 @@ export function LogForm({
     );
   }
 
-  function updateSet(key: string, idx: number, field: keyof SetEntry, value: string) {
+  function updateSet(key: string, idx: number, field: "reps" | "weight" | "rpe", value: string) {
     setEntries((prev) =>
       prev.map((e) =>
-        e.key === key ? { ...e, sets: e.sets.map((s, i) => (i === idx ? { ...s, [field]: value } : s)) } : e,
+        e.key === key
+          ? {
+              ...e,
+              sets: e.sets.map((s, i) =>
+                i === idx ? { ...s, [field]: value, origin: "manual" } : s,
+              ),
+            }
+          : e,
       ),
     );
   }
@@ -307,7 +322,7 @@ export function LogForm({
 
       capture("workout_logged", { sets: rows.length, exercises: entries.length, edit: isEdit, prs: prNames.length });
       try {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(WORKOUT_DRAFT_KEY);
       } catch {
         /* no-op */
       }

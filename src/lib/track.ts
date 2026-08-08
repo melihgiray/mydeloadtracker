@@ -31,6 +31,7 @@ export type TrackEvent =
   | "wearable_connected"
   | "demo_viewed"
   | "bar_scanned"
+  | "scan_added_to_draft"
   | "scan_failed"
   | "ai_usage";
 

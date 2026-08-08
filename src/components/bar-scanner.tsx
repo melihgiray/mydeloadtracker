@@ -16,7 +16,14 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { capture } from "@/lib/track";
+import { todayKey } from "@/lib/analytics/dates";
 import { estimate1RM } from "@/lib/analytics/epley";
+import {
+  isWorkoutDraft,
+  mergeScanIntoDraft,
+  WORKOUT_DRAFT_KEY,
+  type WorkoutDraft,
+} from "@/lib/plan-session";
 import {
   MAX_SCAN_FRAMES,
   captureHintFor,
@@ -42,7 +49,7 @@ type Phase =
   | "processing" // model reading
   | "result" // reading returned
   | "failed" // something went wrong, retry offered
-  | "logged"; // saved, with context
+  | "logged"; // saved or added to the draft, with context
 
 type FailReason =
   | "offline"
@@ -52,6 +59,24 @@ type FailReason =
   | "few_frames"
   | "photo"
   | "no_camera";
+
+type LogResult =
+  | {
+      destination: "draft";
+      name: string;
+      weight: string;
+      reps: string;
+      setNumber: number;
+    }
+  | {
+      destination: "database";
+      name: string;
+      weight: string;
+      reps: string;
+      setNumber: number;
+      isPR: boolean;
+      e1rm: number;
+    };
 
 const FAILURES: Record<FailReason, { title: string; hint: string }> = {
   offline: { title: "No connection", hint: "Reconnect, then try again. Your capture is kept." },
@@ -160,7 +185,15 @@ function postScan(
   });
 }
 
-export function BarScanner({ exercises, units }: { exercises: Exercise[]; units: Units }) {
+export function BarScanner({
+  exercises,
+  units,
+  draftMode = false,
+}: {
+  exercises: Exercise[];
+  units: Units;
+  draftMode?: boolean;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -202,14 +235,7 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
   const [editing, setEditing] = useState<"exercise" | "weight" | "reps" | null>(null);
   const [logging, setLogging] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    name: string;
-    weight: string;
-    reps: string;
-    setNumber: number;
-    isPR: boolean;
-    e1rm: number;
-  } | null>(null);
+  const [result, setResult] = useState<LogResult | null>(null);
 
   const clearTimers = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -475,8 +501,44 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
     }
     setLogging(true);
     setLogError(null);
-    const supabase = createClient();
     try {
+      const name = exercises.find((e) => e.id === exerciseId)?.name ?? "Set";
+      if (draftMode) {
+        try {
+          const raw = localStorage.getItem(WORKOUT_DRAFT_KEY);
+          let draft: WorkoutDraft = { date: todayKey(), notes: "", entries: [] };
+          if (raw) {
+            const parsed: unknown = JSON.parse(raw);
+            if (!isWorkoutDraft(parsed)) throw new Error("invalid draft");
+            draft = parsed;
+          }
+
+          const merged = mergeScanIntoDraft(draft, exerciseId, {
+            reps: String(row.reps),
+            weight,
+            rpe: "",
+            origin: "scan",
+          });
+          localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify(merged.draft));
+          capture("scan_added_to_draft", {
+            exercise_id: exerciseId,
+            set_number: merged.setNumber,
+          });
+          setResult({
+            destination: "draft",
+            name,
+            weight,
+            reps: String(row.reps),
+            setNumber: merged.setNumber,
+          });
+          setPhase("logged");
+          return;
+        } catch {
+          throw new Error("Could not update your workout draft.");
+        }
+      }
+
+      const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -545,9 +607,10 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
       const e1rmKg = estimate1RM(row.weight, row.reps);
       capture("workout_logged", { sets: 1, exercises: 1, edit: false, source: "scan" });
       setResult({
-        name: exercises.find((e) => e.id === exerciseId)?.name ?? "Set",
+        destination: "database",
+        name,
         weight,
-        reps,
+        reps: String(row.reps),
         setNumber: setsToday + 1,
         isPR: e1rmKg > priorBest,
         e1rm: Math.round(units === "lb" ? e1rmKg * 2.2046226218 : e1rmKg),
@@ -924,7 +987,13 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
 
               <button onClick={logSet} disabled={logging} className="btn-brand w-full">
                 {logging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                {reading.confidence === "low" ? "Confirm and log" : "Log this set"}
+                {reading.confidence === "low"
+                  ? draftMode
+                    ? "Confirm and add"
+                    : "Confirm and log"
+                  : draftMode
+                    ? "Add to workout"
+                    : "Log this set"}
               </button>
               <button onClick={scanAgain} className="btn-ghost w-full">
                 Scan again
@@ -954,7 +1023,11 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
       {phase === "logged" && result && (
         <div className="card space-y-4 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-success/15 text-success">
-            {result.isPR ? <Trophy className="h-6 w-6" /> : <Check className="h-6 w-6" />}
+            {result.destination === "database" && result.isPR ? (
+              <Trophy className="h-6 w-6" />
+            ) : (
+              <Check className="h-6 w-6" />
+            )}
           </div>
           <div>
             <p className="text-2xl font-semibold leading-tight">{result.name}</p>
@@ -962,20 +1035,30 @@ export function BarScanner({ exercises, units }: { exercises: Exercise[]; units:
               {result.weight} {units} × {result.reps}
             </p>
           </div>
-          <p className="text-sm text-muted">
-            Set {result.setNumber} today
-            <span aria-hidden> · </span>
-            {result.isPR
-              ? `new best estimated 1RM, ${result.e1rm} ${units}`
-              : `estimated 1RM ${result.e1rm} ${units}`}
-          </p>
+          {result.destination === "draft" ? (
+            <p className="text-sm text-muted">
+              Set {result.setNumber} added to your workout. Review it in Log, then save the
+              workout when you finish.
+            </p>
+          ) : (
+            <p className="text-sm text-muted">
+              Set {result.setNumber} today
+              <span aria-hidden> · </span>
+              {result.isPR
+                ? `new best estimated 1RM, ${result.e1rm} ${units}`
+                : `estimated 1RM ${result.e1rm} ${units}`}
+            </p>
+          )}
           <div className="flex gap-2">
             <button onClick={scanAgain} className="btn-brand flex-1">
               <ScanLine className="h-4 w-4" />
               Scan another
             </button>
-            <Link href="/dashboard" className="btn-ghost flex-1 justify-center">
-              Done
+            <Link
+              href={result.destination === "draft" ? "/log" : "/dashboard"}
+              className="btn-ghost flex-1 justify-center"
+            >
+              {result.destination === "draft" ? "Back to workout" : "Done"}
             </Link>
           </div>
         </div>

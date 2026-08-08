@@ -4,7 +4,11 @@ import { BarScanner } from "@/components/bar-scanner";
 
 export const dynamic = "force-dynamic";
 
-export default async function ScanPage() {
+export default async function ScanPage({
+  searchParams,
+}: {
+  searchParams: { draft?: string };
+}) {
   const supabase = createClient();
   const [exercises, profile] = await Promise.all([getExercises(supabase), getProfile(supabase)]);
   const units = profile?.units ?? "kg";
@@ -20,7 +24,7 @@ export default async function ScanPage() {
           reps.
         </p>
       </div>
-      <BarScanner exercises={exercises} units={units} />
+      <BarScanner exercises={exercises} units={units} draftMode={searchParams.draft === "1"} />
     </div>
   );
 }

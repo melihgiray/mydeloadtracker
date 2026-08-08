@@ -4,9 +4,9 @@ Every state the flow can be in, from tapping Scan to a logged set. Written for
 the filmable-demo pass. "Now" is the behavior before that pass; fixes landed in
 the commits that follow this document.
 
-Entry points: the Scan button in the Log header (all viewports) and the scan
-tile inside Log. Route: /scan. Endpoint: POST /api/scan (auth required, forced
-tool, 30s server cap).
+Entry points: the Scan button in the Log header (all viewports), which opens
+`/scan?draft=1`, and the standalone `/scan` route. Endpoint: `POST /api/scan`
+(auth required, forced tool, 30s server cap).
 
 | # | State | Trigger | Now | Target |
 |---|-------|---------|-----|--------|
@@ -26,8 +26,8 @@ tool, 30s server cap).
 | 14 | Offline | No network | Raw "Failed to fetch" | Friendly offline copy, retry |
 | 15 | Photo unreadable | Bad file | Friendly text | Same, in card |
 | 16 | Too few frames | <2 frames captured | Friendly text | Same, in card |
-| 17 | Logging | Tap Log this set | Button spinner | Same |
-| 18 | Logged | Insert OK | Text with exclamation point, auto-redirect 1.2s | Context card: set N today, e1RM vs best or PR; stay on screen |
+| 17 | Logging | Tap the primary action | Button spinner | From Log, add to the active workout draft. Standalone, insert immediately. |
+| 18 | Logged | Draft update or insert succeeds | Text with exclamation point, auto-redirect 1.2s | From Log, confirm the set number and return to the workout. Standalone, show set N today and e1RM vs best or PR. Stay on screen. |
 | 19 | Log error | Not signed in, DB error | Bare red text | Same copy, in the card |
 
 ## Measured latency
@@ -56,6 +56,10 @@ Data notes:
 - Weight semantics: total bar weight (matches weight-semantics.ts for barbell).
 - Stored shape identical to manual logging: canonical kg via toKg, reps int,
   rpe null. Covered by scan-mapping tests.
-- Sessions: scans now append to today's existing "Scanned" session instead of
-  creating one session per set.
+- Sessions: scans launched from Log update the local workout draft and are
+  stored when the athlete saves that workout. Standalone scans still append to
+  today's existing "Scanned" session instead of creating one session per set.
+- Draft reconciliation: each scan replaces the next untouched planned slot for
+  that exercise. Manual rows and drafts written before origin tracking are
+  never overwritten. Once planned slots are exhausted, later scans append.
 - Failure reasons are tracked to PostHog as scan_failed with a reason field.

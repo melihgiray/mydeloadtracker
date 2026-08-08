@@ -75,7 +75,7 @@ export default async function LogPage() {
         </h1>
         {/* Scan lives inside Log, and reads as a real action rather than a hint. */}
         <Link
-          href="/scan"
+          href="/scan?draft=1"
           className="btn flex-shrink-0 border border-brand/30 bg-brand/10 text-brand hover:bg-brand/15"
         >
           <ScanLine className="h-4 w-4" />

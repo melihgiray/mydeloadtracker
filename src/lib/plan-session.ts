@@ -17,6 +17,10 @@
 import type { NextSession } from "@/lib/analytics/progression";
 import type { PlanDayWithExercises, Units } from "@/lib/types";
 
+export const WORKOUT_DRAFT_KEY = "mdt_workout_draft_v1";
+
+export type DraftSetOrigin = "plan" | "manual" | "scan";
+
 /** Where a prefilled weight came from, so the UI can be honest about it. */
 export type WeightBasis = "progression" | "no_history";
 
@@ -34,6 +38,8 @@ export interface PlannedSet {
   reps: string;
   weight: string;
   rpe: string;
+  /** Optional so drafts written before origin tracking remain readable. */
+  origin?: DraftSetOrigin;
 }
 
 export interface PlannedExercise {
@@ -170,6 +176,7 @@ export function buildPlannedSession(
         reps: String(reps),
         weight,
         rpe,
+        origin: "plan" as const,
       })),
       weightBasis: hasHistory ? "progression" : "no_history",
       note,
@@ -196,6 +203,85 @@ export interface DraftEntry {
   key: string;
   exerciseId: string;
   sets: PlannedSet[];
+}
+
+export interface WorkoutDraft {
+  date: string;
+  notes: string;
+  entries: DraftEntry[];
+}
+
+/** Only accept the shape Log itself writes. Never overwrite an unreadable draft. */
+export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Partial<WorkoutDraft>;
+  if (typeof draft.date !== "string" || typeof draft.notes !== "string") return false;
+  if (!Array.isArray(draft.entries)) return false;
+  return draft.entries.every(
+    (entry) =>
+      entry != null &&
+      typeof entry.key === "string" &&
+      typeof entry.exerciseId === "string" &&
+      Array.isArray(entry.sets) &&
+      entry.sets.every(
+        (set) =>
+          set != null &&
+          typeof set.reps === "string" &&
+          typeof set.weight === "string" &&
+          typeof set.rpe === "string" &&
+          (set.origin == null || ["plan", "manual", "scan"].includes(set.origin)),
+      ),
+  );
+}
+
+/**
+ * Put a confirmed scan into the in-progress Log draft.
+ *
+ * Replace the next untouched plan slot for the exercise. Once every planned
+ * slot has been used, append without disturbing manual or legacy draft rows.
+ */
+export function mergeScanIntoDraft(
+  draft: WorkoutDraft,
+  exerciseId: string,
+  scanned: PlannedSet,
+): { draft: WorkoutDraft; setNumber: number } {
+  const entries = draft.entries.map((entry) => ({
+    ...entry,
+    sets: entry.sets.map((set) => ({ ...set })),
+  }));
+  const scannedSet: PlannedSet = { ...scanned, origin: "scan" };
+  const plannedEntry = entries.find(
+    (entry) =>
+      entry.exerciseId === exerciseId && entry.sets.some((set) => set.origin === "plan"),
+  );
+  const matchingEntry = entries.find((entry) => entry.exerciseId === exerciseId);
+
+  if (plannedEntry) {
+    const plannedSetIndex = plannedEntry.sets.findIndex((set) => set.origin === "plan");
+    plannedEntry.sets[plannedSetIndex] = scannedSet;
+    return {
+      draft: { ...draft, entries },
+      setNumber: plannedSetIndex + 1,
+    };
+  }
+
+  if (!matchingEntry) {
+    entries.push({
+      key: `${exerciseId}-scan`,
+      exerciseId,
+      sets: [scannedSet],
+    });
+    return {
+      draft: { ...draft, entries },
+      setNumber: 1,
+    };
+  }
+
+  matchingEntry.sets.push(scannedSet);
+  return {
+    draft: { ...draft, entries },
+    setNumber: matchingEntry.sets.length,
+  };
 }
 
 /**
