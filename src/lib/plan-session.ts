@@ -212,6 +212,8 @@ export interface WorkoutDraft {
   entries: DraftEntry[];
   /** Display unit used by the stored weight strings. Absent on legacy drafts. */
   units?: Units;
+  /** Prescription that existed when this draft began. Absent on legacy drafts. */
+  planFingerprint?: string;
 }
 
 /** Only accept the shape Log itself writes. Never overwrite an unreadable draft. */
@@ -221,6 +223,7 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
   if (typeof draft.date !== "string" || typeof draft.notes !== "string") return false;
   if (!Array.isArray(draft.entries)) return false;
   if (draft.units != null && draft.units !== "kg" && draft.units !== "lb") return false;
+  if (draft.planFingerprint != null && typeof draft.planFingerprint !== "string") return false;
   return draft.entries.every(
     (entry) =>
       entry != null &&
@@ -236,6 +239,45 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
           (set.origin == null || ["plan", "manual", "scan"].includes(set.origin)),
       ),
   );
+}
+
+/** Stable identity for the physical prescription, independent of display unit. */
+export function plannedSessionFingerprint(planned: PlannedExercise[], units: Units): string {
+  const serialized = JSON.stringify(
+    planned.map((exercise) => ({
+      exerciseId: exercise.exerciseId,
+      target: {
+        sets: exercise.target.sets,
+        repLow: exercise.target.repLow,
+        repHigh: exercise.target.repHigh,
+        rpe: exercise.target.rpe,
+        restSeconds: exercise.target.restSeconds,
+        role: exercise.target.role,
+      },
+      sets: exercise.sets.map((set) => {
+        const value = set.weight.trim() === "" ? null : Number(set.weight);
+        return {
+          reps: set.reps,
+          weightKg:
+            value == null
+              ? null
+              : Number.isFinite(value)
+                ? Math.round(toKg(value, units) * 100) / 100
+                : `invalid:${set.weight}`,
+          rpe: set.rpe,
+        };
+      }),
+    })),
+  );
+
+  // FNV-1a keeps the localStorage field small. The v1 prefix makes any future
+  // normalization change explicit instead of silently comparing two schemas.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < serialized.length; i += 1) {
+    hash ^= serialized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `v1:${(hash >>> 0).toString(36)}`;
 }
 
 /** Reinterpret a stored draft when the athlete changes display units. */
@@ -323,11 +365,12 @@ export function mergeScanIntoDraft(
  *
  * This only ever ADDS. A planned exercise the draft has not seen is appended;
  * nothing already in the draft is dropped, including exercises the athlete
- * added by hand. A set row carries no "confirmed" flag, so a prefilled row and
- * one the athlete typed over are indistinguishable here, and dropping either
- * could throw away real work. An exercise taken OFF the plan therefore stays
- * until they remove it, which is visible and reversible. The reverse mistake
- * is not.
+ * added by hand. Row origin now distinguishes a typed value from a prefill,
+ * but it still cannot say whether an unchanged prefill was performed exactly
+ * as prescribed. Rewriting either could throw away real work. An exercise
+ * taken OFF the plan therefore stays until they remove it, which is visible
+ * and reversible. plannedSessionFingerprint lets Log warn about that drift
+ * without mutating the draft.
  */
 export function mergePlannedIntoDraft(
   draft: DraftEntry[],

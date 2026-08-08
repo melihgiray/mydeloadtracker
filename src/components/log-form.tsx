@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Plus, Search, Trash2, Trophy, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  Trophy,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { capture } from "@/lib/track";
 import { estimate1RM } from "@/lib/analytics/epley";
@@ -15,6 +24,7 @@ import { IconBadge } from "@/components/icon-badge";
 import {
   isWorkoutDraft,
   mergePlannedIntoDraft,
+  plannedSessionFingerprint,
   reconcileDraftUnits,
   targetLabel,
   WORKOUT_DRAFT_KEY,
@@ -73,9 +83,14 @@ export function LogForm({
   // Local, not UTC. toISOString() is a UTC date, so an evening session
   // anywhere west of UTC was stamped with tomorrow. See dates.test.ts.
   const today = useMemo(() => todayKey(), []);
+  const currentPlanFingerprint = useMemo(
+    () => plannedSessionFingerprint(planned ?? [], units),
+    [planned, units],
+  );
 
   const [date, setDate] = useState(initialDate ?? today);
   const [notes, setNotes] = useState(initialNotes ?? "");
+  const [draftPlanFingerprint, setDraftPlanFingerprint] = useState(currentPlanFingerprint);
   const [entries, setEntries] = useState<ExerciseEntry[]>(() => {
     if (initialEntries?.length) {
       return initialEntries.map((e, i) => ({
@@ -140,6 +155,9 @@ export function LogForm({
           );
           setDate(reconciled.date);
           setNotes(reconciled.notes);
+          // A legacy draft has no baseline. Adopt the current prescription
+          // rather than warning about a change we cannot prove happened.
+          setDraftPlanFingerprint(reconciled.planFingerprint ?? currentPlanFingerprint);
         }
       }
     } catch {
@@ -156,17 +174,24 @@ export function LogForm({
       if (entries.length)
         localStorage.setItem(
           WORKOUT_DRAFT_KEY,
-          JSON.stringify({ date, notes, entries, units }),
+          JSON.stringify({
+            date,
+            notes,
+            entries,
+            units,
+            planFingerprint: draftPlanFingerprint,
+          }),
         );
       else localStorage.removeItem(WORKOUT_DRAFT_KEY);
     } catch {
       /* storage might be unavailable; the workout still works in-memory */
     }
-  }, [entries, date, notes, loaded, isEdit, units]);
+  }, [entries, date, notes, loaded, isEdit, units, draftPlanFingerprint]);
 
   function discardDraft() {
     setEntries([]);
     setNotes("");
+    setDraftPlanFingerprint(currentPlanFingerprint);
     try {
       localStorage.removeItem(WORKOUT_DRAFT_KEY);
     } catch {
@@ -341,6 +366,7 @@ export function LogForm({
   }
 
   const hasPlan = (planned?.length ?? 0) > 0;
+  const planChanged = !isEdit && loaded && draftPlanFingerprint !== currentPlanFingerprint;
 
   return (
     <div className="space-y-4">
@@ -422,6 +448,17 @@ export function LogForm({
       </div>
 
       <RestTimer />
+
+      {planChanged && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-warning">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p className="min-w-0 text-xs leading-snug">
+            <span className="font-semibold">Your plan changed while this workout was open.</span>{" "}
+            Your set entries stayed as they were so completed work is not lost. Review them
+            before saving.
+          </p>
+        </div>
+      )}
 
       {/* Session builder: one ongoing workout, saved as a draft as you go. */}
       {entries.length > 0 && (

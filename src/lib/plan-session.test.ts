@@ -5,6 +5,7 @@ import {
   isWorkoutDraft,
   mergePlannedIntoDraft,
   mergeScanIntoDraft,
+  plannedSessionFingerprint,
   reconcileDraftUnits,
   repsWithinRange,
   targetLabel,
@@ -554,5 +555,38 @@ describe("reconcileDraftUnits", () => {
   it("rejects an unknown stored unit", () => {
     const invalid = { ...draftIn("kg"), units: "stone" };
     expect(isWorkoutDraft(invalid)).toBe(false);
+    expect(isWorkoutDraft({ ...draftIn("kg"), planFingerprint: 7 })).toBe(false);
+  });
+});
+
+describe("plannedSessionFingerprint", () => {
+  it("is stable across kg and lb display values for the same physical plan", () => {
+    const kg = buildPlannedSession(
+      day(),
+      [next({ target: { weight: 100, reps: 6, sets: 4 } })],
+      "kg",
+    );
+    const lb = buildPlannedSession(
+      day(),
+      [next({ target: { weight: 220.46, reps: 6, sets: 4 } })],
+      "lb",
+    );
+    expect(plannedSessionFingerprint(kg, "kg")).toBe(plannedSessionFingerprint(lb, "lb"));
+  });
+
+  it("changes when a plan edit changes the prescription", () => {
+    const before = buildPlannedSession(day([planned({ rpe_target: 8 })]), [next()], "kg");
+    const after = buildPlannedSession(day([planned({ rpe_target: 7 })]), [next()], "kg");
+    expect(plannedSessionFingerprint(before, "kg")).not.toBe(
+      plannedSessionFingerprint(after, "kg"),
+    );
+  });
+
+  it("changes when a deload adapts the same plan", () => {
+    const normal = buildPlannedSession(day(), [next()], "kg");
+    const deload = buildPlannedSession(day(), [next()], "kg", { deload: true });
+    expect(plannedSessionFingerprint(normal, "kg")).not.toBe(
+      plannedSessionFingerprint(deload, "kg"),
+    );
   });
 });
