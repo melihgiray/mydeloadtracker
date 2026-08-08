@@ -589,4 +589,22 @@ describe("plannedSessionFingerprint", () => {
       plannedSessionFingerprint(deload, "kg"),
     );
   });
+
+  it("changes when the plan is edited while a deload is active", () => {
+    const before = buildPlannedSession(
+      day([planned({ sets: 4 })]),
+      [next()],
+      "kg",
+      { deload: true },
+    );
+    const after = buildPlannedSession(
+      day([planned({ sets: 5 })]),
+      [next()],
+      "kg",
+      { deload: true },
+    );
+    expect(plannedSessionFingerprint(before, "kg")).not.toBe(
+      plannedSessionFingerprint(after, "kg"),
+    );
+  });
 });
