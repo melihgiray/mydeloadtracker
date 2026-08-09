@@ -3,11 +3,13 @@ import {
   buildPlannedSession,
   completedSetCount,
   isWorkoutDraft,
+  isDraftSetComplete,
   mergePlannedIntoDraft,
   mergeScanIntoDraft,
   plannedSessionFingerprint,
   reconcileDraftUnits,
   repsWithinRange,
+  saveableCompletedSets,
   targetLabel,
   type DraftEntry,
   type PlannedExercise,
@@ -87,6 +89,7 @@ describe("buildPlannedSession", () => {
   it("creates one row per prescribed set", () => {
     const [ex] = buildPlannedSession(day([planned({ sets: 4 })]), [next()]);
     expect(ex.sets).toHaveLength(4);
+    expect(ex.sets.every((set) => set.completed === false)).toBe(true);
   });
 
   it("prefills weight from progression, not from the plan", () => {
@@ -230,18 +233,76 @@ describe("targetLabel", () => {
 });
 
 describe("completedSetCount", () => {
-  it("counts only rows with both reps and weight", () => {
+  it("does not treat a fully prefilled planned row as performed", () => {
     expect(
-      completedSetCount([
-        { reps: "8", weight: "100", rpe: "8" },
-        { reps: "8", weight: "", rpe: "8" },
-        { reps: "", weight: "100", rpe: "" },
-      ]),
-    ).toBe(1);
+      isDraftSetComplete({
+        reps: "8",
+        weight: "100",
+        rpe: "8",
+        origin: "plan",
+      }),
+    ).toBe(false);
   });
 
-  it("is zero for a freshly prefilled lift with no history", () => {
-    expect(completedSetCount([{ reps: "5", weight: "", rpe: "8" }])).toBe(0);
+  it("keeps known manual and scanned work completed across the draft upgrade", () => {
+    expect(
+      isDraftSetComplete({ reps: "8", weight: "100", rpe: "8", origin: "manual" }),
+    ).toBe(true);
+    expect(
+      isDraftSetComplete({ reps: "8", weight: "100", rpe: "", origin: "scan" }),
+    ).toBe(true);
+  });
+
+  it("does not guess that a legacy origin-less row was performed", () => {
+    expect(isDraftSetComplete({ reps: "8", weight: "100", rpe: "8" })).toBe(false);
+  });
+
+  it("lets an explicit completion choice override origin inference", () => {
+    expect(
+      isDraftSetComplete({
+        reps: "8",
+        weight: "100",
+        rpe: "8",
+        origin: "manual",
+        completed: false,
+      }),
+    ).toBe(false);
+    expect(
+      isDraftSetComplete({ reps: "8", weight: "", rpe: "", completed: true }),
+    ).toBe(true);
+  });
+
+  it("counts performed rows, not populated prescription rows", () => {
+    expect(
+      completedSetCount([
+        { reps: "8", weight: "100", rpe: "8", origin: "plan" },
+        { reps: "8", weight: "100", rpe: "8", origin: "manual" },
+        { reps: "8", weight: "", rpe: "", completed: true },
+      ]),
+    ).toBe(2);
+  });
+
+  it("does not count a new empty manual row", () => {
+    expect(
+      completedSetCount([
+        { reps: "", weight: "", rpe: "", origin: "manual", completed: false },
+      ]),
+    ).toBe(0);
+  });
+
+  it("keeps populated prescriptions out of the save payload until completed", () => {
+    expect(
+      saveableCompletedSets(
+        [{ reps: "8", weight: "100", rpe: "8", origin: "plan" }],
+        false,
+      ),
+    ).toEqual([]);
+  });
+
+  it("lets completed bodyweight work save with a blank added-weight field", () => {
+    const set: PlannedSet = { reps: "8", weight: "", rpe: "8", completed: true };
+    expect(saveableCompletedSets([set], true)).toEqual([set]);
+    expect(saveableCompletedSets([set], false)).toEqual([]);
   });
 });
 
@@ -375,9 +436,9 @@ describe("mergePlannedIntoDraft", () => {
   });
 
   it("keeps an exercise that was taken OFF the plan, deliberately", () => {
-    // Sets carry no confirmed flag, so a prefilled row and a typed one are
-    // indistinguishable. Dropping the wrong one loses real work, and a stale
-    // row is visible and removable while a missing one is neither.
+    // A legacy draft carries neither origin nor completion. Dropping the wrong
+    // row loses real work, and a stale row is visible and removable while a
+    // missing one is neither.
     const merged = mergePlannedIntoDraft(
       [draftEntry("bench"), draftEntry("removed")],
       [plannedExercise("bench")],
@@ -427,6 +488,7 @@ describe("mergeScanIntoDraft", () => {
     weight,
     rpe: "",
     origin: "scan",
+    completed: true,
   });
   const draft = (sets: PlannedSet[]): WorkoutDraft => ({
     date: "2026-08-08",

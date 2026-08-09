@@ -22,10 +22,13 @@ import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
 import {
+  completedSetCount,
   isWorkoutDraft,
+  isDraftSetComplete,
   mergePlannedIntoDraft,
   plannedSessionFingerprint,
   reconcileDraftUnits,
+  saveableCompletedSets,
   targetLabel,
   WORKOUT_DRAFT_KEY,
   type DraftSetOrigin,
@@ -39,6 +42,7 @@ interface SetEntry {
   weight: string;
   rpe: string;
   origin?: DraftSetOrigin;
+  completed?: boolean;
 }
 
 interface ExerciseEntry {
@@ -48,7 +52,7 @@ interface ExerciseEntry {
 }
 
 function emptySet(): SetEntry {
-  return { reps: "", weight: "", rpe: "", origin: "manual" };
+  return { reps: "", weight: "", rpe: "", origin: "manual", completed: false };
 }
 
 export interface InitialEntry {
@@ -101,6 +105,7 @@ export function LogForm({
           weight: String(s.weight),
           rpe: s.rpe == null ? "" : String(s.rpe),
           origin: "manual" as const,
+          completed: true,
         })),
       }));
     }
@@ -241,7 +246,10 @@ export function LogForm({
       prev.map((e) => {
         if (e.key !== key) return e;
         const last = e.sets[e.sets.length - 1] ?? emptySet();
-        return { ...e, sets: [...e.sets, { ...last, origin: "manual" }] };
+        return {
+          ...e,
+          sets: [...e.sets, { ...last, origin: "manual", completed: false }],
+        };
       }),
     );
   }
@@ -259,10 +267,27 @@ export function LogForm({
           ? {
               ...e,
               sets: e.sets.map((s, i) =>
-                i === idx ? { ...s, [field]: value, origin: "manual" } : s,
+                i === idx
+                  ? { ...s, [field]: value, origin: "manual", completed: true }
+                  : s,
               ),
             }
           : e,
+      ),
+    );
+  }
+
+  function toggleSetCompletion(key: string, idx: number) {
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.key === key
+          ? {
+              ...entry,
+              sets: entry.sets.map((set, i) =>
+                i === idx ? { ...set, completed: !isDraftSetComplete(set) } : set,
+              ),
+            }
+          : entry,
       ),
     );
   }
@@ -273,20 +298,22 @@ export function LogForm({
     const rows = entries.flatMap((entry) => {
       // Bodyweight movements accept a blank/zero weight (added weight = 0).
       const sem = weightSemantics(exerciseById.get(entry.exerciseId)?.equipment);
-      return entry.sets
-        .filter((s) => s.reps !== "" && (s.weight !== "" || sem.allowZero))
-        .map((s, i) => ({
-          exercise_id: entry.exerciseId,
-          set_number: i + 1,
-          reps: Number(s.reps),
-          // Stored canonically in kg; the athlete typed it in their unit.
-          weight: toKg(Number(s.weight || 0), units),
-          rpe: s.rpe === "" ? null : Number(s.rpe),
-        }));
+      return saveableCompletedSets(entry.sets, sem.allowZero).map((s, i) => ({
+        exercise_id: entry.exerciseId,
+        set_number: i + 1,
+        reps: Number(s.reps),
+        // Stored canonically in kg; the athlete typed it in their unit.
+        weight: toKg(Number(s.weight || 0), units),
+        rpe: s.rpe === "" ? null : Number(s.rpe),
+      }));
     });
 
-    if (rows.length === 0) {
-      setError("Add at least one set with reps and weight.");
+    const markedCount = entries.reduce(
+      (total, entry) => total + completedSetCount(entry.sets),
+      0,
+    );
+    if (rows.length === 0 || rows.length !== markedCount) {
+      setError("Fill reps and weight for every completed set before saving.");
       return;
     }
 
@@ -350,7 +377,12 @@ export function LogForm({
         setPrs(prNames);
       }
 
-      capture("workout_logged", { sets: rows.length, exercises: entries.length, edit: isEdit, prs: prNames.length });
+      capture("workout_logged", {
+        sets: rows.length,
+        exercises: new Set(rows.map((row) => row.exercise_id)).size,
+        edit: isEdit,
+        prs: prNames.length,
+      });
       try {
         localStorage.removeItem(WORKOUT_DRAFT_KEY);
       } catch {
@@ -367,6 +399,12 @@ export function LogForm({
 
   const hasPlan = (planned?.length ?? 0) > 0;
   const planChanged = !isEdit && loaded && draftPlanFingerprint !== currentPlanFingerprint;
+  const completedCount = entries.reduce((total, entry) => total + completedSetCount(entry.sets), 0);
+  const saveableCount = entries.reduce((total, entry) => {
+    const sem = weightSemantics(exerciseById.get(entry.exerciseId)?.equipment);
+    return total + saveableCompletedSets(entry.sets, sem.allowZero).length;
+  }, 0);
+  const invalidCompletedCount = completedCount - saveableCount;
 
   return (
     <div className="space-y-4">
@@ -474,6 +512,9 @@ export function LogForm({
               Discard
             </button>
           </div>
+          <p className="mt-1 text-[11px] leading-snug text-muted">
+            Tap a set number when you finish it. Editing a row marks it done.
+          </p>
           {!hasPlan && (
             <p className="mt-1 text-[11px] leading-snug text-muted">
               RPE is optional effort, 1 to 10. Think reps left in the tank: RPE 8 means you had 2
@@ -487,6 +528,7 @@ export function LogForm({
         const ex = exerciseById.get(entry.exerciseId);
         const sem = weightSemantics(ex?.equipment);
         const plan = plannedById.get(entry.exerciseId);
+        const entryCompleted = completedSetCount(entry.sets);
         return (
           <div key={entry.key} className="card">
             <div className="mb-4 flex items-center gap-3">
@@ -497,6 +539,7 @@ export function LogForm({
                   {ex?.muscle_group}
                   {ex?.equipment && ` · ${ex.equipment}`}
                   {ex?.is_major && <span className="text-brand"> · major lift</span>}
+                  <span> · {entryCompleted}/{entry.sets.length} done</span>
                 </p>
               </div>
               <button
@@ -544,54 +587,70 @@ export function LogForm({
 
             <div className="space-y-2">
               <div className="grid grid-cols-[2.25rem_1fr_1fr_1fr_2.25rem] items-center gap-2">
-                <span className="micro text-center">Set</span>
+                <span className="micro text-center">Done</span>
                 <span className="micro">Reps</span>
                 <span className="micro">Weight ({units})</span>
                 <span className="micro">RPE</span>
                 <span />
               </div>
-              {entry.sets.map((s, i) => (
-                <div key={i} className="grid grid-cols-[2.25rem_1fr_1fr_1fr_2.25rem] items-center gap-2">
-                  <span className="readout grid h-9 place-items-center rounded-lg bg-surface-2 text-sm font-medium text-muted">
-                    {i + 1}
-                  </span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    className="input readout text-center"
-                    placeholder="5"
-                    value={s.reps}
-                    onChange={(e) => updateSet(entry.key, i, "reps", e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.5"
-                    className="input readout text-center"
-                    placeholder={sem.allowZero ? "0" : "100"}
-                    value={s.weight}
-                    onChange={(e) => updateSet(entry.key, i, "weight", e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.5"
-                    min="1"
-                    max="10"
-                    className="input readout text-center"
-                    placeholder="8"
-                    value={s.rpe}
-                    onChange={(e) => updateSet(entry.key, i, "rpe", e.target.value)}
-                  />
-                  <button
-                    onClick={() => removeSet(entry.key, i)}
-                    className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                    aria-label="Remove set"
+              {entry.sets.map((s, i) => {
+                const complete = isDraftSetComplete(s);
+                return (
+                  <div
+                    key={i}
+                    className="grid grid-cols-[2.25rem_1fr_1fr_1fr_2.25rem] items-center gap-2"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => toggleSetCompletion(entry.key, i)}
+                      aria-pressed={complete}
+                      aria-label={`Set ${i + 1}, ${complete ? "completed" : "not completed"}`}
+                      className={`readout grid h-9 place-items-center rounded-lg text-sm font-medium transition-colors ${
+                        complete
+                          ? "bg-success/15 text-success"
+                          : "bg-surface-2 text-muted hover:bg-surface-hover"
+                      }`}
+                    >
+                      {complete ? <Check className="h-4 w-4" /> : i + 1}
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      className="input readout text-center"
+                      placeholder="5"
+                      value={s.reps}
+                      onChange={(e) => updateSet(entry.key, i, "reps", e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.5"
+                      className="input readout text-center"
+                      placeholder={sem.allowZero ? "0" : "100"}
+                      value={s.weight}
+                      onChange={(e) => updateSet(entry.key, i, "weight", e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.5"
+                      min="1"
+                      max="10"
+                      className="input readout text-center"
+                      placeholder="8"
+                      value={s.rpe}
+                      onChange={(e) => updateSet(entry.key, i, "rpe", e.target.value)}
+                    />
+                    <button
+                      onClick={() => removeSet(entry.key, i)}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                      aria-label="Remove set"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <button onClick={() => addSet(entry.key)} className="btn-ghost mt-3 w-full text-sm">
@@ -625,7 +684,7 @@ export function LogForm({
       {saved &&
         (prs.length > 0 ? (
           <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-warning">
-            <Trophy className="h-4 w-4" /> New PR: {prs.join(", ")}!
+            <Trophy className="h-4 w-4" /> New PR: {prs.join(", ")}
           </p>
         ) : (
           <p className="flex items-center justify-center gap-1.5 text-sm text-success">
@@ -635,11 +694,19 @@ export function LogForm({
 
       <button
         onClick={save}
-        disabled={saving || saved || entries.length === 0}
+        disabled={saving || saved || saveableCount === 0 || invalidCompletedCount > 0}
         className="btn-brand w-full py-3"
       >
         {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-        {isEdit ? "Save changes" : "Save workout"}
+        {isEdit
+          ? "Save changes"
+          : invalidCompletedCount > 0
+            ? `Fill ${invalidCompletedCount} completed ${invalidCompletedCount === 1 ? "set" : "sets"}`
+            : saveableCount > 0
+            ? `Save ${saveableCount} ${saveableCount === 1 ? "set" : "sets"}`
+            : completedCount > 0
+              ? "Fill the completed set to save"
+              : "Complete a set to save"}
       </button>
     </div>
   );

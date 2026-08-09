@@ -41,6 +41,8 @@ export interface PlannedSet {
   rpe: string;
   /** Optional so drafts written before origin tracking remain readable. */
   origin?: DraftSetOrigin;
+  /** Optional so drafts written before set completion remain readable. */
+  completed?: boolean;
 }
 
 export interface PlannedExercise {
@@ -178,6 +180,7 @@ export function buildPlannedSession(
         weight,
         rpe,
         origin: "plan" as const,
+        completed: false,
       })),
       weightBasis: hasHistory ? "progression" : "no_history",
       note,
@@ -194,9 +197,27 @@ export function targetLabel(t: PlannedExercise["target"]): string {
   return t.rpe != null ? `${base} @ RPE ${t.rpe}` : base;
 }
 
-/** How many of the prescribed sets are fully filled in. */
+/** Whether the athlete has taken an action that marks this set as performed. */
+export function isDraftSetComplete(set: PlannedSet): boolean {
+  if (set.completed != null) return set.completed;
+  if (set.origin === "scan") return true;
+  if (set.origin === "manual") return set.reps !== "";
+  return false;
+}
+
+/** How many set rows have been marked as performed. */
 export function completedSetCount(sets: PlannedSet[]): number {
-  return sets.filter((s) => s.reps !== "" && s.weight !== "").length;
+  return sets.filter(isDraftSetComplete).length;
+}
+
+/** Rows that may cross the database boundary when the workout is saved. */
+export function saveableCompletedSets(sets: PlannedSet[], allowZeroWeight: boolean): PlannedSet[] {
+  return sets.filter(
+    (set) =>
+      isDraftSetComplete(set) &&
+      set.reps !== "" &&
+      (set.weight !== "" || allowZeroWeight),
+  );
 }
 
 /** One exercise in the Log form: an id plus its editable set rows. */
@@ -236,7 +257,8 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
           typeof set.reps === "string" &&
           typeof set.weight === "string" &&
           typeof set.rpe === "string" &&
-          (set.origin == null || ["plan", "manual", "scan"].includes(set.origin)),
+          (set.origin == null || ["plan", "manual", "scan"].includes(set.origin)) &&
+          (set.completed == null || typeof set.completed === "boolean"),
       ),
   );
 }
@@ -318,7 +340,7 @@ export function mergeScanIntoDraft(
     ...entry,
     sets: entry.sets.map((set) => ({ ...set })),
   }));
-  const scannedSet: PlannedSet = { ...scanned, origin: "scan" };
+  const scannedSet: PlannedSet = { ...scanned, origin: "scan", completed: true };
   const plannedEntry = entries.find(
     (entry) =>
       entry.exerciseId === exerciseId && entry.sets.some((set) => set.origin === "plan"),
