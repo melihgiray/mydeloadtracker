@@ -226,7 +226,7 @@ a null landmark with a plausible number, that is golden rule 4.
 
 ## Post-v2 hardening, 2026-08-07 and 08-08
 
-Planner v2 shipped complete, and then nine defects were found in it and around
+Planner v2 shipped complete, and then ten defects were found in it and around
 it. Recording them here because the pattern matters more than the individual
 fixes, and the next person should inherit the premise rather than rediscover it.
 
@@ -243,6 +243,7 @@ fixes, and the next person should inherit the premise rather than rediscover it.
 | 7 | Scan inserted into the database while Log kept a stale local draft, so saving could duplicate a planned set and split one workout across sessions | `8f62b82` |
 | 8 | Draft weights stored display numbers without their unit, so changing kg/lb could relabel every in-progress weight and save the wrong canonical value | `abd4a1e` |
 | 9 | Plan edits and deload adaptation could change the live prescription while Log silently preserved an older draft | `1d47ded`, deload interaction pinned at `91c4e46` |
+| 10 | Log treated every populated prescription row as performed, so Save could record an untouched planned workout | `d1e9dc7` |
 
 Defects 1 and 2 were found by using the feature twice in a row. 3 and 4 by
 following state across two tables. 5 by asking what reads the plan after
@@ -250,7 +251,8 @@ changing how the plan is edited. 6 by noticing two files computed "today"
 differently. 7 by following one workout across its two writers, the database
 scanner and the local Log draft. 8 by following a global display preference
 through state React preserves across a server refresh. 9 by asking why the
-draft-preservation rule had no way to disclose that its source changed.
+draft-preservation rule had no way to disclose that its source changed. 10 by
+following an untouched prefill all the way across the save boundary.
 
 ### What this implies for review
 
@@ -265,7 +267,7 @@ suite. Three habits did:
   needed the actual DOM: the exercise was in the server payload and absent from
   the page.
 
-Regression tests for all nine were checked in BOTH directions, failing against
+Regression tests for all ten were checked in BOTH directions, failing against
 the unfixed code and passing against the fix. A test that has never been seen to
 fail is not evidence.
 
