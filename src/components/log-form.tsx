@@ -313,7 +313,7 @@ export function LogForm({
       0,
     );
     if (rows.length === 0 || rows.length !== markedCount) {
-      setError("Fill reps and weight for every completed set before saving.");
+      setError("Check reps, weight, and RPE for every completed set before saving.");
       return;
     }
 
@@ -616,6 +616,8 @@ export function LogForm({
                     <input
                       type="number"
                       inputMode="numeric"
+                      min="0"
+                      step="1"
                       className="input readout text-center"
                       placeholder="5"
                       value={s.reps}
@@ -624,6 +626,7 @@ export function LogForm({
                     <input
                       type="number"
                       inputMode="decimal"
+                      min="0"
                       step="0.5"
                       className="input readout text-center"
                       placeholder={sem.allowZero ? "0" : "100"}
@@ -701,7 +704,7 @@ export function LogForm({
         {isEdit
           ? "Save changes"
           : invalidCompletedCount > 0
-            ? `Fill ${invalidCompletedCount} completed ${invalidCompletedCount === 1 ? "set" : "sets"}`
+            ? `Fix ${invalidCompletedCount} completed ${invalidCompletedCount === 1 ? "set" : "sets"}`
             : saveableCount > 0
             ? `Save ${saveableCount} ${saveableCount === 1 ? "set" : "sets"}`
             : completedCount > 0

@@ -304,6 +304,30 @@ describe("completedSetCount", () => {
     expect(saveableCompletedSets([set], true)).toEqual([set]);
     expect(saveableCompletedSets([set], false)).toEqual([]);
   });
+
+  it.each([
+    ["non-numeric reps", { reps: "eight", weight: "100", rpe: "8" }],
+    ["fractional reps", { reps: "2.5", weight: "100", rpe: "8" }],
+    ["negative reps", { reps: "-1", weight: "100", rpe: "8" }],
+    ["non-numeric weight", { reps: "8", weight: "heavy", rpe: "8" }],
+    ["negative weight", { reps: "8", weight: "-0.5", rpe: "8" }],
+    ["RPE below the database range", { reps: "8", weight: "100", rpe: "0" }],
+    ["RPE above the database range", { reps: "8", weight: "100", rpe: "10.5" }],
+    ["non-numeric RPE", { reps: "8", weight: "100", rpe: "hard" }],
+  ])("keeps %s out of the database payload", (_label, values) => {
+    expect(saveableCompletedSets([{ ...values, completed: true }], false)).toEqual([]);
+  });
+
+  it("accepts the database boundary values for a completed set", () => {
+    const minimum: PlannedSet = { reps: "0", weight: "0", rpe: "1", completed: true };
+    const maximumRpe: PlannedSet = { reps: "1", weight: "0.5", rpe: "10", completed: true };
+    const optionalRpe: PlannedSet = { reps: "8", weight: "100", rpe: "", completed: true };
+    expect(saveableCompletedSets([minimum, maximumRpe, optionalRpe], false)).toEqual([
+      minimum,
+      maximumRpe,
+      optionalRpe,
+    ]);
+  });
 });
 
 describe("plan versus history conflicts", () => {

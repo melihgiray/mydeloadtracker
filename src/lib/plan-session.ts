@@ -210,14 +210,27 @@ export function completedSetCount(sets: PlannedSet[]): number {
   return sets.filter(isDraftSetComplete).length;
 }
 
+function finiteDraftNumber(value: string): number | null {
+  if (value.trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 /** Rows that may cross the database boundary when the workout is saved. */
 export function saveableCompletedSets(sets: PlannedSet[], allowZeroWeight: boolean): PlannedSet[] {
-  return sets.filter(
-    (set) =>
-      isDraftSetComplete(set) &&
-      set.reps !== "" &&
-      (set.weight !== "" || allowZeroWeight),
-  );
+  return sets.filter((set) => {
+    if (!isDraftSetComplete(set)) return false;
+
+    const reps = finiteDraftNumber(set.reps);
+    if (reps == null || !Number.isInteger(reps) || reps < 0) return false;
+
+    const weight = finiteDraftNumber(set.weight);
+    if (weight == null ? !allowZeroWeight : weight < 0) return false;
+
+    if (set.rpe.trim() === "") return true;
+    const rpe = finiteDraftNumber(set.rpe);
+    return rpe != null && rpe >= 1 && rpe <= 10;
+  });
 }
 
 /** One exercise in the Log form: an id plus its editable set rows. */
