@@ -280,3 +280,22 @@ display units across a draft, and plan/deload changes under a draft. This is
 not a claim that the whole app is defect-free. It means the post-v2 list is
 closed, so the next pass should choose a new end-to-end surface rather than
 repeat this one.
+
+### Pending transaction boundary, migration 0019
+
+The next Log audit found a separate partial-write risk. New workouts insert the
+session before its sets, so a genuine set-write failure can leave an empty
+session. Edit mode is worse: it deletes the recorded sets before inserting the
+replacement rows, so a failed replacement can erase the workout.
+
+Commit `f79d163` adds `supabase/migrations/0019_atomic_workout_save.sql`. The
+function creates or edits the session and its performed sets in one PostgreSQL
+transaction, derives ownership only from `auth.uid()`, runs with caller RLS,
+and grants execution only to authenticated users.
+
+**Migration 0019 is committed but not applied or verified.** The client still
+uses the old split writes on purpose. Per the repository migration rule, the
+founder must paste the exact committed file into the MyDeloadTracker Supabase
+SQL editor. Only after an authenticated verifier proves the RPC exists and an
+invalid set rolls back the surrounding session should Log switch to the RPC.
+Do not add a missing-function fallback to the old destructive path.
