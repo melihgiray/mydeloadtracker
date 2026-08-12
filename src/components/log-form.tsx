@@ -18,6 +18,7 @@ import { estimate1RM } from "@/lib/analytics/epley";
 import { toKg } from "@/lib/units";
 import { weightSemantics } from "@/lib/weight-semantics";
 import { aliasesFor } from "@/lib/exercise-aliases";
+import { saveWorkoutSession } from "@/lib/workout-save";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
@@ -326,31 +327,15 @@ export function LogForm({
       if (!user) throw new Error("You are not signed in.");
 
       const performedAt = new Date(`${date}T12:00:00`).toISOString();
-      let targetSessionId = sessionId;
-
-      if (isEdit && sessionId) {
-        const { error: uErr } = await supabase
-          .from("workout_sessions")
-          .update({ performed_at: performedAt, notes: notes || null })
-          .eq("id", sessionId);
-        if (uErr) throw new Error(uErr.message);
-
-        const { error: delErr } = await supabase.from("workout_sets").delete().eq("session_id", sessionId);
-        if (delErr) throw new Error(delErr.message);
-      } else {
-        const { data: session, error: sErr } = await supabase
-          .from("workout_sessions")
-          .insert({ user_id: user.id, performed_at: performedAt, notes: notes || null })
-          .select("id")
-          .single();
-        if (sErr || !session) throw new Error(sErr?.message ?? "Could not create session.");
-        targetSessionId = session.id;
-      }
-
-      const { error: setErr } = await supabase
-        .from("workout_sets")
-        .insert(rows.map((r) => ({ ...r, session_id: targetSessionId, user_id: user.id })));
-      if (setErr) throw new Error(setErr.message);
+      // One atomic RPC for both create and edit (migration 0019). No split
+      // writes: a failed set insert can no longer leave an empty session, and an
+      // edit can no longer delete the old sets unless the replacement lands.
+      const targetSessionId = await saveWorkoutSession(supabase, {
+        sessionId: isEdit ? sessionId : undefined,
+        performedAt,
+        notes: notes || null,
+        sets: rows,
+      });
 
       let prNames: string[] = [];
       if (!isEdit) {
