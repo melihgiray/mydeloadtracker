@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
+// Reads the auth session to redirect signed-in visitors to the dashboard, so it
+// must render per request. Next 16 would otherwise try to prerender it static.
+export const dynamic = "force-dynamic";
+
 const FEATURES = [
   {
     icon: TriangleAlert,

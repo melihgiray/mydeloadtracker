@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const cookieState = cookies().get("oura_oauth_state")?.value;
+  const cookieState = (await cookies()).get("oura_oauth_state")?.value;
   if (!code || !state || !cookieState || state !== cookieState) return settings("error");
 
   const supabase = createClient();

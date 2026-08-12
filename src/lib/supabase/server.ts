@@ -6,18 +6,20 @@ import { cookies } from "next/headers";
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export function createClient() {
-  const cookieStore = cookies();
-
+  // Next 15+ made cookies() async. Awaiting it inside the (async-capable)
+  // cookie callbacks keeps createClient() synchronous, so no caller changes.
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
+        async getAll() {
+          const cookieStore = await cookies();
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet: CookieToSet[]) {
+        async setAll(cookiesToSet: CookieToSet[]) {
           try {
+            const cookieStore = await cookies();
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
             );
