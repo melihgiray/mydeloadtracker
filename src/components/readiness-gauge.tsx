@@ -87,7 +87,7 @@ export function ReadinessGauge({ report }: { report: ReadinessReport }) {
               <li key={f.id}>
                 <button
                   onClick={() => setOpen(expanded ? null : f.id)}
-                  className="group w-full rounded-lg text-left"
+                  className="tap group w-full rounded-lg text-left"
                   aria-expanded={expanded}
                 >
                   <div className="flex items-center justify-between gap-2 text-sm">

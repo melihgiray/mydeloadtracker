@@ -325,7 +325,7 @@ export function PlanBuilder({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => toggleEquipment(tag)}
-                className={`min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors ${
+                className={`tap min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors ${
                   selected
                     ? "border-brand bg-brand/15 text-brand"
                     : "border-border bg-background text-muted"
@@ -379,7 +379,7 @@ export function PlanBuilder({
                 type="button"
                 aria-pressed={trainingStyle === option.id}
                 onClick={() => setTrainingStyle(option.id)}
-                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                className={`tap rounded-xl border px-3 py-2.5 text-left transition-colors ${
                   trainingStyle === option.id
                     ? "border-brand bg-brand/15"
                     : "border-border bg-background"
@@ -399,7 +399,7 @@ export function PlanBuilder({
               type="button"
               aria-pressed={trainingStyle === null}
               onClick={() => setTrainingStyle(null)}
-              className={`rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+              className={`tap rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
                 trainingStyle === null ? "border-brand bg-brand/15 text-brand" : "border-border text-muted"
               }`}
             >

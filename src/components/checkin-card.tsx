@@ -108,7 +108,7 @@ export function CheckinCard({
                 <button
                   key={v}
                   onClick={() => set(m.key, v)}
-                  className={`h-8 w-8 rounded-lg border text-sm tabular-nums transition-colors ${
+                  className={`tap h-8 w-8 rounded-lg border text-sm tabular-nums transition-colors ${
                     values[m.key] === v
                       ? "border-brand bg-brand text-brand-foreground"
                       : "border-border bg-background text-muted hover:bg-surface-hover"

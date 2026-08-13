@@ -167,8 +167,16 @@ body::after {
   /* Tactile press for any interactive NON-button surface: list rows, nav tabs,
      tappable tiles. Same spring as .btn. */
   .tap {
-    @apply transition-transform duration-150 active:scale-[0.97];
+    @apply active:scale-[0.97];
     touch-action: manipulation;
+  }
+  /* Doubled class to out-specify a co-applied `transition-colors` utility (many
+     of these rows also transition their hover color); without this the scale
+     would snap instead of springing. Covers transform AND the color props so
+     both animate. */
+  .tap.tap {
+    transition-property: transform, color, background-color, border-color, box-shadow;
+    transition-duration: 150ms;
     transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
   }
   /* Desktop pointer affordance: a card that links somewhere lifts on hover. */

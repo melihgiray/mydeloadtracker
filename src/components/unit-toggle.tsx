@@ -49,7 +49,7 @@ export function UnitToggle({ initial }: { initial: Units }) {
           onClick={() => pick(u)}
           disabled={saving}
           aria-pressed={units === u}
-          className={`rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
+          className={`tap rounded-md px-2.5 py-1 transition-colors disabled:opacity-60 ${
             units === u ? "bg-brand text-brand-foreground" : "text-muted hover:text-foreground"
           }`}
         >

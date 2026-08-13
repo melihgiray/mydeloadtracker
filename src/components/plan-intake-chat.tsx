@@ -181,7 +181,7 @@ export function PlanIntakeChat({
               key={s}
               type="button"
               onClick={() => send(s)}
-              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+              className="tap rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
             >
               {s}
             </button>

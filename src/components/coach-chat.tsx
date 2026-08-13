@@ -93,7 +93,7 @@ export function CoachChat() {
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-border-strong hover:bg-surface-hover"
+                    className="tap group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-border-strong hover:bg-surface-hover"
                   >
                     <span>{s}</span>
                     <ArrowUp className="h-3.5 w-3.5 rotate-45 text-faint transition-colors group-hover:text-brand" />
