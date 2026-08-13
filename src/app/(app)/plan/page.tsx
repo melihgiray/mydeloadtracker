@@ -1,7 +1,5 @@
 import { EVIDENCE_CAVEAT } from "@/lib/analytics/volume-landmarks";
-import { PlanBuilder } from "@/components/plan-builder";
-import { PlanCreate } from "@/components/plan-create";
-import { PlanCoachChat } from "@/components/plan-coach-chat";
+import { PlanWorkspace } from "@/components/plan-workspace";
 import { WeeklyReview } from "@/components/weekly-review";
 import { isReviewDue } from "@/lib/plan-review";
 import { getActivePlan } from "@/lib/plans";
@@ -69,15 +67,9 @@ export default async function PlanPage() {
           thing on the screen, and it disappears the moment it is answered. */}
       {plan && <WeeklyReview due={isReviewDue(plan)} />}
 
-      {plan ? (
-        <>
-          <PlanCoachChat hasPlan={true} />
-          <PlanBuilder initialPlan={plan} evidenceCaveat={EVIDENCE_CAVEAT} library={pickerLibrary} />
-        </>
-      ) : (
-        // No plan yet: build it by talking to the coach (form available behind a tap).
-        <PlanCreate evidenceCaveat={EVIDENCE_CAVEAT} library={pickerLibrary} />
-      )}
+      {/* Building is conversational for everyone: a new athlete starts in the
+          coach chat, and "Replace plan" hands off to the same chat. */}
+      <PlanWorkspace plan={plan} library={pickerLibrary} evidenceCaveat={EVIDENCE_CAVEAT} />
     </div>
   );
 }

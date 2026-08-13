@@ -59,11 +59,15 @@ export function PlanBuilder({
   initialPlan,
   evidenceCaveat,
   library,
+  onReplace,
 }: {
   initialPlan: PlanWithDays | null;
   evidenceCaveat: string;
   /** Already filtered to the athlete's equipment by the page. */
   library: PickerExercise[];
+  /** When set, "Replace plan" hands off to the conversational rebuild instead
+   *  of opening this component's own form. */
+  onReplace?: () => void;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(initialPlan == null);
@@ -167,7 +171,11 @@ export function PlanBuilder({
                 minute sessions, {initialPlan.mesocycle_weeks} week cycle.
               </p>
             </div>
-            <button type="button" className="btn-ghost" onClick={() => setEditing(true)}>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={onReplace ?? (() => setEditing(true))}
+            >
               <RefreshCw className="h-4 w-4" />
               Replace plan
             </button>

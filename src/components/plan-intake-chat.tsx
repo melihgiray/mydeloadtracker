@@ -31,7 +31,14 @@ const GOAL_LABEL: Record<PlanIntake["goal"], string> = {
   both: "Both",
 };
 
-export function PlanIntakeChat({ onManual }: { onManual: () => void }) {
+export function PlanIntakeChat({
+  onManual,
+  onCancel,
+}: {
+  onManual: () => void;
+  /** When rebuilding over an existing plan, lets the athlete back out. */
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [turns, setTurns] = useState<Turn[]>([{ role: "coach", text: GREETING }]);
   const [draft, setDraft] = useState("");
@@ -113,9 +120,20 @@ export function PlanIntakeChat({ onManual }: { onManual: () => void }) {
           </span>
           <h2 className="font-semibold">Build your plan with the coach</h2>
         </div>
-        <button type="button" onClick={onManual} className="text-xs text-muted hover:text-foreground">
-          Prefer a form?
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onManual} className="text-xs text-muted hover:text-foreground">
+            Prefer a form?
+          </button>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs text-muted hover:text-foreground"
+            >
+              Keep current plan
+            </button>
+          )}
+        </div>
       </div>
 
       {/* What the coach has understood so far, filling in as you talk. */}

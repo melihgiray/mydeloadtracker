@@ -11,24 +11,38 @@ import type { PickerExercise } from "@/components/plan-exercise-picker";
 export function PlanCreate({
   library,
   evidenceCaveat,
+  onCancel,
 }: {
   library: PickerExercise[];
   evidenceCaveat: string;
+  /** Present when rebuilding over an existing plan: lets the athlete back out. */
+  onCancel?: () => void;
 }) {
   const [mode, setMode] = useState<"chat" | "form">("chat");
 
   if (mode === "chat") {
-    return <PlanIntakeChat onManual={() => setMode("form")} />;
+    return <PlanIntakeChat onManual={() => setMode("form")} onCancel={onCancel} />;
   }
   return (
     <div className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setMode("chat")}
-        className="text-xs text-muted hover:text-foreground"
-      >
-        ← Back to talking with the coach
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setMode("chat")}
+          className="text-xs text-muted hover:text-foreground"
+        >
+          ← Back to talking with the coach
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-xs text-muted hover:text-foreground"
+          >
+            Keep current plan
+          </button>
+        )}
+      </div>
       <PlanBuilder initialPlan={null} evidenceCaveat={evidenceCaveat} library={library} />
     </div>
   );
