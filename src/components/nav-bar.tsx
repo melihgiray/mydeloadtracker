@@ -49,7 +49,7 @@ export function NavBar({ email }: { email: string | null }) {
             <Link
               key={link.href}
               href={link.href}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+              className={`tap flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
                 active
                   ? "bg-brand/15 font-medium text-brand"
                   : "text-muted hover:bg-surface-hover hover:text-foreground"
@@ -65,7 +65,7 @@ export function NavBar({ email }: { email: string | null }) {
       <div className="border-t border-border pt-4">
         <Link
           href="/settings"
-          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+          className={`tap flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
             pathname === "/settings"
               ? "bg-brand/15 font-medium text-brand"
               : "text-muted hover:bg-surface-hover hover:text-foreground"
@@ -99,11 +99,11 @@ export function MobileNav() {
               key={link.href}
               href={link.href}
               aria-current={active ? "page" : undefined}
-              className="flex flex-1 flex-col items-center gap-1 py-2"
+              className="tap flex flex-1 flex-col items-center gap-1 py-2"
             >
               <span
-                className={`grid h-9 w-16 place-items-center rounded-2xl transition-colors ${
-                  active ? "bg-brand/15 text-brand" : "text-muted"
+                className={`grid h-9 w-16 place-items-center rounded-2xl transition-[background-color,transform] duration-200 ${
+                  active ? "scale-105 bg-brand/15 text-brand" : "text-muted"
                 }`}
               >
                 <link.icon className="h-6 w-6" />

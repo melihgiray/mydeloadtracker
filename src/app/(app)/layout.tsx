@@ -4,6 +4,7 @@ import { Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/data";
 import { MobileNav, NavBar } from "@/components/nav-bar";
+import { PageTransition } from "@/components/page-transition";
 import { UnitToggle } from "@/components/unit-toggle";
 import { FeedbackWidget } from "@/components/feedback-widget";
 import { IdentifyUser } from "@/components/analytics";
@@ -33,14 +34,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link
               href="/settings"
               aria-label="Settings"
-              className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground md:hidden"
+              className="tap grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground md:hidden"
             >
               <Settings className="h-5 w-5" />
             </Link>
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6 sm:px-8 sm:py-8">
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
         <MobileNav />
       </div>

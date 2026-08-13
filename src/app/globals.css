@@ -156,9 +156,29 @@ body::after {
   }
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
-      transition-[background-color,opacity,transform,box-shadow] active:scale-[0.98]
+      transition-[background-color,opacity,transform,box-shadow] duration-150 active:scale-[0.95]
       disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
     min-height: 2.75rem; /* 44px: comfortable, sweaty-thumb tap target */
+    touch-action: manipulation; /* kills the 300ms tap delay, feels instant */
+    /* A gentle back-out overshoot on release, so a tap "pops" rather than
+       sliding flatly back. Reduced-motion strips it via the global rule. */
+    transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  /* Tactile press for any interactive NON-button surface: list rows, nav tabs,
+     tappable tiles. Same spring as .btn. */
+  .tap {
+    @apply transition-transform duration-150 active:scale-[0.97];
+    touch-action: manipulation;
+    transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  /* Desktop pointer affordance: a card that links somewhere lifts on hover. */
+  .lift {
+    @apply transition-[transform,box-shadow] duration-200;
+  }
+  @media (hover: hover) {
+    .lift:hover {
+      transform: translateY(-2px);
+    }
   }
   /* Primary action: solid blue with a soft glow, the way the reference lifts
      its own primary controls off the near-black. */
@@ -255,6 +275,22 @@ body::after {
 }
 .animate-rise {
   animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+/* Per-navigation entrance: content fades and rises in on every route change so
+   a screen arrives alive instead of snapping in like a dead page. Snappier than
+   .rise on purpose, it runs on every tab switch. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-page {
+  animation: page-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .animate-pulse-draw {
   stroke-dasharray: var(--pulse-len, 1000);
