@@ -5,7 +5,9 @@
 // real PWA without ever serving stale build chunks. API/auth requests are never
 // cached.
 
-const CACHE = "mdt-v2";
+// Bump this string to force every installed client to drop its old cache on the
+// next online open (the activate handler deletes any cache that is not CACHE).
+const CACHE = "mdt-v3";
 const SHELL = ["/dashboard", "/login", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

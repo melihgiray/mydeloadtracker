@@ -35,35 +35,46 @@ export default async function LogPage() {
   let planned: PlannedExercise[] | undefined;
   let deloadMessage: string | null = null;
   if (today) {
-    // A scheduled deload and an earlier readiness-triggered deload are equally
-    // actionable. Either one adapts today's plan. Readiness can pull recovery
-    // forward, while the explicit plan week prevents an accumulation block
-    // from running forever when the fatigue detector stays quiet.
-    const readinessDeload = detectDeload(sets).recommended;
-    const dateKey = todayKey();
-    const scheduledDeload = isScheduledDeloadWeek(today.plan, dateKey);
-    const deload = readinessDeload || scheduledDeload;
-    const cycleWeek = planCycleWeek(
-      today.plan.started_on,
-      today.plan.mesocycle_weeks,
-      dateKey,
-    );
+    // Prefilling from the plan is a convenience. If ANY of the plan math throws
+    // on this athlete's data, logging must still work, so the whole block falls
+    // back to the plain search form rather than crashing the page. (Only the
+    // data fetches above were guarded before, not this computation, which is
+    // what could take down the one screen that has to work every time.)
+    try {
+      // A scheduled deload and an earlier readiness-triggered deload are equally
+      // actionable. Either one adapts today's plan. Readiness can pull recovery
+      // forward, while the explicit plan week prevents an accumulation block
+      // from running forever when the fatigue detector stays quiet.
+      const readinessDeload = detectDeload(sets).recommended;
+      const dateKey = todayKey();
+      const scheduledDeload = isScheduledDeloadWeek(today.plan, dateKey);
+      const deload = readinessDeload || scheduledDeload;
+      const cycleWeek = planCycleWeek(
+        today.plan.started_on,
+        today.plan.mesocycle_weeks,
+        dateKey,
+      );
 
-    planned = buildPlannedSession(
-      today.day,
-      buildNextSessions(sets, { units, deload }),
-      units,
-      { deload },
-    );
+      planned = buildPlannedSession(
+        today.day,
+        buildNextSessions(sets, { units, deload }),
+        units,
+        { deload },
+      );
 
-    if (deload) {
-      const reason =
-        scheduledDeload && readinessDeload
-          ? `Week ${cycleWeek} is your planned deload, and your readiness signals agree.`
-          : scheduledDeload
-            ? `Week ${cycleWeek} is your planned deload.`
-            : "Your recent training signals call for recovery.";
-      deloadMessage = `${reason} Today has about half the sets. Loaded exercises with history are about 15% lighter, and effort is capped at RPE 6.`;
+      if (deload) {
+        const reason =
+          scheduledDeload && readinessDeload
+            ? `Week ${cycleWeek} is your planned deload, and your readiness signals agree.`
+            : scheduledDeload
+              ? `Week ${cycleWeek} is your planned deload.`
+              : "Your recent training signals call for recovery.";
+        deloadMessage = `${reason} Today has about half the sets. Loaded exercises with history are about 15% lighter, and effort is capped at RPE 6.`;
+      }
+    } catch (err) {
+      console.error("Log plan prefill failed; falling back to search:", err);
+      planned = undefined;
+      deloadMessage = null;
     }
   }
 
