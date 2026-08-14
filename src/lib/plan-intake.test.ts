@@ -3,7 +3,17 @@ import {
   parseIntakeTurn,
   missingEssentials,
   completeIntake,
+  resolveInterviewLifts,
 } from "@/lib/plan-intake";
+import type { Exercise } from "@/lib/types";
+
+// Minimal library covering an exact name, an aliased name, and a hidden entry.
+const LIBRARY = [
+  { id: "sq", name: "Squat", muscle_group: "Quads", hidden: false },
+  { id: "bc", name: "Barbell Curl", muscle_group: "Biceps", hidden: false },
+  { id: "rdl", name: "Romanian Deadlift", muscle_group: "Hamstrings", hidden: false },
+  { id: "old", name: "Retired Lift", muscle_group: "Chest", hidden: true },
+] as unknown as Exercise[];
 
 describe("parseIntakeTurn", () => {
   it("extracts a full, valid intake and trims the reply", () => {
@@ -60,6 +70,68 @@ describe("parseIntakeTurn", () => {
       avoid: Array.from({ length: 20 }, (_, i) => `move ${i}`),
     });
     expect(turn.intake.avoid).toHaveLength(12);
+  });
+
+  it("captures reported lifts and drops malformed rows", () => {
+    const turn = parseIntakeTurn({
+      reply: "ok",
+      lifts: [
+        { exercise: "Bench Press", weight: 100, reps: 5 },
+        { exercise: "Squat", weight: "heavy", reps: 5 }, // weight not a number
+        { exercise: "", weight: 60, reps: 8 }, // empty name
+        { exercise: "Barbell Curl", weight: 40, reps: 10 },
+      ],
+    });
+    expect(turn.lifts).toEqual([
+      { exercise: "Bench Press", weight: 100, reps: 5 },
+      { exercise: "Barbell Curl", weight: 40, reps: 10 },
+    ]);
+  });
+
+  it("defaults lifts to an empty array when none are given", () => {
+    expect(parseIntakeTurn({ reply: "ok" }).lifts).toEqual([]);
+  });
+});
+
+describe("resolveInterviewLifts", () => {
+  it("matches by exact name and by alias, carrying the muscle group", () => {
+    const resolved = resolveInterviewLifts(
+      [
+        { exercise: "squat", weight: 140, reps: 3 }, // exact, case-insensitive
+        { exercise: "bb curl", weight: 40, reps: 10 }, // alias of Barbell Curl
+      ],
+      LIBRARY,
+    );
+    expect(resolved).toEqual([
+      { exerciseId: "sq", name: "Squat", muscleGroup: "Quads", weight: 140, reps: 3 },
+      { exerciseId: "bc", name: "Barbell Curl", muscleGroup: "Biceps", weight: 40, reps: 10 },
+    ]);
+  });
+
+  it("drops unknown lifts and hidden library entries rather than guessing", () => {
+    const resolved = resolveInterviewLifts(
+      [
+        { exercise: "Jefferson Curl", weight: 20, reps: 10 }, // not in library
+        { exercise: "Retired Lift", weight: 50, reps: 5 }, // hidden
+      ],
+      LIBRARY,
+    );
+    expect(resolved).toEqual([]);
+  });
+
+  it("dedupes by exercise, keeping the first mention, and rejects bad numbers", () => {
+    const resolved = resolveInterviewLifts(
+      [
+        { exercise: "Squat", weight: 140, reps: 3 },
+        { exercise: "squat", weight: 999, reps: 1 }, // duplicate exercise
+        { exercise: "Barbell Curl", weight: -5, reps: 10 }, // non-positive weight
+        { exercise: "Romanian Deadlift", weight: 120, reps: 8.5 }, // non-integer reps
+      ],
+      LIBRARY,
+    );
+    expect(resolved).toEqual([
+      { exerciseId: "sq", name: "Squat", muscleGroup: "Quads", weight: 140, reps: 3 },
+    ]);
   });
 });
 

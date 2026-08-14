@@ -4,7 +4,7 @@
 // this parses that raw output the same way parseCoachTurn does: a trust
 // boundary, nothing invalid reaches the generator.
 
-import type { PlanGoal } from "@/lib/types";
+import type { Exercise, PlanGoal } from "@/lib/types";
 import {
   EQUIPMENT_TAGS,
   type EquipmentTag,
@@ -12,6 +12,7 @@ import {
   type PlanIntake,
 } from "@/lib/plan-generation";
 import { type TrainingStyle } from "@/lib/training-style";
+import { aliasesFor } from "@/lib/exercise-aliases";
 
 const GOALS: PlanGoal[] = ["hypertrophy", "strength", "both"];
 const SPLITS: SplitPreference[] = ["auto", "upper_lower", "ppl", "full_body", "arnold", "custom"];
@@ -20,12 +21,31 @@ const STYLES: TrainingStyle[] = ["few_hard", "balanced", "more_volume"];
 /** The fields the generator truly needs before it can build anything. */
 export const INTAKE_ESSENTIALS = ["goal", "daysPerWeek", "equipment"] as const;
 
+/** A lift as the model reported it, before it is matched to the library. */
+export interface RawLift {
+  exercise: string;
+  weight: number;
+  reps: number;
+}
+
+/** A lift matched to a real library exercise, ready to save as an athlete lift. */
+export interface ResolvedLift {
+  exerciseId: string;
+  name: string;
+  muscleGroup: string;
+  /** In the athlete's display unit, exactly as spoken. Converted to kg on save. */
+  weight: number;
+  reps: number;
+}
+
 export interface IntakeTurn {
   /** What the coach says back: a follow-up question, or a confirmation. */
   reply: string;
   /** The fields understood from THIS turn (merged into the running intake by the caller). */
   intake: Partial<PlanIntake>;
-  /** The model's own read on whether it has enough to build. */
+  /** Current lifts the athlete has named so far, unmatched to the library yet. */
+  lifts: RawLift[];
+  /** The model's own read on whether it has interviewed enough to build. */
   modelReady: boolean;
 }
 
@@ -54,6 +74,21 @@ export const PLAN_INTAKE_TOOL_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description: "Exercises or movements the athlete wants to avoid (injuries, dislikes).",
+    },
+    lifts: {
+      type: "array",
+      description:
+        "Every current lift the athlete has told you about, each with a recent hard working set. Re-list ALL of them every turn, not just the newest, because this replaces the running list. Use plain lift names like 'Barbell Curl', 'Romanian Deadlift', 'Lat Pulldown'. Weights are in the athlete's own unit.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["exercise", "weight", "reps"],
+        properties: {
+          exercise: { type: "string", description: "The lift name, for example 'Bench Press'." },
+          weight: { type: "number", description: "Weight of one hard set, in the athlete's unit." },
+          reps: { type: "integer", minimum: 1, maximum: 100, description: "Reps at that weight." },
+        },
+      },
     },
     note: { type: ["string", "null"], description: "Any other context worth passing to the plan." },
   },
@@ -108,8 +143,69 @@ export function parseIntakeTurn(raw: unknown): IntakeTurn {
 
   if (typeof o.note === "string" && o.note.trim()) intake.note = o.note.trim().slice(0, 300);
 
+  const lifts: RawLift[] = [];
+  if (Array.isArray(o.lifts)) {
+    for (const item of o.lifts.slice(0, 30)) {
+      if (!item || typeof item !== "object") continue;
+      const c = item as Record<string, unknown>;
+      if (
+        typeof c.exercise === "string" &&
+        c.exercise.trim().length > 0 &&
+        typeof c.weight === "number" &&
+        typeof c.reps === "number"
+      ) {
+        lifts.push({ exercise: c.exercise.trim().slice(0, 60), weight: c.weight, reps: c.reps });
+      }
+    }
+  }
+
   const reply = typeof o.reply === "string" ? o.reply.trim().slice(0, 600) : "";
-  return { reply, intake, modelReady: o.ready === true };
+  return { reply, intake, lifts, modelReady: o.ready === true };
+}
+
+const normalizeLiftName = (name: string): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Match the lifts the coach captured to real library exercises, so they can be
+ * saved as athlete lifts and feed the weak-point assessment. A lift name that
+ * does not resolve is dropped rather than guessed at (golden rule 4), and only
+ * a valid weight and rep count survive. First mention of a given exercise wins,
+ * which is correct because the model re-lists the whole set every turn.
+ */
+export function resolveInterviewLifts(raw: RawLift[], library: Exercise[]): ResolvedLift[] {
+  const visible = library.filter((e) => !e.hidden);
+  const byName = new Map(visible.map((e) => [normalizeLiftName(e.name), e]));
+  const byAlias = new Map<string, Exercise>();
+  for (const e of visible) {
+    for (const alias of aliasesFor(e.name)) {
+      const key = normalizeLiftName(alias);
+      if (!byAlias.has(key)) byAlias.set(key, e);
+    }
+  }
+
+  const resolved: ResolvedLift[] = [];
+  const seen = new Set<string>();
+  for (const lift of raw) {
+    const key = normalizeLiftName(lift.exercise);
+    const exercise = byName.get(key) ?? byAlias.get(key);
+    if (!exercise || seen.has(exercise.id)) continue;
+    if (!Number.isFinite(lift.weight) || lift.weight <= 0) continue;
+    if (!Number.isInteger(lift.reps) || lift.reps < 1 || lift.reps > 100) continue;
+    seen.add(exercise.id);
+    resolved.push({
+      exerciseId: exercise.id,
+      name: exercise.name,
+      muscleGroup: exercise.muscle_group,
+      weight: lift.weight,
+      reps: lift.reps,
+    });
+  }
+  return resolved;
 }
 
 /** Which essentials are still missing from an accumulated intake. */
