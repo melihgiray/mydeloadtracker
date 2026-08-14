@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, CalendarDays, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import {
   EQUIPMENT_TAGS,
   type EquipmentTag,
@@ -71,6 +71,11 @@ export function PlanBuilder({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(initialPlan == null);
+  // The plan grid is tall. Keep it collapsed by default so the coach chat is
+  // the primary surface: changing the plan is a conversation now, and the full
+  // exercise grid is opt-in detail rather than the first thing that fills the
+  // screen. (The founder saw "just a form/grid" and wanted to talk instead.)
+  const [showDays, setShowDays] = useState(false);
   const [daysPerWeek, setDaysPerWeek] = useState(initialPlan?.days_per_week ?? 4);
   const [sessionMinutes, setSessionMinutes] = useState(initialPlan?.session_minutes ?? 60);
   const [equipment, setEquipment] = useState<EquipmentTag[]>(
@@ -180,46 +185,75 @@ export function PlanBuilder({
               Replace plan
             </button>
           </div>
+
+          {/* Glanceable split, always visible, so the plan reads at once without
+              the full exercise grid taking over the screen. */}
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {initialPlan.days.map((day) => (
+              <span
+                key={day.id}
+                className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted"
+              >
+                {day.name || `Day ${day.day_index + 1}`}
+              </span>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowDays((value) => !value)}
+            aria-expanded={showDays}
+            className="tap mt-3 flex items-center gap-1 text-xs font-medium text-brand"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${showDays ? "rotate-180" : ""}`}
+            />
+            {showDays ? "Hide exercises" : "Show exercises"}
+          </button>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          {initialPlan.days.map((day) => (
-            <section key={day.id} className="card">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
-                    Day {day.day_index + 1}
-                  </p>
-                  <div className="mt-1">
-                    <DayName day={day} />
+        {showDays && (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {initialPlan.days.map((day) => (
+                <section key={day.id} className="card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+                        Day {day.day_index + 1}
+                      </p>
+                      <div className="mt-1">
+                        <DayName day={day} />
+                      </div>
+                    </div>
+                    <CalendarDays className="h-5 w-5 text-muted" />
                   </div>
-                </div>
-                <CalendarDays className="h-5 w-5 text-muted" />
-              </div>
-              <ul className="mt-4 divide-y divide-border">
-                {day.exercises.map((exercise, i) => (
-                  <PlanExerciseRow
-                    key={exercise.id}
+                  <ul className="mt-4 divide-y divide-border">
+                    {day.exercises.map((exercise, i) => (
+                      <PlanExerciseRow
+                        key={exercise.id}
+                        day={day}
+                        exercise={exercise}
+                        index={i}
+                        count={day.exercises.length}
+                        library={library}
+                      />
+                    ))}
+                  </ul>
+                  <AddExerciseToDay
                     day={day}
-                    exercise={exercise}
-                    index={i}
-                    count={day.exercises.length}
                     library={library}
+                    trainingStyle={initialPlan.training_style}
                   />
-                ))}
-              </ul>
-              <AddExerciseToDay
-                day={day}
-                library={library}
-                trainingStyle={initialPlan.training_style}
-              />
-            </section>
-          ))}
-        </div>
+                </section>
+              ))}
+            </div>
 
-        <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
-          {evidenceCaveat}
-        </p>
+            <p className="rounded-xl border border-border bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
+              {evidenceCaveat}
+            </p>
+          </>
+        )}
 
         {/* Shown open and above the estimates: the athlete asked for something
             the app could not apply, and burying that would imply it was. */}
