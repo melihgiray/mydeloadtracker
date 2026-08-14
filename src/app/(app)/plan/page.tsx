@@ -69,7 +69,12 @@ export default async function PlanPage() {
 
       {/* Building is conversational for everyone: a new athlete starts in the
           coach chat, and "Replace plan" hands off to the same chat. */}
-      <PlanWorkspace plan={plan} library={pickerLibrary} evidenceCaveat={EVIDENCE_CAVEAT} />
+      <PlanWorkspace
+        plan={plan}
+        units={units}
+        library={pickerLibrary}
+        evidenceCaveat={EVIDENCE_CAVEAT}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Units } from "@/lib/types";
 import { PlanIntakeChat } from "@/components/plan-intake-chat";
 import { PlanBuilder } from "@/components/plan-builder";
 import type { PickerExercise } from "@/components/plan-exercise-picker";
@@ -9,10 +10,12 @@ import type { PickerExercise } from "@/components/plan-exercise-picker";
 // (the founder's ask), with the original form one tap away for anyone who
 // prefers it. Once a plan exists the page shows PlanBuilder + PlanCoachChat.
 export function PlanCreate({
+  units,
   library,
   evidenceCaveat,
   onCancel,
 }: {
+  units: Units;
   library: PickerExercise[];
   evidenceCaveat: string;
   /** Present when rebuilding over an existing plan: lets the athlete back out. */
@@ -21,7 +24,7 @@ export function PlanCreate({
   const [mode, setMode] = useState<"chat" | "form">("chat");
 
   if (mode === "chat") {
-    return <PlanIntakeChat onManual={() => setMode("form")} onCancel={onCancel} />;
+    return <PlanIntakeChat units={units} onManual={() => setMode("form")} onCancel={onCancel} />;
   }
   return (
     <div className="space-y-3">

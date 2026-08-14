@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Send, Sparkles } from "lucide-react";
+import { Check, Dumbbell, Loader2, Send, Sparkles } from "lucide-react";
 import type { PlanIntake } from "@/lib/plan-generation";
-import { completeIntake, missingEssentials } from "@/lib/plan-intake";
+import type { Units } from "@/lib/types";
+import { completeIntake, missingEssentials, type ResolvedLift } from "@/lib/plan-intake";
+import { toKg } from "@/lib/units";
 
 // Conversational plan creation: the athlete describes their training and the
 // coach gathers goal, days per week, and equipment over a short chat, then
@@ -32,9 +34,12 @@ const GOAL_LABEL: Record<PlanIntake["goal"], string> = {
 };
 
 export function PlanIntakeChat({
+  units,
   onManual,
   onCancel,
 }: {
+  /** The athlete's display unit, so captured lifts save as canonical kilograms. */
+  units: Units;
   onManual: () => void;
   /** When rebuilding over an existing plan, lets the athlete back out. */
   onCancel?: () => void;
@@ -43,11 +48,18 @@ export function PlanIntakeChat({
   const [turns, setTurns] = useState<Turn[]>([{ role: "coach", text: GREETING }]);
   const [draft, setDraft] = useState("");
   const [intake, setIntake] = useState<Partial<PlanIntake>>({});
+  // Lifts accumulate across turns by exercise, latest set winning, so a turn
+  // where the model forgets to re-list one does not lose it.
+  const [lifts, setLifts] = useState<ResolvedLift[]>([]);
+  const [modelReady, setModelReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = missingEssentials(intake).length === 0;
+  // Ready needs both the hard essentials AND the coach's own read that it has
+  // interviewed enough. That second gate is what stops the chat collapsing back
+  // into a form that offers Build the instant it hears goal, days, equipment.
+  const ready = modelReady && missingEssentials(intake).length === 0;
 
   async function send(message: string) {
     const text = message.trim();
@@ -72,11 +84,21 @@ export function PlanIntakeChat({
         error?: string;
         reply?: string;
         intake?: Partial<PlanIntake>;
+        lifts?: ResolvedLift[];
+        modelReady?: boolean;
       };
       if (!res.ok) throw new Error(body.error ?? "The coach could not answer. Try again.");
       // The model re-extracts everything said so far each turn, so a merge that
       // lets the latest turn win is correct.
       if (body.intake) setIntake((prev) => ({ ...prev, ...body.intake }));
+      if (body.lifts && body.lifts.length > 0) {
+        setLifts((prev) => {
+          const byId = new Map(prev.map((l) => [l.exerciseId, l]));
+          for (const l of body.lifts!) byId.set(l.exerciseId, l);
+          return [...byId.values()];
+        });
+      }
+      setModelReady(body.modelReady === true);
       setTurns((t) => [...t, { role: "coach", text: body.reply || "Got it." }]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
@@ -91,6 +113,28 @@ export function PlanIntakeChat({
     setBuilding(true);
     setError(null);
     try {
+      // Save what the athlete told us they can lift BEFORE generating, so the
+      // plan and the per-muscle assessment are built with those numbers. Stored
+      // canonical in kilograms, converted from the athlete's display unit here.
+      // A save failure degrades to a plan without the claims rather than
+      // blocking the athlete, so it is caught and does not stop the build.
+      if (lifts.length > 0) {
+        try {
+          await fetch("/api/athlete-lifts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lifts: lifts.map((l) => ({
+                exerciseId: l.exerciseId,
+                weight: toKg(l.weight, units),
+                reps: l.reps,
+              })),
+            }),
+          });
+        } catch {
+          /* build with what we have */
+        }
+      }
       const res = await fetch("/api/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,6 +154,7 @@ export function PlanIntakeChat({
     { label: "Days", value: intake.daysPerWeek != null ? `${intake.daysPerWeek}/wk` : null },
     { label: "Equipment", value: intake.equipment?.length ? intake.equipment.join(", ") : null },
   ];
+  const muscleGroupsCovered = new Set(lifts.map((l) => l.muscleGroup)).size;
 
   return (
     <section className="panel">
@@ -150,6 +195,32 @@ export function PlanIntakeChat({
           </span>
         ))}
       </div>
+
+      {/* The lifts the coach has gathered, which become the per-muscle picture
+          the plan and the weak-point assessment read. Shown as it fills in so
+          the athlete can see the interview is actually learning about them. */}
+      {lifts.length > 0 && (
+        <div className="mt-3 rounded-xl border border-border bg-background/60 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Dumbbell className="h-3.5 w-3.5" />
+            What you can lift, {muscleGroupsCovered} {muscleGroupsCovered === 1 ? "muscle group" : "muscle groups"} so far
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {lifts.map((l) => (
+              <span
+                key={l.exerciseId}
+                className="rounded-full bg-surface px-2.5 py-1 text-xs text-foreground"
+                title={l.muscleGroup}
+              >
+                <span className="font-medium">{l.name}</span>{" "}
+                <span className="readout text-muted">
+                  {l.weight} {units} × {l.reps}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 space-y-3">
         {turns.map((t, i) => (

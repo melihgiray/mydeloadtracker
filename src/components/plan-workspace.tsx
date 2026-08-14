@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlanWithDays } from "@/lib/types";
+import type { PlanWithDays, Units } from "@/lib/types";
 import type { PickerExercise } from "@/components/plan-exercise-picker";
 import { PlanBuilder } from "@/components/plan-builder";
 import { PlanCoachChat } from "@/components/plan-coach-chat";
@@ -13,10 +13,12 @@ import { PlanCreate } from "@/components/plan-create";
 // form.
 export function PlanWorkspace({
   plan,
+  units,
   library,
   evidenceCaveat,
 }: {
   plan: PlanWithDays | null;
+  units: Units;
   library: PickerExercise[];
   evidenceCaveat: string;
 }) {
@@ -31,6 +33,7 @@ export function PlanWorkspace({
   if (replacing) {
     return (
       <PlanCreate
+        units={units}
         library={library}
         evidenceCaveat={evidenceCaveat}
         onCancel={plan ? () => setReplacing(false) : undefined}
