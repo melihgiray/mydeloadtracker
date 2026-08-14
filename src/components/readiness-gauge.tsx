@@ -101,8 +101,8 @@ export function ReadinessGauge({ report }: { report: ReadinessReport }) {
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-background">
                     <div
-                      className="h-full rounded-full transition-[width] duration-500"
-                      style={{ width: `${Math.max(4, pct)}%`, background: `hsl(${sev})` }}
+                      className="animate-grow-w h-full rounded-full"
+                      style={{ ["--bar-w" as string]: `${Math.max(4, pct)}%`, background: `hsl(${sev})` }}
                     />
                   </div>
                 </button>

@@ -1,6 +1,7 @@
 import { Flame } from "lucide-react";
 import type { Activity } from "@/lib/ui";
 import { IconBadge } from "@/components/icon-badge";
+import { CountUp } from "@/components/count-up";
 
 /**
  * A glanceable consistency readout: the current week streak and a small 8-week
@@ -19,7 +20,7 @@ export function ActivityStrip({ activity }: { activity: Activity }) {
           <span className="micro">Consistency</span>
           <div className="mt-0.5 flex items-baseline gap-2">
             <span className="readout text-3xl font-semibold leading-none">
-              {streakWeeks}
+              <CountUp value={streakWeeks} />
               {streakWeeks >= 8 ? "+" : ""}
             </span>
             <span className="text-sm text-muted">week streak</span>
@@ -38,9 +39,10 @@ export function ActivityStrip({ activity }: { activity: Activity }) {
             <span
               key={i}
               title={`${c} ${c === 1 ? "session" : "sessions"}`}
-              className="w-2 rounded-full transition-all"
+              className="animate-grow-h w-2 rounded-full"
               style={{
-                height: `${h}px`,
+                ["--bar-h" as string]: `${h}px`,
+                animationDelay: `${i * 45}ms`,
                 background: c === 0
                   ? "hsl(var(--border-strong))"
                   : isCurrent

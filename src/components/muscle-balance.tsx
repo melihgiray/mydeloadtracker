@@ -44,7 +44,7 @@ const DOT: Record<string, string> = {
   red: "bg-red-500",
 };
 
-function MuscleRow({ m }: { m: MuscleAssessment }) {
+function MuscleRow({ m, index }: { m: MuscleAssessment; index: number }) {
   const dot = DOT[exerciseColor(m.muscle)] ?? DOT.blue;
   const status = STATUS[m.status];
   // Strength score is 0 (Beginner) to 4 (Elite). The bar shows where the muscle
@@ -52,7 +52,7 @@ function MuscleRow({ m }: { m: MuscleAssessment }) {
   const pct = m.strengthScore != null ? Math.max(4, Math.min(100, (m.strengthScore / 4) * 100)) : 0;
 
   return (
-    <div className="py-3">
+    <div className="animate-rise py-3" style={{ animationDelay: `${index * 60}ms` }}>
       <div className="flex items-center gap-2.5">
         <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${dot}`} aria-hidden />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{m.muscle}</span>
@@ -68,7 +68,10 @@ function MuscleRow({ m }: { m: MuscleAssessment }) {
 
       {m.strengthScore != null && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
-          <div className={`h-full rounded-full ${dot}`} style={{ width: `${pct}%` }} />
+          <div
+            className={`animate-grow-w h-full rounded-full ${dot}`}
+            style={{ ["--bar-w" as string]: `${pct}%`, animationDelay: `${index * 60}ms` }}
+          />
         </div>
       )}
 
@@ -114,8 +117,8 @@ export function MuscleBalance({
       {!report.insufficientData && (
         <>
           <div className="divide-y divide-border/60">
-            {shown.map((m) => (
-              <MuscleRow key={m.muscle} m={m} />
+            {shown.map((m, i) => (
+              <MuscleRow key={m.muscle} m={m} index={i} />
             ))}
           </div>
 
