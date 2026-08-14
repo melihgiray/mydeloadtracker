@@ -48,13 +48,21 @@ export function PlanCoachChat({ hasPlan }: { hasPlan: boolean }) {
     if (!text || busy) return;
     setError(null);
     setDraft("");
-    setTurns((t) => [...t, { role: "athlete", text }]);
+    const nextTurns: Turn[] = [...turns, { role: "athlete", text }];
+    setTurns(nextTurns);
     setBusy(true);
     try {
+      // Send the whole dialogue so the coach remembers the conversation and can
+      // ask a clarifying question before it edits. Coach turns become assistant
+      // turns carrying what it said.
+      const apiMessages = nextTurns.map((t) => ({
+        role: t.role === "athlete" ? ("user" as const) : ("assistant" as const),
+        content: t.text,
+      }));
       const res = await fetch("/api/plan/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ messages: apiMessages }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;

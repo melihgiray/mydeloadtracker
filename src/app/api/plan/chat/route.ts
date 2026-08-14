@@ -24,7 +24,7 @@ import {
   referenceExercises,
   type EquipmentTag,
 } from "@/lib/plan-generation";
-import { buildPlanChatPrompt, parseCoachTurn, PLAN_CHAT_TOOL_SCHEMA } from "@/lib/plan-chat";
+import { buildPlanChatSystem, parseCoachTurn, PLAN_CHAT_TOOL_SCHEMA } from "@/lib/plan-chat";
 import { applyPatchToPlan } from "@/lib/plan-edit";
 import { getActivePlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
@@ -52,16 +52,36 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
-  let message: string;
+  // Accept a full conversation (messages) so the coach can hold a back and
+  // forth, and a single message for older callers. Either way it ends up as a
+  // user/assistant list whose last turn is the athlete's current message.
+  let messages: { role: "user" | "assistant"; content: string }[];
   try {
-    const body = (await req.json()) as { message?: unknown };
-    message = typeof body.message === "string" ? body.message.trim() : "";
+    const body = (await req.json()) as { messages?: unknown; message?: unknown };
+    if (Array.isArray(body.messages)) {
+      messages = body.messages
+        .filter(
+          (m): m is { role: string; content: string } =>
+            !!m && typeof m === "object" && typeof (m as { content?: unknown }).content === "string",
+        )
+        .map((m) => ({
+          role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+          content: m.content.trim().slice(0, 1000),
+        }));
+    } else if (typeof body.message === "string") {
+      messages = [{ role: "user", content: body.message.trim().slice(0, 1000) }];
+    } else {
+      messages = [];
+    }
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
-  if (!message) return NextResponse.json({ error: "Say something to your coach." }, { status: 400 });
-  if (message.length > 1000) {
-    return NextResponse.json({ error: "That message is too long." }, { status: 400 });
+  // The model requires the conversation to start with a user turn, and the last
+  // turn must be the athlete's current message.
+  while (messages.length && messages[0].role === "assistant") messages.shift();
+  messages = messages.filter((m) => m.content.length > 0).slice(-24);
+  if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
+    return NextResponse.json({ error: "Say something to your coach." }, { status: 400 });
   }
 
   try {
@@ -109,7 +129,7 @@ export async function POST(req: Request) {
           .filter((m) => m.status === "lagging" || m.status === "leading")
           .map((m) => `${m.muscle}: ${m.status}. ${m.reasons.join(" ")}`);
 
-    const prompt = buildPlanChatPrompt(plan, referenced, message, weakPointSummary);
+    const system = buildPlanChatSystem(plan, referenced, weakPointSummary);
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const startedAt = Date.now();
@@ -117,9 +137,10 @@ export async function POST(req: Request) {
       model: PLAN_MODEL,
       // A reply plus a few ops. Nothing like the 4096 a whole plan needs.
       max_tokens: 1024,
+      system,
       tools: [TOOL],
       tool_choice: { type: "tool", name: TOOL.name },
-      messages: [{ role: "user", content: prompt }],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
     const toolUse = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",

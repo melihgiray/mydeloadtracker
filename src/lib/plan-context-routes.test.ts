@@ -44,6 +44,7 @@ vi.mock("@/lib/plan-generation", () => ({
 vi.mock("@/lib/plan-chat", () => ({
   PLAN_CHAT_TOOL_SCHEMA: { type: "object", properties: {} },
   buildPlanChatPrompt: vi.fn().mockReturnValue("chat prompt"),
+  buildPlanChatSystem: vi.fn().mockReturnValue("chat system"),
   parseCoachTurn: vi.fn().mockReturnValue({
     turn: { reply: "No change needed.", ops: [] },
     dropped: [],
