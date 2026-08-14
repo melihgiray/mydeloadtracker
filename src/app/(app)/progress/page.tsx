@@ -6,6 +6,9 @@ import { buildProgressReport } from "@/lib/analytics/progress";
 import { buildRecords } from "@/lib/analytics/records";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
 import { isStandardLift } from "@/lib/analytics/standards";
+import { assessWeakPoints } from "@/lib/analytics/weak-points";
+import { getAthleteLifts, mergeSelfReported } from "@/lib/athlete-lifts";
+import { MuscleBalance } from "@/components/muscle-balance";
 import { StrengthStandards } from "@/components/strength-standards";
 import { VolumeChart } from "@/components/volume-chart";
 import { SetVolumePanel } from "@/components/set-volume";
@@ -46,6 +49,18 @@ export default async function ProgressPage() {
   const moveMap = new Map(exercises.map((e) => [e.id, e.movement_pattern]));
   const setVolume = buildSetVolume(sets, 4, 8);
   const sessionCount = new Set(sets.map((s) => s.sessionId)).size;
+
+  // Per-muscle strength and volume, scored against the athlete's own body. This
+  // is the same assessment the planner uses, now shown to the athlete. Folds in
+  // self-reported bests so a new lifter sees a real picture, not an empty one.
+  // A failed claims read must not take down the whole progress page.
+  const athleteLifts = await getAthleteLifts(supabase, units).catch(() => []);
+  const weakPoints = assessWeakPoints(mergeSelfReported(records, athleteLifts, exercises), setVolume, {
+    bodyweight: profile?.bodyweight ?? null,
+    sex: profile?.sex ?? null,
+    units,
+  });
+  const hasBodyMetrics = profile?.bodyweight != null && profile?.sex != null;
 
   const standardLifts = records
     .filter((r) => isStandardLift(r.exerciseName))
@@ -92,6 +107,8 @@ export default async function ProgressPage() {
         initialBodyweight={profile?.bodyweight ?? null}
         initialSex={profile?.sex ?? null}
       />
+
+      <MuscleBalance report={weakPoints} hasBodyMetrics={hasBodyMetrics} />
 
       <LiftLookup lifts={lifts} units={units} />
 
