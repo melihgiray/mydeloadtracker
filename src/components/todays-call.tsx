@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronRight } from "lucide-react";
 import type { Tone } from "@/lib/analytics/readiness";
 import { toneAccentVar } from "@/lib/ui";
 import { ReadinessPulse } from "@/components/readiness-pulse";
+import { useCountUp } from "@/components/count-up";
 
 /**
  * The dashboard hero and the half-second read. The semantic state tints the
@@ -35,7 +35,7 @@ export function TodaysCall({
   /** When set, shows a "see the full breakdown" link (used on Home). */
   breakdownHref?: string;
 }) {
-  const display = useCountUp(score);
+  const display = useCountUp(score, { ms: 900 });
   const accent = toneAccentVar(tone);
 
   return (
@@ -100,39 +100,4 @@ export function TodaysCall({
       </div>
     </section>
   );
-}
-
-/** Count an integer up to `target` once on mount; static if reduced motion. */
-function useCountUp(target: number, ms = 900): number {
-  const [value, setValue] = useState(target);
-  const started = useRef(false);
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || target <= 0) {
-      setValue(target);
-      return;
-    }
-
-    setValue(0);
-    let raf = 0;
-    let startTs = 0;
-    const tick = (ts: number) => {
-      if (!startTs) startTs = ts;
-      const t = Math.min(1, (ts - startTs) / ms);
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(target * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, ms]);
-
-  return value;
 }
