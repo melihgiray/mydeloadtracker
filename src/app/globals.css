@@ -18,11 +18,13 @@
   --surface: 260 5% 11%; /* #1b1a1d */
   --surface-2: 260 4% 16%; /* #28272a */
   --surface-hover: 260 4% 21%;
-  --border: 260 4% 20%;
-  --border-strong: 260 4% 30%;
+  /* Borders carry the edge definition, so they run a little brighter than a
+     hairline: crisp separation reads as "sharp" more than any shadow does. */
+  --border: 260 5% 27%;
+  --border-strong: 260 6% 40%;
   --foreground: 0 0% 100%;
-  --muted: 250 6% 65%;
-  --faint: 250 5% 45%;
+  --muted: 250 8% 72%;
+  --faint: 250 6% 53%;
 
   /* Identity accent, used for actions and chrome. Unlike the lime it replaces,
      this is NOT a semantic state, so a primary button never gets confused with
@@ -59,11 +61,13 @@
     --surface: 48 33% 97%;
     --surface-2: 44 22% 90%; /* #ebe8e0 */
     --surface-hover: 44 20% 86%;
-    --border: 44 16% 83%;
-    --border-strong: 44 14% 70%;
+    /* On cream a soft border let cards dissolve into the background. Deepen it
+       so every card and input has a defined edge. */
+    --border: 42 13% 73%;
+    --border-strong: 40 12% 58%;
     --foreground: 60 8% 8%; /* #0e0e0c */
-    --muted: 45 7% 36%;
-    --faint: 45 7% 54%;
+    --muted: 45 9% 32%;
+    --faint: 44 8% 46%;
 
     --brand: 16 90% 48%; /* #ff5a1e, deepened so white text clears contrast */
     --brand-foreground: 0 0% 100%;
@@ -115,7 +119,7 @@ body::after {
   background-image: radial-gradient(hsl(0 0% 40% / 0.16) 0.5px, transparent 0.5px);
   background-size: 22px 22px;
   mask-image: radial-gradient(80rem 60rem at 50% 0%, black, transparent 80%);
-  opacity: 0.4;
+  opacity: 0.28;
   pointer-events: none;
 }
 
@@ -143,16 +147,16 @@ body::after {
   .card {
     @apply rounded-2xl border border-border bg-surface p-5;
     box-shadow:
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.03),
-      0 12px 32px -20px hsl(0 0% 0% / 0.7);
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.05),
+      0 8px 22px -16px hsl(0 0% 0% / 0.75);
   }
   /* An elevated "instrument panel" for hero/primary surfaces. */
   .panel {
     @apply rounded-2xl border bg-surface-2 p-5;
     border-color: hsl(var(--border-strong));
     box-shadow:
-      inset 0 1px 0 0 hsl(0 0% 100% / 0.04),
-      0 20px 50px -28px hsl(0 0% 0% / 0.8);
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.06),
+      0 14px 36px -22px hsl(0 0% 0% / 0.82);
   }
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
@@ -246,18 +250,18 @@ body::after {
     background: radial-gradient(70rem 50rem at 50% -20%, hsl(16 90% 48% / 0.06), transparent 70%);
   }
   body::after {
-    opacity: 0.3;
+    opacity: 0.2;
     background-image: radial-gradient(hsl(45 12% 45% / 0.2) 0.5px, transparent 0.5px);
   }
   .card {
     box-shadow:
-      0 1px 2px 0 hsl(45 20% 25% / 0.07),
-      0 10px 26px -20px hsl(45 20% 20% / 0.3);
+      0 1px 1px 0 hsl(45 20% 18% / 0.11),
+      0 6px 16px -12px hsl(45 20% 16% / 0.22);
   }
   .panel {
     box-shadow:
-      0 1px 2px 0 hsl(45 20% 25% / 0.09),
-      0 16px 36px -26px hsl(45 20% 20% / 0.35);
+      0 1px 1px 0 hsl(45 20% 18% / 0.13),
+      0 10px 24px -18px hsl(45 20% 16% / 0.26);
   }
 }
 
