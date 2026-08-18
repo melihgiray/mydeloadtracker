@@ -76,7 +76,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           </div>
           <p className="mt-2 text-xs text-muted">
             Switch any time. Your weights convert automatically, so everything you have
-            logged stays correct in either unit. There is also a quick toggle in the top bar.
+            logged stays correct in either unit.
           </p>
         </div>
 
