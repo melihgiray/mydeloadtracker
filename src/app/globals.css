@@ -20,11 +20,11 @@
   --surface-hover: 260 4% 21%;
   /* Borders carry the edge definition, so they run a little brighter than a
      hairline: crisp separation reads as "sharp" more than any shadow does. */
-  --border: 260 5% 27%;
-  --border-strong: 260 6% 40%;
+  --border: 260 6% 34%;
+  --border-strong: 260 7% 48%;
   --foreground: 0 0% 100%;
-  --muted: 250 8% 72%;
-  --faint: 250 6% 53%;
+  --muted: 250 8% 74%;
+  --faint: 250 6% 55%;
 
   /* Identity accent, used for actions and chrome. Unlike the lime it replaces,
      this is NOT a semantic state, so a primary button never gets confused with
@@ -62,12 +62,12 @@
     --surface-2: 44 22% 90%; /* #ebe8e0 */
     --surface-hover: 44 20% 86%;
     /* On cream a soft border let cards dissolve into the background. Deepen it
-       so every card and input has a defined edge. */
-    --border: 42 13% 73%;
-    --border-strong: 40 12% 58%;
+       hard so every card and input has a defined, drawn edge. */
+    --border: 40 13% 66%;
+    --border-strong: 38 14% 48%;
     --foreground: 60 8% 8%; /* #0e0e0c */
-    --muted: 45 9% 32%;
-    --faint: 44 8% 46%;
+    --muted: 45 10% 28%;
+    --faint: 44 9% 42%;
 
     --brand: 16 90% 48%; /* #ff5a1e, deepened so white text clears contrast */
     --brand-foreground: 0 0% 100%;
@@ -145,21 +145,21 @@ body::after {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-surface p-5;
+    @apply rounded-xl border border-border bg-surface p-5;
     box-shadow:
       inset 0 1px 0 0 hsl(0 0% 100% / 0.05),
       0 8px 22px -16px hsl(0 0% 0% / 0.75);
   }
   /* An elevated "instrument panel" for hero/primary surfaces. */
   .panel {
-    @apply rounded-2xl border bg-surface-2 p-5;
+    @apply rounded-xl border bg-surface-2 p-5;
     border-color: hsl(var(--border-strong));
     box-shadow:
       inset 0 1px 0 0 hsl(0 0% 100% / 0.06),
       0 14px 36px -22px hsl(0 0% 0% / 0.82);
   }
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold
       transition-[background-color,opacity,transform,box-shadow] duration-150 active:scale-[0.95]
       disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
     min-height: 2.75rem; /* 44px: comfortable, sweaty-thumb tap target */
@@ -206,7 +206,7 @@ body::after {
     @apply btn border border-border bg-surface text-foreground hover:bg-surface-hover;
   }
   .input {
-    @apply w-full rounded-xl border border-border bg-background px-3.5 text-foreground
+    @apply w-full rounded-lg border border-border bg-background px-3.5 text-foreground
       outline-none transition-colors placeholder:text-faint focus:border-brand/70 focus:ring-2 focus:ring-brand/25;
     min-height: 2.75rem;
   }
