@@ -20,7 +20,12 @@ export function useCountUp(target: number, { ms = 900, decimals = 0 } = {}): num
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || target <= 0) {
+    // A hidden tab pauses requestAnimationFrame and throttles timers, so an
+    // animation started there would strand the number at 0 until the page is
+    // looked at. There is nothing to animate for eyes that are not on it, so
+    // show the final value straight away.
+    const hidden = typeof document !== "undefined" && document.hidden;
+    if (reduce || hidden || target <= 0) {
       setValue(target);
       return;
     }
