@@ -54,6 +54,9 @@ export function StrengthStandards({
     initialBodyweight != null ? String(initialBodyweight) : "",
   );
   const [sex, setSex] = useState<Sex | null>(initialSex);
+  // The list can run long. Show the top few and let the athlete expand, so the
+  // page is not one uninterrupted wall of bars.
+  const [showAll, setShowAll] = useState(false);
 
   // Hydrate from localStorage only for fields the server didn't already provide,
   // so the feature works before the DB migration is applied. Runs post-mount to
@@ -192,8 +195,9 @@ export function StrengthStandards({
               to see your standard.
             </p>
           ) : (
+            <>
             <ul className="mt-4 space-y-3">
-              {perLift.map((s) => {
+              {(showAll ? perLift : perLift.slice(0, 5)).map((s) => {
                 const color = solid(s.level.id);
                 return (
                   <li key={s.lift}>
@@ -223,6 +227,16 @@ export function StrengthStandards({
                 );
               })}
             </ul>
+            {perLift.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="tap mt-3 text-xs font-medium text-brand"
+              >
+                {showAll ? "Show fewer" : `Show all ${perLift.length} lifts`}
+              </button>
+            )}
+            </>
           )}
         </>
       )}
