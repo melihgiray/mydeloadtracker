@@ -35,13 +35,13 @@ export function RecordsTable({
                 )}
                 <div className="text-xs text-muted">{r.muscleGroup}</div>
               </td>
-              <td className="py-2.5 pr-3 font-semibold tabular-nums">
+              <td className="whitespace-nowrap py-2.5 pr-3 font-semibold tabular-nums">
                 {r.bestE1RM} <span className="text-xs font-normal text-muted">{units}</span>
               </td>
-              <td className="py-2.5 pr-3 tabular-nums text-muted">
+              <td className="whitespace-nowrap py-2.5 pr-3 tabular-nums text-muted">
                 {r.bestE1RMWeight}×{r.bestE1RMReps}
               </td>
-              <td className="py-2.5 tabular-nums text-muted">
+              <td className="whitespace-nowrap py-2.5 tabular-nums text-muted">
                 {r.maxWeight} {units}
               </td>
             </tr>
