@@ -168,12 +168,12 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
               { label: "Ask the coach", sub: "Your real numbers", icon: Brain, color: "indigo" as BadgeColor },
               { label: "Track progress", sub: "Trends and PRs", icon: LineChart, color: "green" as BadgeColor },
             ].map((e) => (
-              <Link key={e.label} href="/login" className="card group transition-colors hover:bg-surface-hover">
-                <IconBadge icon={e.icon} color={e.color} size="lg" />
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className="font-semibold">{e.label}</span>
+              <Link key={e.label} href="/login" className="card group p-4 transition-colors hover:bg-surface-hover">
+                <div className="flex items-center justify-between gap-2">
+                  <IconBadge icon={e.icon} color={e.color} size="md" />
                   <ArrowRight className="h-4 w-4 flex-shrink-0 text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </div>
+                <p className="mt-2.5 font-semibold leading-tight">{e.label}</p>
                 <p className="text-xs text-muted">{e.sub}</p>
               </Link>
             ))}

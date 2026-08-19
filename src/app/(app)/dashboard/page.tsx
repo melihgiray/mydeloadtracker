@@ -84,9 +84,12 @@ export default async function DashboardPage() {
       <TrackOnMount event="next_session_viewed" />
       {deload.recommended && <TrackOnMount event="deload_alert_shown" />}
 
-      <p className="text-sm text-muted">
-        {profile?.full_name ? `${profile.full_name.split(" ")[0]}, here` : "Here"} is your read for today.
-      </p>
+      <div>
+        <h1 className="text-2xl font-semibold">
+          {profile?.full_name ? profile.full_name.split(" ")[0] : "Today"}
+        </h1>
+        <p className="mt-0.5 text-sm text-muted">Here is your read for today.</p>
+      </div>
 
       <TodaysCall
         score={readiness.score}
@@ -104,12 +107,12 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3">
         {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className="card group transition-colors hover:bg-surface-hover">
+          <Link key={t.href} href={t.href} className="tap card group p-4 transition-colors hover:bg-surface-hover">
             <div className="flex items-center justify-between">
-              <IconBadge icon={t.icon} color={t.color} size="lg" />
+              <IconBadge icon={t.icon} color={t.color} size="md" />
               <ArrowRight className="h-4 w-4 text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
             </div>
-            <p className="mt-3 font-semibold">{t.label}</p>
+            <p className="mt-2.5 font-semibold leading-tight">{t.label}</p>
             <p className="text-xs text-muted">{t.sub}</p>
           </Link>
         ))}
