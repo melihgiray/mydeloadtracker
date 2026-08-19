@@ -39,9 +39,18 @@ export function useCountUp(target: number, { ms = 900, decimals = 0 } = {}): num
       const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
       setValue(round(target * eased));
       if (t < 1) raf = requestAnimationFrame(tick);
+      else setValue(target);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // Safety net. requestAnimationFrame is throttled or never fires in a
+    // backgrounded tab, and without this the number would be stranded at the 0
+    // we just set, so a new athlete could open to a readiness of 0. The timeout
+    // guarantees the real value lands even if the animation never runs.
+    const guarantee = setTimeout(() => setValue(target), ms + 250);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(guarantee);
+    };
   }, [target, ms, decimals]);
 
   return value;
