@@ -26,43 +26,67 @@ export function NextSessionCard({
     return <p className="text-sm text-muted">Log a session and your next-session targets appear here.</p>;
   }
 
+  // A deload gives most lifts the same instruction. That is one message for the
+  // session, not a per-row fact, so reprinting it on every line is just clutter.
+  // Lift the most-repeated note (when it actually repeats) into a single banner
+  // and drop it from those rows, while lifts with their own note keep it.
+  const counts = new Map<string, number>();
+  for (const s of shown) counts.set(s.note, (counts.get(s.note) ?? 0) + 1);
+  let sharedNote: string | null = null;
+  let top = 1;
+  for (const [note, count] of counts) {
+    if (count > top) {
+      top = count;
+      sharedNote = note;
+    }
+  }
+
   return (
-    <ul className="divide-y divide-border">
-      {shown.map((s) => {
-        const a = ACTION[s.action];
-        return (
-          <li key={s.exerciseId} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="truncate font-medium">{s.exerciseName}</span>
-                {s.isMajor && (
-                  <span className="rounded bg-brand/15 px-1 py-0.5 text-[10px] font-medium text-brand">
-                    MAJOR
-                  </span>
-                )}
+    <div>
+      {sharedNote && (
+        <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs leading-snug text-muted">
+          {sharedNote}
+        </p>
+      )}
+      <ul className="divide-y divide-border">
+        {shown.map((s) => {
+          const a = ACTION[s.action];
+          return (
+            <li key={s.exerciseId} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {/* No truncate: the lift name is the point, so let it wrap. */}
+                  <span className="font-medium">{s.exerciseName}</span>
+                  {s.isMajor && (
+                    <span className="rounded bg-brand/15 px-1 py-0.5 text-[10px] font-medium text-brand">
+                      MAJOR
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  last {s.last.weight}
+                  {units}×{s.last.reps}
+                  {s.last.rpe != null && ` @${s.last.rpe}`}
+                  {s.note !== sharedNote && ` · ${s.note}`}
+                </p>
               </div>
-              <p className="mt-0.5 text-xs text-muted">
-                last {s.last.weight}
-                {units}×{s.last.reps}
-                {s.last.rpe != null && ` @${s.last.rpe}`} · {s.note}
-              </p>
-            </div>
-            <div className="flex flex-shrink-0 flex-col items-end gap-1">
-              <span className="whitespace-nowrap text-sm font-semibold tabular-nums">
-                {s.target.weight}
-                {units} × {s.target.reps}
-                <span className="font-normal text-muted"> × {s.target.sets}</span>
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${a.bg} ${a.text}`}
-              >
-                <a.icon className="h-3 w-3" />
-                {a.label}
-              </span>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+              <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                <span className="whitespace-nowrap text-sm font-semibold tabular-nums">
+                  {s.target.weight}
+                  {units} × {s.target.reps}
+                  <span className="font-normal text-muted"> × {s.target.sets}</span>
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${a.bg} ${a.text}`}
+                >
+                  <a.icon className="h-3 w-3" />
+                  {a.label}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
