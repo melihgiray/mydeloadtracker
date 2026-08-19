@@ -147,14 +147,14 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
 
         <ActivityStrip activity={activity} />
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {stats.map((s) => (
-            <div key={s.label} className="card">
+            <div key={s.label} className="card p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="micro">{s.label}</span>
                 <IconBadge icon={s.icon} color={s.color} size="sm" />
               </div>
-              <div className="readout mt-3 text-3xl font-semibold">{s.value}</div>
+              <div className="readout mt-2 text-3xl font-semibold">{s.value}</div>
             </div>
           ))}
         </div>
