@@ -34,12 +34,9 @@ function coachText(units: Units): string {
     units === "lb" ? "5lb to squat/dead and 2.5lb to bench/press" : "2.5kg to squat/dead and 1kg to bench/press";
   return `You've earned a deload, and the data is unanimous. Three majors, squat (${w(117.5)}), bench (${w(78)}), and overhead press (${w(50)}), haven't moved in 3+ weeks while RPE climbed to 9 and 9.5. Your HRV is down about 21% and resting HR is up about 7 bpm vs baseline, and you dropped from 4 to 2 sessions this week. That's accumulated fatigue masking strength, not a strength ceiling.
 
-**This week, deload:**
-- Keep the lifts, cut volume about half: 2 sets instead of 3 to 4.
-- Drop intensity to about RPE 6: squat ~${w(95)}, bench ~${w(65)} for your 5s.
-- Sleep is your lever. The HRV dip tracks your 2/5 sleep scores.
+This week, deload. Keep the lifts but cut volume about half, 2 sets instead of 3 to 4. Drop intensity to about RPE 6, squat ~${w(95)} and bench ~${w(65)} for your 5s. Sleep is your lever, and the HRV dip tracks your 2/5 sleep scores.
 
-**Next week, resume:** retest at last week's top weights. Expect them to feel about 1 to 2 RPE easier, that's the supercompensation. Then add ${incTxt} and rebuild.`;
+Next week, resume. Retest at last week's top weights and expect them to feel about 1 to 2 RPE easier, that's the supercompensation. Then add ${incTxt} and rebuild.`;
 }
 
 export default function DemoPage({ searchParams }: { searchParams: { units?: string } }) {
