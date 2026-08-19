@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, RotateCcw, Send } from "lucide-react";
+import { usePersistentState } from "@/lib/use-persistent-state";
 
 /**
  * Talking to the coach about the active plan.
@@ -34,8 +35,9 @@ const SUGGESTIONS = [
 
 export function PlanCoachChat({ hasPlan }: { hasPlan: boolean }) {
   const router = useRouter();
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [draft, setDraft] = useState("");
+  // Persisted so an in-progress edit conversation survives a tab switch.
+  const [turns, setTurns] = usePersistentState<Turn[]>("plan-coach.turns", []);
+  const [draft, setDraft] = usePersistentState("plan-coach.draft", "");
   const [busy, setBusy] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState<string | null>(null);

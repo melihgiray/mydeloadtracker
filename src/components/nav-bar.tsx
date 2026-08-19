@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Activity, Brain, Dumbbell, LayoutDashboard, LineChart, LogOut, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearPersistedState } from "@/lib/use-persistent-state";
 
 // Four primary destinations. Scan lives inside Log; History lives inside
 // Progress. Fewer tabs means bigger, easier targets on a phone.
@@ -29,6 +30,9 @@ export function NavBar({ email }: { email: string | null }) {
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    // Drop persisted in-progress state so a shared device does not carry one
+    // account's conversations into the next sign-in.
+    clearPersistedState();
     router.push("/login");
     router.refresh();
   }

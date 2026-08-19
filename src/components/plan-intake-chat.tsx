@@ -7,6 +7,7 @@ import type { PlanIntake } from "@/lib/plan-generation";
 import type { Units } from "@/lib/types";
 import { completeIntake, missingEssentials, type ResolvedLift } from "@/lib/plan-intake";
 import { toKg } from "@/lib/units";
+import { usePersistentState } from "@/lib/use-persistent-state";
 
 // Conversational plan creation: the athlete describes their training and the
 // coach gathers goal, days per week, and equipment over a short chat, then
@@ -20,6 +21,8 @@ interface Turn {
 
 const GREETING =
   "Let's build your plan together. Tell me your goal, how many days a week you can train, and what equipment you have. Describe it however feels natural.";
+
+const INITIAL_TURNS: Turn[] = [{ role: "coach", text: GREETING }];
 
 const SUGGESTIONS = [
   "Build muscle, 4 days a week, full gym",
@@ -45,16 +48,26 @@ export function PlanIntakeChat({
   onCancel?: () => void;
 }) {
   const router = useRouter();
-  const [turns, setTurns] = useState<Turn[]>([{ role: "coach", text: GREETING }]);
-  const [draft, setDraft] = useState("");
-  const [intake, setIntake] = useState<Partial<PlanIntake>>({});
+  // Persisted so leaving the tab mid-conversation does not throw the whole
+  // interview away. Restored on return, cleared once a plan is actually built.
+  const [turns, setTurns, clearTurns] = usePersistentState<Turn[]>("plan-intake.turns", INITIAL_TURNS);
+  const [draft, setDraft, clearDraft] = usePersistentState("plan-intake.draft", "");
+  const [intake, setIntake, clearIntake] = usePersistentState<Partial<PlanIntake>>("plan-intake.intake", {});
   // Lifts accumulate across turns by exercise, latest set winning, so a turn
   // where the model forgets to re-list one does not lose it.
-  const [lifts, setLifts] = useState<ResolvedLift[]>([]);
-  const [modelReady, setModelReady] = useState(false);
+  const [lifts, setLifts, clearLifts] = usePersistentState<ResolvedLift[]>("plan-intake.lifts", []);
+  const [modelReady, setModelReady, clearModelReady] = usePersistentState("plan-intake.ready", false);
   const [busy, setBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function clearConversation() {
+    clearTurns();
+    clearDraft();
+    clearIntake();
+    clearLifts();
+    clearModelReady();
+  }
 
   // Ready needs both the hard essentials AND the coach's own read that it has
   // interviewed enough. That second gate is what stops the chat collapsing back
@@ -142,6 +155,10 @@ export function PlanIntakeChat({
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? "The coach could not build your plan.");
+      // The plan exists now, so the saved conversation has served its purpose.
+      // Clear it so a later "Replace plan" starts fresh instead of reopening
+      // this finished interview.
+      clearConversation();
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The coach could not build your plan.");

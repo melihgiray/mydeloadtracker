@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Brain, Sparkles } from "lucide-react";
 import { capture } from "@/lib/track";
+import { usePersistentState } from "@/lib/use-persistent-state";
 
 interface Message {
   role: "user" | "assistant";
@@ -18,8 +19,9 @@ const SUGGESTIONS = [
 ];
 
 export function CoachChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  // Persisted so the coach conversation is still here after visiting another tab.
+  const [messages, setMessages] = usePersistentState<Message[]>("coach.messages", []);
+  const [input, setInput] = usePersistentState("coach.input", "");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
