@@ -680,22 +680,32 @@ export function LogForm({
           </p>
         ))}
 
-      <button
-        onClick={save}
-        disabled={saving || saved || saveableCount === 0 || invalidCompletedCount > 0}
-        className="btn-brand w-full py-3"
+      {/* Sticky action bar: on a phone the Save stays in the thumb's reach just
+          above the bottom nav instead of hiding at the end of a long form, so
+          logging never needs a scroll to the bottom. On desktop it is a normal
+          inline button (no bottom nav there). The offset clears the nav height
+          plus the safe-area inset. */}
+      <div
+        className="sticky z-10 mt-3 rounded-xl border border-border bg-surface/85 p-2 shadow-lg backdrop-blur md:static md:mt-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none"
+        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom))" }}
       >
-        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-        {isEdit
-          ? "Save changes"
-          : invalidCompletedCount > 0
-            ? `Fix ${invalidCompletedCount} completed ${invalidCompletedCount === 1 ? "set" : "sets"}`
-            : saveableCount > 0
-            ? `Save ${saveableCount} ${saveableCount === 1 ? "set" : "sets"}`
-            : completedCount > 0
-              ? "Fill the completed set to save"
-              : "Complete a set to save"}
-      </button>
+        <button
+          onClick={save}
+          disabled={saving || saved || saveableCount === 0 || invalidCompletedCount > 0}
+          className="btn-brand w-full py-3"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isEdit
+            ? "Save changes"
+            : invalidCompletedCount > 0
+              ? `Fix ${invalidCompletedCount} completed ${invalidCompletedCount === 1 ? "set" : "sets"}`
+              : saveableCount > 0
+              ? `Save ${saveableCount} ${saveableCount === 1 ? "set" : "sets"}`
+              : completedCount > 0
+                ? "Fill the completed set to save"
+                : "Complete a set to save"}
+        </button>
+      </div>
     </div>
   );
 }

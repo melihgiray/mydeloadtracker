@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link
             href="/settings"
             aria-label="Settings"
-            className="tap grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+            className="tap grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
           >
             <Settings className="h-5 w-5" />
           </Link>
