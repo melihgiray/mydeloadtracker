@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
+  ChevronUp,
   Loader2,
   Plus,
   Search,
@@ -124,6 +126,12 @@ export function LogForm({
   const [saved, setSaved] = useState(false);
   // Bumped each time a set is marked done, so the rest timer auto-starts.
   const [restSignal, setRestSignal] = useState(0);
+  // Which exercise cards are expanded. A workout reads as a tappable list of
+  // exercises; the first opens so logging starts right away, and a newly added
+  // exercise opens itself.
+  const [openKeys, setOpenKeys] = useState<Set<string>>(
+    () => new Set(entries[0] ? [entries[0].key] : []),
+  );
   const [prs, setPrs] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   // Only meaningful when a plan prefilled the session; without one the search
@@ -235,8 +243,32 @@ export function LogForm({
       .map((s) => s.ex);
   }, [exercises, query]);
 
+  function toggleOpen(key: string) {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Swap an exercise with its neighbour. Reordering the entries reorders how the
+  // workout is shown and saved.
+  function moveExercise(key: string, dir: -1 | 1) {
+    setEntries((prev) => {
+      const idx = prev.findIndex((e) => e.key === key);
+      const to = idx + dir;
+      if (idx < 0 || to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[to]] = [next[to], next[idx]];
+      return next;
+    });
+  }
+
   function addExerciseById(id: string) {
-    setEntries((prev) => [...prev, { key: `${id}-${Date.now()}`, exerciseId: id, sets: [emptySet()] }]);
+    const key = `${id}-${Date.now()}`;
+    setEntries((prev) => [...prev, { key, exerciseId: id, sets: [emptySet()] }]);
+    setOpenKeys((prev) => new Set(prev).add(key));
     setQuery("");
   }
 
@@ -516,24 +548,37 @@ export function LogForm({
         </div>
       )}
 
-      {entries.map((entry) => {
+      {entries.map((entry, exIndex) => {
         const ex = exerciseById.get(entry.exerciseId);
         const sem = weightSemantics(ex?.equipment);
         const plan = plannedById.get(entry.exerciseId);
         const entryCompleted = completedSetCount(entry.sets);
+        const isOpen = openKeys.has(entry.key);
         return (
           <div key={entry.key} className="card">
-            <div className="mb-4 flex items-center gap-3">
-              <IconBadge icon={exerciseGlyph(ex ?? {})} color={exerciseColor(ex?.muscle_group)} size="md" />
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold leading-tight">{ex?.name}</h3>
-                <p className="truncate text-xs text-muted">
-                  {ex?.muscle_group}
-                  {ex?.equipment && ` · ${ex.equipment}`}
-                  {ex?.is_major && <span className="text-brand"> · major lift</span>}
-                  <span> · {entryCompleted}/{entry.sets.length} done</span>
-                </p>
-              </div>
+            {/* Tap the header to expand this exercise and log it; collapsed, it
+                is a scannable summary with its progress. */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => toggleOpen(entry.key)}
+                aria-expanded={isOpen}
+                className="tap flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <IconBadge icon={exerciseGlyph(ex ?? {})} color={exerciseColor(ex?.muscle_group)} size="md" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold leading-tight">{ex?.name}</h3>
+                  <p className="truncate text-xs text-muted">
+                    {ex?.muscle_group}
+                    {ex?.equipment && ` · ${ex.equipment}`}
+                    {ex?.is_major && <span className="text-brand"> · major lift</span>}
+                    <span> · {entryCompleted}/{entry.sets.length} done</span>
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`h-5 w-5 flex-shrink-0 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
+                />
+              </button>
               <button
                 onClick={() => removeExercise(entry.key)}
                 className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
@@ -543,6 +588,8 @@ export function LogForm({
               </button>
             </div>
 
+            {isOpen && (
+              <div className="mt-4">
             {/* The plan's prescription, plus why the weight is prefilled the way
                 it is. Only rendered for a planned lift. */}
             {plan && (
@@ -651,6 +698,29 @@ export function LogForm({
             <button onClick={() => addSet(entry.key)} className="btn-ghost mt-3 w-full text-sm">
               <Plus className="h-4 w-4" /> Add set
             </button>
+
+                <div className="mt-3 flex items-center justify-center gap-2 border-t border-border/60 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(entry.key, -1)}
+                    disabled={exIndex === 0}
+                    className="btn-ghost text-xs disabled:opacity-40"
+                    aria-label="Move exercise up"
+                  >
+                    <ChevronUp className="h-4 w-4" /> Move up
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveExercise(entry.key, 1)}
+                    disabled={exIndex === entries.length - 1}
+                    className="btn-ghost text-xs disabled:opacity-40"
+                    aria-label="Move exercise down"
+                  >
+                    <ChevronDown className="h-4 w-4" /> Move down
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
