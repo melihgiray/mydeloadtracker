@@ -122,6 +122,8 @@ export function LogForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Bumped each time a set is marked done, so the rest timer auto-starts.
+  const [restSignal, setRestSignal] = useState(0);
   const [prs, setPrs] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   // Only meaningful when a plan prefilled the session; without one the search
@@ -279,6 +281,10 @@ export function LogForm({
   }
 
   function toggleSetCompletion(key: string, idx: number) {
+    // Read the current state to tell which direction the toggle goes, so the
+    // rest timer starts only when a set becomes done, not when it is un-done.
+    const target = entries.find((entry) => entry.key === key)?.sets[idx];
+    const becomingDone = target ? !isDraftSetComplete(target) : false;
     setEntries((prev) =>
       prev.map((entry) =>
         entry.key === key
@@ -291,6 +297,7 @@ export function LogForm({
           : entry,
       ),
     );
+    if (becomingDone) setRestSignal((n) => n + 1);
   }
 
   async function save() {
@@ -470,7 +477,7 @@ export function LogForm({
         )}
       </div>
 
-      <RestTimer />
+      <RestTimer startSignal={restSignal} />
 
       {planChanged && (
         <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-warning">

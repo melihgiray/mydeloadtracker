@@ -11,11 +11,24 @@ function fmt(s: number): string {
   return `${m}:${ss.toString().padStart(2, "0")}`;
 }
 
-export function RestTimer() {
+export function RestTimer({ startSignal }: { startSignal?: number } = {}) {
   const [duration, setDuration] = useState(120);
   const [remaining, setRemaining] = useState(120);
   const [running, setRunning] = useState(false);
   const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-start when the caller signals a set was just completed, so finishing a
+  // set starts the rest clock without a second tap. Guarded to the first render
+  // by requiring a positive, changing signal; it never fires on mount.
+  const seenSignal = useRef(startSignal);
+  useEffect(() => {
+    if (startSignal === undefined || startSignal === seenSignal.current) return;
+    seenSignal.current = startSignal;
+    setRemaining(duration);
+    setRunning(true);
+    // duration is read intentionally as the current rest length, not a trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal]);
 
   useEffect(() => {
     if (!running) return;
