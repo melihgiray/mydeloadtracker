@@ -233,6 +233,19 @@ body::after {
   }
 }
 
+/* Date and time inputs report a wide intrinsic min-width on iOS, so inside a
+   grid or flex cell they refuse to shrink and their dark box overflows past the
+   rounded container (a "black bar" sticking out of bounds). Let them shrink and
+   render as our own styled input instead of the native control. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Thin scrollbars in chat / scroll areas */
 .scroll-thin::-webkit-scrollbar {
   width: 8px;
