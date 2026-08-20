@@ -657,7 +657,7 @@ export function LogForm({
                       inputMode="numeric"
                       min="0"
                       step="1"
-                      className="input readout text-center"
+                      className="input readout px-2 text-center"
                       placeholder="5"
                       value={s.reps}
                       onChange={(e) => updateSet(entry.key, i, "reps", e.target.value)}
@@ -667,7 +667,7 @@ export function LogForm({
                       inputMode="decimal"
                       min="0"
                       step="0.5"
-                      className="input readout text-center"
+                      className="input readout px-2 text-center"
                       placeholder={sem.allowZero ? "0" : "100"}
                       value={s.weight}
                       onChange={(e) => updateSet(entry.key, i, "weight", e.target.value)}
@@ -678,7 +678,7 @@ export function LogForm({
                       step="0.5"
                       min="1"
                       max="10"
-                      className="input readout text-center"
+                      className="input readout px-2 text-center"
                       placeholder="8"
                       value={s.rpe}
                       onChange={(e) => updateSet(entry.key, i, "rpe", e.target.value)}
