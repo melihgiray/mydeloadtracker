@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
   ChevronDown,
-  ChevronUp,
+  GripVertical,
   Loader2,
   Plus,
   Search,
@@ -132,6 +132,10 @@ export function LogForm({
   const [openKeys, setOpenKeys] = useState<Set<string>>(
     () => new Set(entries[0] ? [entries[0].key] : []),
   );
+  // Drag-to-reorder: which exercise is being dragged, and the live element rects
+  // so a drag over another card moves the exercise there.
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const cardRefs = useRef(new Map<string, HTMLElement>());
   const [prs, setPrs] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   // Only meaningful when a plan prefilled the session; without one the search
@@ -252,17 +256,38 @@ export function LogForm({
     });
   }
 
-  // Swap an exercise with its neighbour. Reordering the entries reorders how the
-  // workout is shown and saved.
-  function moveExercise(key: string, dir: -1 | 1) {
-    setEntries((prev) => {
-      const idx = prev.findIndex((e) => e.key === key);
-      const to = idx + dir;
-      if (idx < 0 || to < 0 || to >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[to]] = [next[to], next[idx]];
-      return next;
-    });
+  // Drag-to-reorder from the grip handle: the dragged exercise moves to whichever
+  // card the finger is over, so the list reorders live. Reordering the entries
+  // reorders how the workout is shown and saved.
+  function reorderStart(key: string, e: React.PointerEvent) {
+    e.preventDefault();
+    setDragKey(key);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function reorderMove(e: React.PointerEvent) {
+    if (!dragKey) return;
+    const y = e.clientY;
+    let target: string | null = null;
+    for (const [k, el] of cardRefs.current) {
+      const r = el.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) {
+        target = k;
+        break;
+      }
+    }
+    if (target && target !== dragKey) {
+      setEntries((prev) => {
+        const from = prev.findIndex((en) => en.key === dragKey);
+        const to = prev.findIndex((en) => en.key === target);
+        if (from < 0 || to < 0) return prev;
+        const next = [...prev];
+        next.splice(to, 0, next.splice(from, 1)[0]);
+        return next;
+      });
+    }
+  }
+  function reorderEnd() {
+    setDragKey(null);
   }
 
   function addExerciseById(id: string) {
@@ -548,17 +573,37 @@ export function LogForm({
         </div>
       )}
 
-      {entries.map((entry, exIndex) => {
+      {entries.map((entry) => {
         const ex = exerciseById.get(entry.exerciseId);
         const sem = weightSemantics(ex?.equipment);
         const plan = plannedById.get(entry.exerciseId);
         const entryCompleted = completedSetCount(entry.sets);
         const isOpen = openKeys.has(entry.key);
         return (
-          <div key={entry.key} className="card">
-            {/* Tap the header to expand this exercise and log it; collapsed, it
-                is a scannable summary with its progress. */}
+          <div
+            key={entry.key}
+            ref={(el) => {
+              if (el) cardRefs.current.set(entry.key, el);
+              else cardRefs.current.delete(entry.key);
+            }}
+            className={`card ${dragKey === entry.key ? "border-brand shadow-lg" : ""}`}
+          >
+            {/* Header: a grip to drag-reorder, a tappable summary that expands to
+                the sets, and a remove button. */}
             <div className="flex items-center gap-2">
+              {entries.length > 1 && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => reorderStart(entry.key, e)}
+                  onPointerMove={reorderMove}
+                  onPointerUp={reorderEnd}
+                  onPointerCancel={reorderEnd}
+                  aria-label="Drag to reorder exercise"
+                  className="grid h-10 w-6 flex-shrink-0 touch-none place-items-center rounded-lg text-faint hover:text-muted"
+                >
+                  <GripVertical className="h-5 w-5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => toggleOpen(entry.key)}
@@ -698,27 +743,6 @@ export function LogForm({
             <button onClick={() => addSet(entry.key)} className="btn-ghost mt-3 w-full text-sm">
               <Plus className="h-4 w-4" /> Add set
             </button>
-
-                <div className="mt-3 flex items-center justify-center gap-2 border-t border-border/60 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(entry.key, -1)}
-                    disabled={exIndex === 0}
-                    className="btn-ghost text-xs disabled:opacity-40"
-                    aria-label="Move exercise up"
-                  >
-                    <ChevronUp className="h-4 w-4" /> Move up
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveExercise(entry.key, 1)}
-                    disabled={exIndex === entries.length - 1}
-                    className="btn-ghost text-xs disabled:opacity-40"
-                    aria-label="Move exercise down"
-                  >
-                    <ChevronDown className="h-4 w-4" /> Move down
-                  </button>
-                </div>
               </div>
             )}
           </div>
