@@ -6,6 +6,7 @@ import { round1 } from "@/lib/analytics/epley";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { IconBadge } from "@/components/icon-badge";
 import { DeleteSessionButton } from "@/components/delete-session-button";
+import { SwipeableSessionCard } from "@/components/swipeable-session-card";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,8 @@ export default async function HistoryPage() {
             const HeadGlyph = exerciseGlyph({ movement_pattern: head?.movement, muscle_group: head?.muscle });
 
             return (
-              <div key={s.id} className="card">
+              <SwipeableSessionCard key={s.id} sessionId={s.id}>
+                <div className="card">
                 <div className="flex items-center gap-3">
                   <IconBadge icon={HeadGlyph} color={headColor} size="md" />
                   <div className="min-w-0 flex-1">
@@ -113,7 +115,8 @@ export default async function HistoryPage() {
                 </div>
 
                 {s.notes && <p className="mt-3 text-xs italic text-muted">{s.notes}</p>}
-              </div>
+                </div>
+              </SwipeableSessionCard>
             );
           })}
         </div>
