@@ -4,6 +4,7 @@ import { Activity, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { MobileNav, NavBar } from "@/components/nav-bar";
 import { PageTransition } from "@/components/page-transition";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import { FeedbackWidget } from "@/components/feedback-widget";
 import { IdentifyUser } from "@/components/analytics";
 
@@ -44,7 +45,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </Link>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-6 sm:px-8 sm:py-8">
-          <PageTransition>{children}</PageTransition>
+          {/* Pull down to refresh, active only in the installed PWA (a browser
+              tab has its own). Defaults to a soft server-data refresh. */}
+          <PullToRefresh>
+            <PageTransition>{children}</PageTransition>
+          </PullToRefresh>
         </main>
         <MobileNav />
       </div>
