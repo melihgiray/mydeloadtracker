@@ -612,24 +612,17 @@ export function LogForm({
               >
                 <IconBadge icon={exerciseGlyph(ex ?? {})} color={exerciseColor(ex?.muscle_group)} size="md" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold leading-tight">{ex?.name}</h3>
+                  <h3 className="truncate font-semibold leading-tight">{ex?.name}</h3>
                   <p className="truncate text-xs text-muted">
                     {ex?.muscle_group}
                     {ex?.equipment && ` · ${ex.equipment}`}
-                    {ex?.is_major && <span className="text-brand"> · major lift</span>}
+                    {ex?.is_major && <span className="text-brand"> · major</span>}
                     <span> · {entryCompleted}/{entry.sets.length} done</span>
                   </p>
                 </div>
                 <ChevronDown
                   className={`h-5 w-5 flex-shrink-0 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
                 />
-              </button>
-              <button
-                onClick={() => removeExercise(entry.key)}
-                className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                aria-label="Remove exercise"
-              >
-                <Trash2 className="h-4 w-4" />
               </button>
             </div>
 
@@ -740,9 +733,18 @@ export function LogForm({
               })}
             </div>
 
-            <button onClick={() => addSet(entry.key)} className="btn-ghost mt-3 w-full text-sm">
-              <Plus className="h-4 w-4" /> Add set
-            </button>
+            <div className="mt-3 flex items-center gap-2">
+              <button onClick={() => addSet(entry.key)} className="btn-ghost flex-1 text-sm">
+                <Plus className="h-4 w-4" /> Add set
+              </button>
+              <button
+                onClick={() => removeExercise(entry.key)}
+                className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg border border-border text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                aria-label="Remove exercise"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
               </div>
             )}
           </div>
