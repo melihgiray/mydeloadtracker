@@ -106,7 +106,7 @@ export default async function LandingPage() {
         ))}
       </section>
 
-      <section className="panel mb-20 p-6 text-center sm:p-8">
+      <section className="panel mb-8 p-6 text-center sm:p-8">
         <h2 className="text-lg font-semibold">Where we&apos;re headed</h2>
         <p className="mx-auto mt-2 max-w-2xl text-pretty text-sm text-muted">
           The web app is the wedge: a coaching engine that already knows your fatigue, your level,
@@ -115,6 +115,24 @@ export default async function LandingPage() {
           <span className="text-foreground">hands-free, real-time coaching in the gym</span>, so the
           right cue reaches you mid-set.
         </p>
+      </section>
+
+      {/* Closing CTA: a visitor who read this far has no next step otherwise,
+          since the feature cards and vision panel carry no action. */}
+      <section className="mb-20 flex flex-col items-center gap-4 text-center">
+        <h2 className="text-balance text-2xl font-bold sm:text-3xl">Stop guessing when to deload.</h2>
+        <p className="max-w-md text-pretty text-sm text-muted">
+          See the readiness score, the deload calls, and the AI coach on a sample athlete. No signup,
+          no credit card.
+        </p>
+        <div className="flex w-full max-w-sm flex-col justify-center gap-3 sm:max-w-none sm:flex-row">
+          <Link href="/demo" className="btn-brand sm:px-6">
+            See a live demo
+          </Link>
+          <Link href="/login" className="btn-ghost sm:px-6">
+            Sign up free
+          </Link>
+        </div>
       </section>
 
       <footer className="border-t border-border py-6 text-center text-xs text-muted">
