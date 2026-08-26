@@ -23,6 +23,7 @@ import { RecordsTable } from "@/components/records-table";
 import { StrengthStandards } from "@/components/strength-standards";
 import { IconBadge, type BadgeColor } from "@/components/icon-badge";
 import { TrackOnMount } from "@/components/analytics";
+import { DemoStickyCta } from "@/components/demo-sticky-cta";
 
 export const dynamic = "force-dynamic";
 
@@ -247,7 +248,7 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
         </div>
 
         {/* Bottom CTA */}
-        <div className="panel p-8 text-center">
+        <div id="demo-final-cta" className="panel p-8 text-center">
           <h2 className="text-xl font-semibold">Track your own training</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted">
             Log your lifts and get your own deload alerts, readiness score, strength standards, and an
@@ -258,6 +259,8 @@ export default function DemoPage({ searchParams }: { searchParams: { units?: str
           </Link>
         </div>
       </div>
+
+      <DemoStickyCta hideNearId="demo-final-cta" />
     </main>
   );
 }
