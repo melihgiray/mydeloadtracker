@@ -65,50 +65,79 @@ export function RestTimer({ startSignal }: { startSignal?: number } = {}) {
   }
 
   const done = remaining === 0;
+  const active = running || done;
 
-  return (
-    <div
-      className={`card flex flex-wrap items-center justify-between gap-3 ${
-        done ? "border-brand bg-brand/10" : ""
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <Timer className="h-4 w-4 text-brand" />
+  // Idle: a slim bar, not a full card. Resting matters after a set, not before,
+  // so before you have logged anything the timer stays out of the way and the
+  // exercises get the top of the screen. Presets stay visible so you can set the
+  // rest length ahead of time.
+  if (!active) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
+        <Timer className="h-4 w-4 flex-shrink-0 text-brand" />
         <span className="text-sm font-medium">Rest</span>
-        <div className="flex gap-1">
-          {PRESETS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPreset(p)}
-              className={`rounded-lg px-2 py-1 text-xs tabular-nums transition-colors ${
-                duration === p
-                  ? "bg-brand text-brand-foreground"
-                  : "border border-border text-muted hover:text-foreground"
-              }`}
-            >
-              {fmt(p)}
-            </button>
-          ))}
+        <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex gap-1">
+            {PRESETS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPreset(p)}
+                className={`rounded-lg px-2 py-1 text-xs tabular-nums transition-colors ${
+                  duration === p
+                    ? "bg-brand text-brand-foreground"
+                    : "border border-border text-muted hover:text-foreground"
+                }`}
+              >
+                {fmt(p)}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={toggle}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+            aria-label="Start timer"
+          >
+            <Play className="h-4 w-4" />
+          </button>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <span className={`text-lg font-semibold tabular-nums ${done ? "text-brand" : ""}`}>
-          {done ? "Rest up!" : fmt(remaining)}
-        </span>
-        <button
-          onClick={toggle}
-          className="grid h-9 w-9 place-items-center rounded-lg border border-border hover:bg-surface-hover"
-          aria-label={running ? "Pause timer" : "Start timer"}
-        >
-          {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </button>
-        <button
-          onClick={reset}
-          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted hover:bg-surface-hover"
-          aria-label="Reset timer"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
+    );
+  }
+
+  // Active: prominent, with a bar that drains as the clock runs, so a glance
+  // reads the rest at arm's length. Flips to a brand "rest up" state at zero.
+  const pct = duration > 0 ? Math.max(0, Math.min(100, (remaining / duration) * 100)) : 0;
+  return (
+    <div className={`card ${done ? "border-brand bg-brand/10" : ""}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Timer className="h-5 w-5 flex-shrink-0 text-brand" />
+          <span className={`text-2xl font-semibold tabular-nums ${done ? "text-brand" : ""}`}>
+            {done ? "Rest up" : fmt(remaining)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggle}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-border hover:bg-surface-hover"
+            aria-label={running ? "Pause timer" : "Start timer"}
+          >
+            {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={reset}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted hover:bg-surface-hover"
+            aria-label="Reset timer"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full rounded-full bg-brand transition-[width] duration-1000 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
