@@ -449,6 +449,7 @@ export function LogForm({
   const hasPlan = (planned?.length ?? 0) > 0;
   const planChanged = !isEdit && loaded && draftPlanFingerprint !== currentPlanFingerprint;
   const completedCount = entries.reduce((total, entry) => total + completedSetCount(entry.sets), 0);
+  const totalSetCount = entries.reduce((total, entry) => total + entry.sets.length, 0);
   const saveableCount = entries.reduce((total, entry) => {
     const sem = weightSemantics(exerciseById.get(entry.exerciseId)?.equipment);
     return total + saveableCompletedSets(entry.sets, sem.allowZero).length;
@@ -561,7 +562,24 @@ export function LogForm({
               Discard
             </button>
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-muted">
+          {totalSetCount > 0 && (
+            <div className="mt-2 flex items-center gap-2.5">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
+                  style={{ width: `${(completedCount / totalSetCount) * 100}%` }}
+                />
+              </div>
+              <span
+                className={`readout flex-shrink-0 text-[11px] tabular-nums ${
+                  completedCount === totalSetCount ? "text-success" : "text-muted"
+                }`}
+              >
+                {completedCount}/{totalSetCount} sets
+              </span>
+            </div>
+          )}
+          <p className="mt-2 text-[11px] leading-snug text-muted">
             Tap a set number when you finish it. Editing a row marks it done.
           </p>
           {!hasPlan && (
