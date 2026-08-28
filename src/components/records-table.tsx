@@ -8,8 +8,15 @@ export function RecordsTable({
   records: PersonalRecord[];
   units: Units;
 }) {
-  if (records.length === 0) {
-    return <p className="text-sm text-muted">Log some sets to start setting records.</p>;
+  // This table is about loaded records (e1RM and top weight). A pure bodyweight
+  // movement carries 0 added weight, so its record comes back all zeros ("0 kg,
+  // 0×0"), which is noise, not a PR. Reps records for bodyweight would need
+  // analytics support, so those rows are left out here rather than shown as
+  // zeros. They still appear in the next session, history, and volume.
+  const loaded = records.filter((r) => r.maxWeight > 0);
+
+  if (loaded.length === 0) {
+    return <p className="text-sm text-muted">Log some weighted sets to start setting records.</p>;
   }
 
   return (
@@ -24,7 +31,7 @@ export function RecordsTable({
           </tr>
         </thead>
         <tbody>
-          {records.map((r) => (
+          {loaded.map((r) => (
             <tr key={r.exerciseId} className="border-b border-border/60 last:border-0">
               <td className="py-2.5 pr-3">
                 <span className="font-medium">{r.exerciseName}</span>
