@@ -3,6 +3,7 @@ import { getProfile, getWearableStatus } from "@/lib/data";
 import { ProfileForm } from "@/components/profile-form";
 import { WearableConnect } from "@/components/wearable-connect";
 import { AppleHealthCard } from "@/components/apple-health-card";
+import { SignOutButton } from "@/components/sign-out-button";
 import { ouraConfigured } from "@/lib/wearables/oura";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,10 @@ export default async function SettingsPage({
         lastSync={oura.lastSync}
         status={searchParams?.wearable}
       />
+
+      <div className="border-t border-border pt-6">
+        <SignOutButton />
+      </div>
     </div>
   );
 }
