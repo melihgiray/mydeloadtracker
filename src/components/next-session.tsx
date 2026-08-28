@@ -64,16 +64,15 @@ export function NextSessionCard({
                   )}
                 </div>
                 <p className="mt-0.5 text-xs text-muted">
-                  last {s.last.weight}
-                  {units}×{s.last.reps}
+                  {/* Bodyweight lifts carry 0 added weight; show BW, not "0kg". */}
+                  last {s.last.weight === 0 ? "BW" : `${s.last.weight}${units}`}×{s.last.reps}
                   {s.last.rpe != null && ` @${s.last.rpe}`}
                   {s.note !== sharedNote && ` · ${s.note}`}
                 </p>
               </div>
               <div className="flex flex-shrink-0 flex-col items-end gap-1">
                 <span className="whitespace-nowrap text-sm font-semibold tabular-nums">
-                  {s.target.weight}
-                  {units} × {s.target.reps}
+                  {s.target.weight === 0 ? "BW" : `${s.target.weight}${units}`} × {s.target.reps}
                   <span className="font-normal text-muted"> × {s.target.sets}</span>
                 </span>
                 <span
