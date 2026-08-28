@@ -108,7 +108,11 @@ export default async function HistoryPage() {
                       />
                       <span className="min-w-0 flex-1 truncate text-sm">{e.name}</span>
                       <span className="readout flex-shrink-0 text-xs text-muted">
-                        {e.count} × {round1(e.top)} {units}
+                        {/* Bodyweight movements carry 0 added weight; "3 × 0 kg"
+                            reads as lifting nothing, so show the set count alone. */}
+                        {e.top === 0
+                          ? `${e.count} ${e.count === 1 ? "set" : "sets"}`
+                          : `${e.count} × ${round1(e.top)} ${units}`}
                       </span>
                     </div>
                   ))}
