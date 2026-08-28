@@ -597,6 +597,10 @@ export function LogForm({
         const plan = plannedById.get(entry.exerciseId);
         const entryCompleted = completedSetCount(entry.sets);
         const isOpen = openKeys.has(entry.key);
+        // The first set not yet marked done is "up next", highlighted so the eye
+        // lands on what to do rather than on the sets already logged. -1 (all
+        // done) highlights nothing.
+        const nextSetIdx = entry.sets.findIndex((st) => !isDraftSetComplete(st));
         return (
           <div
             key={entry.key}
@@ -703,7 +707,9 @@ export function LogForm({
                       className={`tap readout grid h-9 place-items-center rounded-lg text-sm font-medium transition-colors ${
                         complete
                           ? "bg-success/15 text-success"
-                          : "bg-surface-2 text-muted hover:bg-surface-hover"
+                          : i === nextSetIdx
+                            ? "bg-brand/15 text-brand ring-1 ring-inset ring-brand/40"
+                            : "bg-surface-2 text-muted hover:bg-surface-hover"
                       }`}
                     >
                       {complete ? <Check className="h-4 w-4" /> : i + 1}
