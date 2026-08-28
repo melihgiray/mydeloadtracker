@@ -77,7 +77,11 @@ export function CoachChat() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col">
+    // Fill the space the page gives us (between the header/heading and the
+    // bottom nav) rather than a fixed 100vh calc. On mobile 100vh ignores the
+    // browser toolbar, so the old fixed height overflowed and pushed the input
+    // box down behind the nav, out of reach.
+    <div className="flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto pr-1">
         {messages.length === 0 ? (
           <div className="grid h-full place-items-center">
