@@ -75,11 +75,13 @@ export function PlanExerciseRow({ day, exercise, index, count, library }: Props)
         className="flex w-full items-start justify-between gap-3 text-left"
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{exercise.name}</p>
+          {/* Wrap rather than truncate: the lift name is the point, matching the
+              next-session card. */}
+          <p className="text-sm font-medium">{exercise.name}</p>
           <p className="text-xs text-muted">{exercise.muscle_group}</p>
         </div>
         <p className="flex-shrink-0 text-sm font-semibold tabular-nums">
-          {exercise.sets} x {exercise.rep_low}
+          {exercise.sets} × {exercise.rep_low}
           {exercise.rep_high !== exercise.rep_low && ` to ${exercise.rep_high}`}
           {exercise.rpe_target != null && (
             <span className="font-normal text-muted"> at RPE {exercise.rpe_target}</span>
