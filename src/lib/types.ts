@@ -151,6 +151,9 @@ export interface PlanDayWithExercises extends PlanDay {
     name: string;
     muscle_group: string;
     equipment: string | null;
+    /** Optional so existing fixtures and edit paths that omit it still type. The
+     *  live read (getActivePlan) populates it for the exercise glyphs. */
+    movement_pattern?: string | null;
   })[];
 }
 

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Loader2, Repeat, Trash2 } from "lucide-react";
 import type { PlanDayWithExercises } from "@/lib/types";
 import { ExercisePicker, type PickerExercise } from "@/components/plan-exercise-picker";
+import { IconBadge } from "@/components/icon-badge";
+import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 
 /**
  * Tap an exercise to change it.
@@ -72,21 +74,32 @@ export function PlanExerciseRow({ day, exercise, index, count, library }: Props)
         type="button"
         onClick={() => setPanel(panel === "none" ? "edit" : "none")}
         aria-expanded={panel !== "none"}
-        className="flex w-full items-start justify-between gap-3 text-left"
+        className="flex w-full items-start gap-2.5 text-left"
       >
-        <div className="min-w-0">
+        <IconBadge
+          icon={exerciseGlyph({
+            movement_pattern: exercise.movement_pattern,
+            muscle_group: exercise.muscle_group,
+          })}
+          color={exerciseColor(exercise.muscle_group)}
+          size="sm"
+        />
+        <div className="min-w-0 flex-1">
           {/* Wrap rather than truncate: the lift name is the point, matching the
-              next-session card. */}
+              next-session card. The prescription drops to the line below so the
+              name and the glyph never squeeze it. */}
           <p className="text-sm font-medium">{exercise.name}</p>
-          <p className="text-xs text-muted">{exercise.muscle_group}</p>
+          <div className="mt-0.5 flex items-baseline justify-between gap-2">
+            <span className="text-xs text-muted">{exercise.muscle_group}</span>
+            <span className="flex-shrink-0 text-sm font-semibold tabular-nums">
+              {exercise.sets} × {exercise.rep_low}
+              {exercise.rep_high !== exercise.rep_low && ` to ${exercise.rep_high}`}
+              {exercise.rpe_target != null && (
+                <span className="font-normal text-muted"> at RPE {exercise.rpe_target}</span>
+              )}
+            </span>
+          </div>
         </div>
-        <p className="flex-shrink-0 text-sm font-semibold tabular-nums">
-          {exercise.sets} × {exercise.rep_low}
-          {exercise.rep_high !== exercise.rep_low && ` to ${exercise.rep_high}`}
-          {exercise.rpe_target != null && (
-            <span className="font-normal text-muted"> at RPE {exercise.rpe_target}</span>
-          )}
-        </p>
       </button>
 
       {panel === "edit" && (

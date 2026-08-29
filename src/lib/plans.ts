@@ -55,7 +55,12 @@ interface RawPlanRow {
       rest_seconds: number | null;
       role: string | null;
       note: string | null;
-      exercises: { name: string; muscle_group: string; equipment: string | null } | null;
+      exercises: {
+        name: string;
+        muscle_group: string;
+        equipment: string | null;
+        movement_pattern: string | null;
+      } | null;
     }[] | null;
   }[] | null;
 }
@@ -67,7 +72,7 @@ const SELECT = `
     plan_exercises (
       id, plan_day_id, exercise_id, position, sets, rep_low, rep_high,
       rpe_target, rest_seconds, role, note,
-      exercises ( name, muscle_group, equipment )
+      exercises ( name, muscle_group, equipment, movement_pattern )
     )
   )
 `;
@@ -105,6 +110,7 @@ function mapPlan(row: RawPlanRow): PlanWithDays {
           name: e.exercises?.name ?? "Unknown exercise",
           muscle_group: e.exercises?.muscle_group ?? "",
           equipment: e.exercises?.equipment ?? null,
+          movement_pattern: e.exercises?.movement_pattern ?? null,
         })),
     }));
 
