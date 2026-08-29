@@ -175,22 +175,28 @@ export function PlanIntakeChat({
 
   return (
     <section className="panel">
-      <div className="flex items-center justify-between">
+      {/* Stack on a phone so the title is not fighting the escape-hatch links for
+          one cramped row. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand/15 text-brand">
+          <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
             <Sparkles className="h-4 w-4" />
           </span>
           <h2 className="font-semibold">Build your plan with the coach</h2>
         </div>
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={onManual} className="text-xs text-muted hover:text-foreground">
+        <div className="flex flex-shrink-0 items-center gap-4">
+          <button
+            type="button"
+            onClick={onManual}
+            className="whitespace-nowrap text-xs text-muted hover:text-foreground"
+          >
             Prefer a form?
           </button>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="text-xs text-muted hover:text-foreground"
+              className="whitespace-nowrap text-xs text-muted hover:text-foreground"
             >
               Keep current plan
             </button>
@@ -312,7 +318,7 @@ export function PlanIntakeChat({
                 send(draft);
               }
             }}
-            placeholder="Tell the coach about your training..."
+            placeholder="Describe your training..."
             className="input max-h-32 flex-1 resize-none"
           />
           <button
