@@ -40,9 +40,14 @@ This week, deload. Keep the lifts but cut volume about half, 2 sets instead of 3
 Next week, resume. Retest at last week's top weights and expect them to feel about 1 to 2 RPE easier, that's the supercompensation. Then add ${incTxt} and rebuild.`;
 }
 
-export default function DemoPage({ searchParams }: { searchParams: { units?: string } }) {
+export default async function DemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ units?: string | string[] }>;
+}) {
+  const { units: requestedUnits } = await searchParams;
   // Default to lb for the (US-heavy) launch audience; ?units=kg flips it.
-  const units: Units = searchParams?.units === "kg" ? "kg" : "lb";
+  const units: Units = requestedUnits === "kg" ? "kg" : "lb";
   const bodyweight = sampleBodyweight(units);
 
   const now = new Date();

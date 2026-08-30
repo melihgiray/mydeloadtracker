@@ -7,12 +7,13 @@ import { LogForm, type InitialEntry } from "@/components/log-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditSessionPage({ params }: { params: { id: string } }) {
+export default async function EditSessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = createClient();
   const profile = await getProfile(supabase);
   const units = profile?.units ?? "kg";
   const [session, exercises] = await Promise.all([
-    getSessionWithSets(supabase, units, params.id),
+    getSessionWithSets(supabase, units, id),
     getExercises(supabase),
   ]);
 

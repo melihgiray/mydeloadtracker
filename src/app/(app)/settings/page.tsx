@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: { wearable?: string };
+  searchParams: Promise<{ wearable?: string | string[] }>;
 }) {
+  const { wearable } = await searchParams;
   const supabase = createClient();
   const {
     data: { user },
@@ -37,7 +38,7 @@ export default async function SettingsPage({
         configured={ouraConfigured()}
         connected={oura.connected}
         lastSync={oura.lastSync}
-        status={searchParams?.wearable}
+        status={Array.isArray(wearable) ? wearable[0] : wearable}
       />
 
       <div className="border-t border-border pt-6">

@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export default async function ScanPage({
   searchParams,
 }: {
-  searchParams: { draft?: string };
+  searchParams: Promise<{ draft?: string | string[] }>;
 }) {
+  const { draft } = await searchParams;
   const supabase = createClient();
   const [exercises, profile] = await Promise.all([getExercises(supabase), getProfile(supabase)]);
   const units = profile?.units ?? "kg";
@@ -28,7 +29,7 @@ export default async function ScanPage({
         key={units}
         exercises={exercises}
         units={units}
-        draftMode={searchParams.draft === "1"}
+        draftMode={draft === "1"}
       />
     </div>
   );
