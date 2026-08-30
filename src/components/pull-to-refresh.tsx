@@ -30,6 +30,7 @@ export function PullToRefresh({
 }) {
   const router = useRouter();
   const [pull, setPull] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
   const pullRef = useRef(0);
@@ -38,9 +39,12 @@ export function PullToRefresh({
   // mid-gesture (re-attaching window listeners while a pull is in flight can
   // drop the touchend that fires the refresh).
   const onRefreshRef = useRef(onRefresh);
-  onRefreshRef.current = onRefresh;
   const routerRef = useRef(router);
-  routerRef.current = router;
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+    routerRef.current = router;
+  }, [onRefresh, router]);
 
   useEffect(() => {
     const standalone =
@@ -53,8 +57,10 @@ export function PullToRefresh({
     // pointer stream, but touchmove keeps firing and can preventDefault to hold
     // the page while pulling.
     function onStart(e: TouchEvent) {
-      startY.current = window.scrollY <= 0 && !busyRef.current ? e.touches[0].clientY : null;
+      const eligible = window.scrollY <= 0 && !busyRef.current;
+      startY.current = eligible ? e.touches[0].clientY : null;
       pullRef.current = 0;
+      setIsPulling(eligible);
     }
     function onMove(e: TouchEvent) {
       if (startY.current === null || busyRef.current) return;
@@ -70,6 +76,7 @@ export function PullToRefresh({
       }
     }
     function onEnd() {
+      setIsPulling(false);
       if (startY.current === null) return;
       startY.current = null;
       if (pullRef.current >= TRIGGER) {
@@ -113,7 +120,7 @@ export function PullToRefresh({
         style={{
           height,
           opacity: Math.min(1, height / 32),
-          transition: startY.current === null ? "height 0.2s ease, opacity 0.2s ease" : "none",
+          transition: isPulling ? "none" : "height 0.2s ease, opacity 0.2s ease",
         }}
       >
         <RefreshCw
