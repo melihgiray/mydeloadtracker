@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Count a number up to `target` once on mount, easing out, so a figure lands
@@ -10,13 +10,9 @@ import { useEffect, useRef, useState } from "react";
  * `decimals` keeps fractional readouts (a 1.32x strength multiple) smooth.
  */
 export function useCountUp(target: number, { ms = 900, decimals = 0 } = {}): number {
-  const [value, setValue] = useState(target);
-  const started = useRef(false);
+  const [value, setValue] = useState(() => (target > 0 ? 0 : target));
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -25,9 +21,10 @@ export function useCountUp(target: number, { ms = 900, decimals = 0 } = {}): num
     // looked at. There is nothing to animate for eyes that are not on it, so
     // show the final value straight away.
     const hidden = typeof document !== "undefined" && document.hidden;
-    if (reduce || hidden || target <= 0) {
-      setValue(target);
-      return;
+    if (target <= 0) return;
+    if (reduce || hidden) {
+      const immediate = window.setTimeout(() => setValue(target), 0);
+      return () => window.clearTimeout(immediate);
     }
 
     const round = (n: number) => {
@@ -35,7 +32,6 @@ export function useCountUp(target: number, { ms = 900, decimals = 0 } = {}): num
       return Math.round(n * p) / p;
     };
 
-    setValue(0);
     let raf = 0;
     let startTs = 0;
     const tick = (ts: number) => {
