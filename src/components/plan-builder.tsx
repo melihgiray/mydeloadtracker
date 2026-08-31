@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRight, CalendarDays, ChevronDown, Loader2, RefreshCw } from "lucide-react";
@@ -100,10 +100,6 @@ export function PlanBuilder({
   // not an estimate to review later, it is a constraint the athlete gave that
   // the app could not apply, so it is stated plainly instead of collapsed.
   const [unenforced, setUnenforced] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (initialPlan) setEditing(false);
-  }, [initialPlan]);
 
   function toggleEquipment(tag: EquipmentTag) {
     setEquipment((current) =>

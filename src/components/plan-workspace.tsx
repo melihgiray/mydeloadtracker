@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { PlanWithDays, Units } from "@/lib/types";
 import type { PickerExercise } from "@/components/plan-exercise-picker";
 import { PlanBuilder } from "@/components/plan-builder";
@@ -23,12 +23,6 @@ export function PlanWorkspace({
   evidenceCaveat: string;
 }) {
   const [replacing, setReplacing] = useState(plan == null);
-
-  // A successful build refreshes the page, which sends a fresh plan object.
-  // Drop back to the plan view when that happens (also covers the first build).
-  useEffect(() => {
-    if (plan) setReplacing(false);
-  }, [plan]);
 
   if (replacing) {
     return (

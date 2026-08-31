@@ -70,6 +70,7 @@ export default async function PlanPage() {
       {/* Building is conversational for everyone: a new athlete starts in the
           coach chat, and "Replace plan" hands off to the same chat. */}
       <PlanWorkspace
+        key={plan?.id ?? "new-plan"}
         plan={plan}
         units={units}
         library={pickerLibrary}
