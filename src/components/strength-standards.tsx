@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toKg } from "@/lib/units";
@@ -15,6 +15,24 @@ import {
 
 const BW_KEY = "mdt_bodyweight";
 const SEX_KEY = "mdt_sex";
+const subscribeLocalProfile = () => () => {};
+
+function storedBodyweightSnapshot() {
+  try {
+    return localStorage.getItem(BW_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storedSexSnapshot(): Sex | null {
+  try {
+    const value = localStorage.getItem(SEX_KEY);
+    return value === "male" || value === "female" ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 // Ascending achievement palette for the five bands (HSL channels).
 const LEVEL_HSL: Record<StrengthLevelId, string> = {
@@ -50,38 +68,29 @@ export function StrengthStandards({
   initialBodyweight: number | null;
   initialSex: Sex | null;
 }) {
-  const [bodyweight, setBodyweight] = useState(
-    initialBodyweight != null ? String(initialBodyweight) : "",
+  const storedBodyweight = useSyncExternalStore(
+    subscribeLocalProfile,
+    storedBodyweightSnapshot,
+    () => "",
   );
-  const [sex, setSex] = useState<Sex | null>(initialSex);
+  const storedSex = useSyncExternalStore(subscribeLocalProfile, storedSexSnapshot, () => null);
+  const [bodyweightEdit, setBodyweightEdit] = useState<string | null>(null);
+  const [sexEdit, setSexEdit] = useState<Sex | null>(null);
+  const bodyweight =
+    bodyweightEdit ?? (initialBodyweight != null ? String(initialBodyweight) : storedBodyweight);
+  const sex = sexEdit ?? initialSex ?? storedSex;
   // The list can run long. Show the top few and let the athlete expand, so the
   // page is not one uninterrupted wall of bars.
   const [showAll, setShowAll] = useState(false);
 
-  // Hydrate from localStorage only for fields the server didn't already provide,
-  // so the feature works before the DB migration is applied. Runs post-mount to
-  // avoid an SSR/CSR mismatch.
-  useEffect(() => {
-    if (initialBodyweight == null) {
-      const v = localStorage.getItem(BW_KEY);
-      if (v) setBodyweight(v);
-    }
-    if (initialSex == null) {
-      const v = localStorage.getItem(SEX_KEY);
-      if (v === "male" || v === "female") setSex(v);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // When the server-provided bodyweight changes (e.g. the athlete flipped the
-  // unit toggle and the page re-rendered with a converted value), follow it.
-  useEffect(() => {
-    if (initialBodyweight != null) setBodyweight(String(initialBodyweight));
-  }, [initialBodyweight]);
-
   async function persist(bw: string, s: Sex | null) {
-    if (bw) localStorage.setItem(BW_KEY, bw);
-    if (s) localStorage.setItem(SEX_KEY, s);
+    try {
+      if (bw) localStorage.setItem(BW_KEY, bw);
+      else localStorage.removeItem(BW_KEY);
+      if (s) localStorage.setItem(SEX_KEY, s);
+    } catch {
+      /* local profile fallback is optional */
+    }
     // Best-effort server save; silently ignored if the migration adding these
     // columns hasn't been applied yet.
     try {
@@ -146,8 +155,13 @@ export function StrengthStandards({
             placeholder={units === "kg" ? "80" : "176"}
             value={bodyweight}
             onChange={(e) => {
-              setBodyweight(e.target.value);
-              if (e.target.value) localStorage.setItem(BW_KEY, e.target.value);
+              setBodyweightEdit(e.target.value);
+              try {
+                if (e.target.value) localStorage.setItem(BW_KEY, e.target.value);
+                else localStorage.removeItem(BW_KEY);
+              } catch {
+                /* local profile fallback is optional */
+              }
             }}
             onBlur={() => persist(bodyweight, sex)}
           />
@@ -159,7 +173,7 @@ export function StrengthStandards({
               <button
                 key={s}
                 onClick={() => {
-                  setSex(s);
+                  setSexEdit(s);
                   persist(bodyweight, s);
                 }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition-colors ${

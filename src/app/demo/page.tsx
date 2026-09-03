@@ -221,6 +221,7 @@ export default async function DemoPage({
           </div>
           <div className="lg:col-span-2">
             <StrengthStandards
+              key={`${units}:${bodyweight}:${SAMPLE_SEX}`}
               lifts={standardLifts}
               units={units}
               initialBodyweight={bodyweight}

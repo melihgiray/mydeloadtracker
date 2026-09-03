@@ -102,6 +102,7 @@ export default async function ProgressPage() {
       </Link>
 
       <StrengthStandards
+        key={`${units}:${profile?.bodyweight ?? "none"}:${profile?.sex ?? "none"}`}
         lifts={standardLifts}
         units={units}
         initialBodyweight={profile?.bodyweight ?? null}
