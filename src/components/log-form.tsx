@@ -137,7 +137,7 @@ export function LogForm({
   const [dragKey, setDragKey] = useState<string | null>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
   const [prs, setPrs] = useState<string[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(isEdit);
   // Only meaningful when a plan prefilled the session; without one the search
   // box is the primary control and stays open.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -153,37 +153,38 @@ export function LogForm({
   // Restore an in-progress workout (new sessions only) so switching tabs or
   // closing the app never loses what you were entering.
   useEffect(() => {
-    if (isEdit) {
-      setLoaded(true);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(WORKOUT_DRAFT_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (isWorkoutDraft(d) && d.entries.length) {
-          const reconciled = reconcileDraftUnits(d, units);
-          // Merge rather than replace. See mergePlannedIntoDraft for why this
-          // only ever adds, and what it deliberately refuses to remove.
-          setEntries(
-            mergePlannedIntoDraft(
-              reconciled.entries,
-              planned ?? [],
-              reconciled.date,
-              today,
-            ),
-          );
-          setDate(reconciled.date);
-          setNotes(reconciled.notes);
-          // A legacy draft has no baseline. Adopt the current prescription
-          // rather than warning about a change we cannot prove happened.
-          setDraftPlanFingerprint(reconciled.planFingerprint ?? currentPlanFingerprint);
+    if (isEdit) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(WORKOUT_DRAFT_KEY);
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (isWorkoutDraft(d) && d.entries.length) {
+            const reconciled = reconcileDraftUnits(d, units);
+            // Merge rather than replace. See mergePlannedIntoDraft for why this
+            // only ever adds, and what it deliberately refuses to remove.
+            setEntries(
+              mergePlannedIntoDraft(
+                reconciled.entries,
+                planned ?? [],
+                reconciled.date,
+                today,
+              ),
+            );
+            setDate(reconciled.date);
+            setNotes(reconciled.notes);
+            // A legacy draft has no baseline. Adopt the current prescription
+            // rather than warning about a change we cannot prove happened.
+            setDraftPlanFingerprint(reconciled.planFingerprint ?? currentPlanFingerprint);
+          }
         }
+      } catch {
+        /* ignore a corrupt draft */
       }
-    } catch {
-      /* ignore a corrupt draft */
-    }
-    setLoaded(true);
+      setLoaded(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
