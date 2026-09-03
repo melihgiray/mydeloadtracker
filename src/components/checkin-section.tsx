@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronRight, HeartPulse, X } from "lucide-react";
 import { todayKey } from "@/lib/analytics/dates";
 import type { DailyCheckin } from "@/lib/types";
@@ -8,6 +8,15 @@ import { CheckinCard } from "@/components/checkin-card";
 import { IconBadge } from "@/components/icon-badge";
 
 const PROMPT_KEY = "mdt_checkin_prompt";
+const subscribePromptPreference = () => () => {};
+
+function promptPreferenceSnapshot() {
+  try {
+    return localStorage.getItem(PROMPT_KEY) !== todayKey();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The daily recovery check-in, living in Log. It pops up once per day (the
@@ -15,21 +24,17 @@ const PROMPT_KEY = "mdt_checkin_prompt";
  * an editable box at the bottom of the screen.
  */
 export function CheckinSection({ today }: { today: DailyCheckin | null }) {
-  const [promptOpen, setPromptOpen] = useState(false);
+  const promptEligible = useSyncExternalStore(
+    subscribePromptPreference,
+    promptPreferenceSnapshot,
+    () => false,
+  );
+  const [promptDismissed, setPromptDismissed] = useState(false);
   const [editing, setEditing] = useState(false);
-
-  // Offer the prompt once per day, only if it has not been logged or dismissed.
-  useEffect(() => {
-    if (today) return;
-    try {
-      if (localStorage.getItem(PROMPT_KEY) !== todayKey()) setPromptOpen(true);
-    } catch {
-      /* no-op */
-    }
-  }, [today]);
+  const promptOpen = today === null && promptEligible && !promptDismissed;
 
   function dismissPrompt() {
-    setPromptOpen(false);
+    setPromptDismissed(true);
     try {
       localStorage.setItem(PROMPT_KEY, todayKey());
     } catch {
