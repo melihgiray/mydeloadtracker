@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -91,6 +91,20 @@ const FAILURES: Record<FailReason, { title: string; hint: string }> = {
 
 const MAX_CLIP_SECONDS = 90;
 const REQUEST_TIMEOUT_MS = 25_000;
+
+function standaloneSnapshot() {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function subscribeStandalone(listener: () => void) {
+  const media = window.matchMedia?.("(display-mode: standalone)");
+  if (!media) return () => {};
+  media.addEventListener("change", listener);
+  return () => media.removeEventListener("change", listener);
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -227,8 +241,9 @@ export function BarScanner({
   const [slowStart, setSlowStart] = useState(false);
   // Installed-to-home-screen iOS runs a different WebKit context than Safari,
   // and camera access there has historically been restricted, so the recovery
-  // advice differs. Set after mount to avoid an SSR mismatch.
-  const [standalone, setStandalone] = useState(false);
+  // advice differs. Browser display mode is an external store, so React can
+  // hydrate it without a second state-setting effect.
+  const standalone = useSyncExternalStore(subscribeStandalone, standaloneSnapshot, () => false);
 
   const [exerciseId, setExerciseId] = useState("");
   const [weight, setWeight] = useState("");
@@ -261,16 +276,10 @@ export function BarScanner({
     setStream(null);
     setVideoReady(false);
     setNeedsTap(false);
+    setSlowStart(false);
   }, [disposeCapture]);
 
   useEffect(() => disposeCapture, [disposeCapture]); // release the camera on unmount
-
-  useEffect(() => {
-    setStandalone(
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-        (window.navigator as Navigator & { standalone?: boolean }).standalone === true,
-    );
-  }, []);
 
   /**
    * Attach the stream AFTER React has committed the <video> element.
@@ -324,6 +333,7 @@ export function BarScanner({
   // ---- capture ------------------------------------------------------------
 
   async function startLive(want: "environment" | "user" = facing) {
+    setSlowStart(false);
     setReading(null);
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       return fail("no_camera", 0);
@@ -368,10 +378,7 @@ export function BarScanner({
   // If the preview has not produced a frame after a few seconds, say so instead
   // of showing an unexplained black rectangle.
   useEffect(() => {
-    if (phase !== "live" || videoReady) {
-      setSlowStart(false);
-      return;
-    }
+    if (phase !== "live" || videoReady) return;
     const t = window.setTimeout(() => setSlowStart(true), 3000);
     return () => window.clearTimeout(t);
   }, [phase, videoReady]);
@@ -741,10 +748,14 @@ export function BarScanner({
             muted
             playsInline
             autoPlay
-            onLoadedMetadata={() => setVideoReady(true)}
+            onLoadedMetadata={() => {
+              setVideoReady(true);
+              setSlowStart(false);
+            }}
             onPlaying={() => {
               setVideoReady(true);
               setNeedsTap(false);
+              setSlowStart(false);
             }}
             className="aspect-[3/4] w-full bg-black object-cover sm:aspect-video"
           />
