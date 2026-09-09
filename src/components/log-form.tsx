@@ -37,6 +37,7 @@ import {
 } from "@/lib/live-set-adjustment";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
+import { plannedRestDuration } from "@/lib/rest-duration";
 import { IconBadge } from "@/components/icon-badge";
 import {
   completedSetCount,
@@ -148,8 +149,9 @@ export function LogForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // Bumped each time a set is marked done, so the rest timer auto-starts.
-  const [restSignal, setRestSignal] = useState(0);
+  // Bumped each time a set is marked done. The duration carries the active
+  // exercise's plan prescription when one exists.
+  const [restRequest, setRestRequest] = useState({ signal: 0, duration: null as number | null });
   // Which exercise cards are expanded. A workout reads as a tappable list of
   // exercises; the first opens so logging starts right away, and a newly added
   // exercise opens itself.
@@ -365,7 +367,16 @@ export function LogForm({
     );
   }
 
+  function startRestForEntry(entry: ExerciseEntry) {
+    const planExerciseId = entry.plannedExerciseId ?? entry.exerciseId;
+    const duration = plannedRestDuration(plannedById.get(planExerciseId)?.target);
+    setRestRequest((current) => ({ signal: current.signal + 1, duration }));
+  }
+
   function updateSet(key: string, idx: number, field: "reps" | "weight" | "rpe", value: string) {
+    const entry = entries.find((item) => item.key === key);
+    const target = entry?.sets[idx];
+    const becomingDone = target ? !isDraftSetComplete(target) : false;
     setEntries((prev) =>
       prev.map((e) =>
         e.key === key
@@ -380,6 +391,7 @@ export function LogForm({
           : e,
       ),
     );
+    if (entry && becomingDone) startRestForEntry(entry);
   }
 
   function toggleSetCompletion(key: string, idx: number) {
@@ -399,7 +411,8 @@ export function LogForm({
           : entry,
       ),
     );
-    if (becomingDone) setRestSignal((n) => n + 1);
+    const entry = entries.find((item) => item.key === key);
+    if (entry && becomingDone) startRestForEntry(entry);
   }
 
   function applyLiveAdjustment(
@@ -623,7 +636,7 @@ export function LogForm({
         )}
       </div>
 
-      <RestTimer startSignal={restSignal} />
+      <RestTimer startRequest={restRequest} />
 
       {planChanged && (
         <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-warning">

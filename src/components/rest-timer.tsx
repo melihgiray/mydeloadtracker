@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, Timer } from "lucide-react";
+import { isValidRestDuration, resolveRestDuration } from "@/lib/rest-duration";
 
 const PRESETS = [90, 120, 180];
 
@@ -11,22 +12,33 @@ function fmt(s: number): string {
   return `${m}:${ss.toString().padStart(2, "0")}`;
 }
 
-export function RestTimer({ startSignal }: { startSignal?: number } = {}) {
+export interface RestStartRequest {
+  signal: number;
+  duration: number | null;
+}
+
+export function RestTimer({ startRequest }: { startRequest?: RestStartRequest } = {}) {
   const [duration, setDuration] = useState(120);
   const [remaining, setRemaining] = useState(120);
   const [running, setRunning] = useState(false);
+  const [usingPlanDuration, setUsingPlanDuration] = useState(false);
   const ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-start when the caller signals a set was just completed, so finishing a
   // set starts the rest clock without a second tap. Guarded to the first render
   // by requiring a positive, changing signal; it never fires on mount.
+  const startSignal = startRequest?.signal;
   const seenSignal = useRef(startSignal);
   useEffect(() => {
     if (startSignal === undefined || startSignal === seenSignal.current) return;
     seenSignal.current = startSignal;
-    setRemaining(duration);
+    const nextDuration = resolveRestDuration(startRequest?.duration, duration);
+    setDuration(nextDuration);
+    setRemaining(nextDuration);
+    setUsingPlanDuration(isValidRestDuration(startRequest?.duration));
     setRunning(true);
-    // duration is read intentionally as the current rest length, not a trigger.
+    // duration and request data are read as the payload for a changing signal,
+    // not as independent triggers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSignal]);
 
@@ -53,6 +65,7 @@ export function RestTimer({ startSignal }: { startSignal?: number } = {}) {
   function setPreset(s: number) {
     setDuration(s);
     setRemaining(s);
+    setUsingPlanDuration(false);
     setRunning(false);
   }
   function toggle() {
@@ -112,9 +125,12 @@ export function RestTimer({ startSignal }: { startSignal?: number } = {}) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <Timer className="h-5 w-5 flex-shrink-0 text-brand" />
-          <span className={`text-2xl font-semibold tabular-nums ${done ? "text-brand" : ""}`}>
-            {done ? "Rest up" : fmt(remaining)}
-          </span>
+          <div>
+            <p className="micro">{usingPlanDuration ? "Plan rest" : "Rest"}</p>
+            <span className={`text-2xl font-semibold tabular-nums ${done ? "text-brand" : ""}`}>
+              {done ? "Rest up" : fmt(remaining)}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
