@@ -10,6 +10,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Sparkles,
   Trash2,
   Trophy,
   X,
@@ -21,6 +22,10 @@ import { toKg } from "@/lib/units";
 import { weightSemantics } from "@/lib/weight-semantics";
 import { aliasesFor } from "@/lib/exercise-aliases";
 import { saveWorkoutSession } from "@/lib/workout-save";
+import {
+  buildLiveSetAdjustment,
+  type LiveSetAdjustment,
+} from "@/lib/live-set-adjustment";
 import { exerciseColor, exerciseGlyph } from "@/lib/exercise-visual";
 import { RestTimer } from "@/components/rest-timer";
 import { IconBadge } from "@/components/icon-badge";
@@ -358,6 +363,34 @@ export function LogForm({
     if (becomingDone) setRestSignal((n) => n + 1);
   }
 
+  function applyLiveAdjustment(
+    key: string,
+    idx: number,
+    adjustment: LiveSetAdjustment,
+  ) {
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.key === key
+          ? {
+              ...entry,
+              sets: entry.sets.map((set, i) =>
+                i === idx
+                  ? {
+                      ...set,
+                      reps: String(adjustment.reps),
+                      weight: String(adjustment.weight),
+                      origin: "manual",
+                      completed: false,
+                    }
+                  : set,
+              ),
+            }
+          : entry,
+      ),
+    );
+    capture("live_set_adjustment_applied", { direction: adjustment.direction });
+  }
+
   async function save() {
     setError(null);
 
@@ -602,6 +635,27 @@ export function LogForm({
         // lands on what to do rather than on the sets already logged. -1 (all
         // done) highlights nothing.
         const nextSetIdx = entry.sets.findIndex((st) => !isDraftSetComplete(st));
+        const priorSetIdx = nextSetIdx > 0 ? nextSetIdx - 1 : -1;
+        const priorSet = priorSetIdx >= 0 ? entry.sets[priorSetIdx] : null;
+        const canReadPriorWeight = priorSet?.weight.trim() !== "" || sem.allowZero;
+        const adjustment =
+          plan && priorSet && isDraftSetComplete(priorSet) && canReadPriorWeight
+            ? buildLiveSetAdjustment(
+                {
+                  reps: Number(priorSet.reps),
+                  weight: Number(priorSet.weight || 0),
+                  rpe: priorSet.rpe.trim() === "" ? null : Number(priorSet.rpe),
+                },
+                plan.target,
+                units,
+              )
+            : null;
+        const nextSet = nextSetIdx >= 0 ? entry.sets[nextSetIdx] : null;
+        const adjustmentApplied =
+          adjustment != null &&
+          nextSet != null &&
+          Number(nextSet.reps) === adjustment.reps &&
+          Number(nextSet.weight || 0) === adjustment.weight;
         return (
           <div
             key={entry.key}
@@ -757,6 +811,46 @@ export function LogForm({
                 );
               })}
             </div>
+
+            {adjustment && nextSet && (
+              <div
+                className={`mt-3 rounded-lg border px-3 py-2.5 ${
+                  adjustment.direction === "back_off"
+                    ? "border-warning/30 bg-warning/10"
+                    : "border-brand/25 bg-brand/10"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                      adjustment.direction === "back_off" ? "text-warning" : "text-brand"
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Coach adjustment
+                  </span>
+                  <span className="readout text-sm font-semibold tabular-nums">
+                    {adjustment.weight > 0
+                      ? `${adjustment.weight} ${units}`
+                      : "Bodyweight"}{" "}
+                    × {adjustment.reps}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] leading-snug text-muted">{adjustment.reason}</p>
+                {adjustmentApplied ? (
+                  <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-success">
+                    <Check className="h-3.5 w-3.5" /> Applied to set {nextSetIdx + 1}
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => applyLiveAdjustment(entry.key, nextSetIdx, adjustment)}
+                    className="tap mt-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold transition-colors hover:bg-surface-hover"
+                  >
+                    Apply to set {nextSetIdx + 1}
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 flex items-center gap-2">
               <button onClick={() => addSet(entry.key)} className="btn-ghost flex-1 text-sm">
