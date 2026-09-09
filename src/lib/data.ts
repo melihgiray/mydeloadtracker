@@ -22,6 +22,22 @@ interface SetRow {
   exercises: { id: string; name: string; muscle_group: string; is_major: boolean } | null;
 }
 
+function mapTrainingSets(rows: SetRow[], units: Units): TrainingSet[] {
+  return rows
+    .filter((r) => r.workout_sessions && r.exercises)
+    .map((r) => ({
+      date: r.workout_sessions!.performed_at,
+      sessionId: r.workout_sessions!.id,
+      exerciseId: r.exercises!.id,
+      exerciseName: r.exercises!.name,
+      muscleGroup: r.exercises!.muscle_group,
+      isMajor: r.exercises!.is_major,
+      reps: r.reps,
+      weight: fromKg(Number(r.weight), units),
+      rpe: r.rpe != null ? Number(r.rpe) : null,
+    }));
+}
+
 export async function getTrainingSets(
   supabase: SupabaseClient,
   units: Units,
@@ -40,20 +56,27 @@ export async function getTrainingSets(
 
   if (error) throw error;
 
-  const rows = (data ?? []) as unknown as SetRow[];
-  return rows
-    .filter((r) => r.workout_sessions && r.exercises)
-    .map((r) => ({
-      date: r.workout_sessions!.performed_at,
-      sessionId: r.workout_sessions!.id,
-      exerciseId: r.exercises!.id,
-      exerciseName: r.exercises!.name,
-      muscleGroup: r.exercises!.muscle_group,
-      isMajor: r.exercises!.is_major,
-      reps: r.reps,
-      weight: fromKg(Number(r.weight), units),
-      rpe: r.rpe != null ? Number(r.rpe) : null,
-    }));
+  return mapTrainingSets((data ?? []) as unknown as SetRow[], units);
+}
+
+/** Complete history for a small set of exercises, used by a saved workout summary. */
+export async function getTrainingSetsForExercises(
+  supabase: SupabaseClient,
+  units: Units,
+  exerciseIds: string[],
+): Promise<TrainingSet[]> {
+  if (exerciseIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("workout_sets")
+    .select(
+      "reps, weight, rpe, set_number, workout_sessions!inner(id, performed_at), exercises!inner(id, name, muscle_group, is_major)",
+    )
+    .in("exercise_id", exerciseIds)
+    .order("performed_at", { foreignTable: "workout_sessions", ascending: true });
+
+  if (error) throw error;
+  return mapTrainingSets((data ?? []) as unknown as SetRow[], units);
 }
 
 export async function getExercises(supabase: SupabaseClient): Promise<Exercise[]> {

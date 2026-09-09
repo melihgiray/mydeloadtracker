@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { getCheckins, getProfile, getSessionsWithSets, getTrainingSets } from "@/lib/data";
+import {
+  getCheckins,
+  getProfile,
+  getSessionsWithSets,
+  getTrainingSets,
+  getTrainingSetsForExercises,
+} from "@/lib/data";
 
 function profileClient(result: { data: unknown; error: unknown }): SupabaseClient {
   return {
@@ -74,6 +80,18 @@ function trainingSetsClient(result: { data: unknown; error: unknown }): Supabase
   } as unknown as SupabaseClient;
 }
 
+function exerciseHistoryClient(result: { data: unknown; error: unknown }): SupabaseClient {
+  return {
+    from: () => ({
+      select: () => ({
+        in: () => ({
+          order: async () => result,
+        }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+}
+
 function sessionsClient(result: { data: unknown; error: unknown }): SupabaseClient {
   return {
     from: () => ({
@@ -106,6 +124,23 @@ describe("getTrainingSets unit conversion (read seam)", () => {
   it("leaves kilogram weights untouched for a kg athlete", async () => {
     const sets = await getTrainingSets(trainingSetsClient({ data: [setRow("102.5")], error: null }), "kg");
     expect(sets[0].weight).toBe(102.5);
+  });
+});
+
+describe("getTrainingSetsForExercises", () => {
+  it("reads complete exercise history in the athlete's display unit", async () => {
+    const sets = await getTrainingSetsForExercises(
+      exerciseHistoryClient({ data: [setRow("100")], error: null }),
+      "lb",
+      ["e1"],
+    );
+
+    expect(sets[0]).toMatchObject({ exerciseId: "e1", weight: 220.46 });
+  });
+
+  it("does not query when a workout has no exercises", async () => {
+    const client = { from: () => { throw new Error("should not query"); } } as unknown as SupabaseClient;
+    await expect(getTrainingSetsForExercises(client, "kg", [])).resolves.toEqual([]);
   });
 });
 

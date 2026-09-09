@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Dumbbell, Pencil } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Dumbbell } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, getSessionsWithSets } from "@/lib/data";
 import { round1 } from "@/lib/analytics/epley";
@@ -90,9 +90,9 @@ export default async function HistoryPage() {
                     <Link
                       href={`/history/${s.id}`}
                       className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-                      aria-label="Edit session"
+                      aria-label="View workout summary"
                     >
-                      <Pencil className="h-4 w-4" />
+                      <ChevronRight className="h-5 w-5" />
                     </Link>
                     <DeleteSessionButton sessionId={s.id} />
                   </div>

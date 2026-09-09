@@ -439,7 +439,7 @@ export function LogForm({
         /* no-op */
       }
       setSaved(true);
-      setTimeout(() => router.push(isEdit ? "/history" : "/dashboard"), prNames.length ? 2000 : 700);
+      setTimeout(() => router.push(`/history/${targetSessionId}`), prNames.length ? 2000 : 700);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save workout.");
