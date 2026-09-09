@@ -34,6 +34,7 @@ export const maxDuration = 60;
 // Bound chat history so one long conversation cannot evict the athlete's
 // training context from the model's window.
 const MAX_HISTORY_MESSAGES = 12;
+const MAX_MESSAGE_CHARACTERS = 4_000;
 
 const COACH_INSTRUCTIONS = `You are an expert strength & hypertrophy coach embedded in a training app called MyDeloadTracker. You specialize in progressive overload, fatigue management, and deload timing.
 
@@ -73,18 +74,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  let body: { messages?: ChatMessage[]; sessionId?: unknown };
+  let body: { messages?: unknown; sessionId?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const messages = (body.messages ?? []).filter(
-    (m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string",
-  );
+  const messages = (Array.isArray(body.messages) ? body.messages : [])
+    .filter((message): message is ChatMessage => {
+      if (message == null || typeof message !== "object") return false;
+      const candidate = message as Record<string, unknown>;
+      return (
+        (candidate.role === "user" || candidate.role === "assistant") &&
+        typeof candidate.content === "string"
+      );
+    })
+    .slice(-MAX_HISTORY_MESSAGES);
+  // A long, normally alternating thread can land on an assistant message when
+  // sliced. Drop that orphaned reply so both providers receive a complete
+  // user-led exchange rather than context with no question attached.
+  while (messages[0]?.role === "assistant") messages.shift();
   if (messages.length === 0) {
     return NextResponse.json({ error: "No messages provided." }, { status: 400 });
+  }
+  if (messages[messages.length - 1].role !== "user") {
+    return NextResponse.json({ error: "The last message must be from you." }, { status: 400 });
+  }
+  if (messages.some((message) => message.content.length > MAX_MESSAGE_CHARACTERS)) {
+    return NextResponse.json(
+      { error: "Keep each message under 4,000 characters." },
+      { status: 413 },
+    );
   }
 
   const requestedSessionId =
@@ -140,7 +161,7 @@ export async function POST(req: Request) {
             { role: "system", content: localSystemText },
             // Bound history so one long chat cannot evict the athlete context
             // from the local model's window.
-            ...messages.slice(-MAX_HISTORY_MESSAGES),
+            ...messages,
           ],
         },
         LOCAL_TIMEOUT_MS.coach,

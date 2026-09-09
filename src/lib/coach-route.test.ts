@@ -67,13 +67,16 @@ const selectedSession = {
   ],
 };
 
-function request(sessionId: string) {
+function request(
+  sessionId: string,
+  messages: unknown = [{ role: "user", content: "Review this workout." }],
+) {
   return new Request("http://localhost/api/coach", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       sessionId,
-      messages: [{ role: "user", content: "Review this workout." }],
+      messages,
     }),
   });
 }
@@ -172,5 +175,34 @@ describe("coach selected workout context", () => {
     const call = mocks.messagesStream.mock.calls[0][0];
     expect(call.system[1].text).toContain("=== RECENT WORKOUT NOTES ===");
     expect(call.system[1].text).toContain('2026-09-08: "Grip felt weak after poor sleep."');
+  });
+
+  it("bounds cloud history and removes an orphaned leading reply", async () => {
+    const messages = Array.from({ length: 15 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" : "assistant",
+      content: `message-${index}`,
+    }));
+
+    const response = await POST(request("session-id", messages));
+    await response.text();
+
+    const sent = mocks.messagesStream.mock.calls[0][0].messages;
+    expect(sent).toHaveLength(11);
+    expect(sent[0]).toEqual({ role: "user", content: "message-4" });
+    expect(sent[10]).toEqual({ role: "user", content: "message-14" });
+  });
+
+  it("rejects malformed or oversized message payloads before a model call", async () => {
+    const malformed = await POST(request("session-id", "not-an-array"));
+    expect(malformed.status).toBe(400);
+
+    const oversized = await POST(request("session-id", [
+      { role: "user", content: "x".repeat(4_001) },
+    ]));
+    expect(oversized.status).toBe(413);
+    await expect(oversized.json()).resolves.toEqual({
+      error: "Keep each message under 4,000 characters.",
+    });
+    expect(mocks.messagesStream).not.toHaveBeenCalled();
   });
 });
