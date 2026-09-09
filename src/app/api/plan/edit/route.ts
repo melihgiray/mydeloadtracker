@@ -25,7 +25,7 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 /** How the ops arrived, which is what the revision history records. */
-const SOURCES: PlanOpSource[] = ["athlete_direct", "weekly_review"];
+const SOURCES: PlanOpSource[] = ["athlete_direct", "athlete_chat", "weekly_review"];
 
 const OP_KINDS = new Set([
   "replace_exercise",

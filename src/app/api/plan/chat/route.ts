@@ -1,8 +1,8 @@
 // Talk to the coach about the active plan.
 //
 // Step 6 of docs/PLANNER_V2_DESIGN.md. The athlete says something, the coach
-// replies and proposes changes, and the changes are applied through the same
-// patch engine a tap uses. Only `source` differs.
+// replies and proposes changes. The same pure patch rules validate a preview,
+// but nothing is persisted until the athlete presses Apply.
 //
 // Deliberately NOT the generation route. That one builds a whole plan and takes
 // about 35 seconds; this returns a couple of ops in a few. Reusing it for "swap
@@ -25,7 +25,7 @@ import {
   type EquipmentTag,
 } from "@/lib/plan-generation";
 import { buildPlanChatSystem, parseCoachTurn, PLAN_CHAT_TOOL_SCHEMA } from "@/lib/plan-chat";
-import { applyPatchToPlan } from "@/lib/plan-edit";
+import { previewPlanActions } from "@/lib/plan-action-preview";
 import { getActivePlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 
@@ -155,7 +155,8 @@ export async function POST(req: Request) {
     if (turn.ops.length === 0) {
       return NextResponse.json({
         reply: turn.reply,
-        applied: [],
+        proposed: [],
+        preview: [],
         rejected: [],
         dropped,
         revision: null,
@@ -164,17 +165,17 @@ export async function POST(req: Request) {
       });
     }
 
-    const result = await applyPatchToPlan(supabase, plan, turn.ops, "athlete_chat", library);
+    const preview = previewPlanActions(plan, turn.ops, available);
 
     return NextResponse.json({
       reply: turn.reply,
-      applied: result.applied.map((o) => ({ op: o.op, dayIndex: o.dayIndex, reason: o.reason })),
-      // Surfaced, never swallowed: a request that half worked must not look
-      // like one that fully worked.
-      rejected: result.rejected.map((r) => ({ reason: r.op.reason, error: r.error })),
+      proposed: preview.applied,
+      preview: preview.changes,
+      // Surfaced, never swallowed: a request that was only partly understood
+      // must not look like a complete proposal.
+      rejected: preview.rejected.map((r) => ({ reason: r.op.reason, error: r.error })),
       dropped,
-      revision: result.revision,
-      summary: result.summary,
+      revision: null,
       usage: toUsageReport(PLAN_MODEL, response.usage),
       ms: Date.now() - startedAt,
     });

@@ -4,12 +4,24 @@
 // (dayIndex 0 / position 0 are valid, not "missing").
 
 import { describe, it, expect } from "vitest";
-import { parseCoachTurn } from "@/lib/plan-chat";
+import { buildPlanChatSystem, parseCoachTurn } from "@/lib/plan-chat";
 
 const refs = new Map<string, string>([
   ["e5", "uuid-5"],
   ["e6", "uuid-6"],
 ]);
+
+describe("buildPlanChatSystem", () => {
+  it("tells the model that actions are proposals until the athlete applies them", () => {
+    const system = buildPlanChatSystem(
+      { id: "plan", equipment: [], avoid: [], days: [] } as never,
+      [],
+      [],
+    );
+    expect(system).toContain("describe them as proposed changes");
+    expect(system).toContain("Never say a change already happened");
+  });
+});
 
 describe("parseCoachTurn — reply", () => {
   it("trims the reply and coerces a non-string to empty", () => {
