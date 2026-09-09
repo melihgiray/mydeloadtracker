@@ -237,6 +237,8 @@ export function saveableCompletedSets(sets: PlannedSet[], allowZeroWeight: boole
 export interface DraftEntry {
   key: string;
   exerciseId: string;
+  /** Original plan slot when this exercise is a today-only substitution. */
+  plannedExerciseId?: string;
   sets: PlannedSet[];
 }
 
@@ -263,6 +265,7 @@ export function isWorkoutDraft(value: unknown): value is WorkoutDraft {
       entry != null &&
       typeof entry.key === "string" &&
       typeof entry.exerciseId === "string" &&
+      (entry.plannedExerciseId == null || typeof entry.plannedExerciseId === "string") &&
       Array.isArray(entry.sets) &&
       entry.sets.every(
         (set) =>
@@ -417,12 +420,19 @@ export function mergePlannedIntoDraft(
   // today's plan to it would merge two different workouts.
   if (draftDate != null && draftDate !== today) return draft;
 
-  const inDraft = new Set(draft.map((e) => e.exerciseId));
+  const inDraft = new Set(
+    draft.flatMap((entry) =>
+      entry.plannedExerciseId
+        ? [entry.exerciseId, entry.plannedExerciseId]
+        : [entry.exerciseId],
+    ),
+  );
   const missing = planned
     .filter((p) => !inDraft.has(p.exerciseId))
     .map((p, i) => ({
       key: `${p.exerciseId}-plan-added-${i}`,
       exerciseId: p.exerciseId,
+      plannedExerciseId: p.exerciseId,
       sets: p.sets.map((s) => ({ ...s })),
     }));
 

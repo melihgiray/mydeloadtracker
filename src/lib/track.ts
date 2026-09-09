@@ -28,6 +28,7 @@ export type TrackEvent =
   | "deload_alert_shown"
   | "next_session_viewed"
   | "live_set_adjustment_applied"
+  | "exercise_substituted"
   | "coach_message_sent"
   | "wearable_connected"
   | "demo_viewed"

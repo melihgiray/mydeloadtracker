@@ -9,6 +9,7 @@ import {
   GripVertical,
   Loader2,
   Plus,
+  RefreshCw,
   Search,
   Sparkles,
   Trash2,
@@ -22,6 +23,10 @@ import { toKg } from "@/lib/units";
 import { weightSemantics } from "@/lib/weight-semantics";
 import { aliasesFor } from "@/lib/exercise-aliases";
 import { saveWorkoutSession } from "@/lib/workout-save";
+import {
+  buildExerciseSubstitutions,
+  resetSetsForSubstitution,
+} from "@/lib/exercise-substitution";
 import {
   buildLiveSetAdjustment,
   type LiveSetAdjustment,
@@ -56,6 +61,7 @@ interface SetEntry {
 interface ExerciseEntry {
   key: string;
   exerciseId: string;
+  plannedExerciseId?: string;
   sets: SetEntry[];
 }
 
@@ -76,6 +82,8 @@ export function LogForm({
   initialNotes,
   initialEntries,
   planned,
+  availableEquipment,
+  avoid,
 }: {
   exercises: Exercise[];
   units: Units;
@@ -89,6 +97,9 @@ export function LogForm({
    * confirming rather than searching and typing.
    */
   planned?: PlannedExercise[];
+  /** Active plan constraints used only to filter today-only alternatives. */
+  availableEquipment?: string[];
+  avoid?: string[];
 }) {
   const router = useRouter();
   const isEdit = Boolean(sessionId);
@@ -122,6 +133,7 @@ export function LogForm({
     return (planned ?? []).map((p, i) => ({
       key: `${p.exerciseId}-plan-${i}`,
       exerciseId: p.exerciseId,
+      plannedExerciseId: p.exerciseId,
       sets: p.sets.map((s) => ({ ...s })),
     }));
   });
@@ -146,6 +158,7 @@ export function LogForm({
   // Only meaningful when a plan prefilled the session; without one the search
   // box is the primary control and stays open.
   const [searchOpen, setSearchOpen] = useState(false);
+  const [swapKey, setSwapKey] = useState<string | null>(null);
 
   const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
   // Targets survive a draft restore because they come from the plan on every
@@ -305,6 +318,25 @@ export function LogForm({
 
   function removeExercise(key: string) {
     setEntries((prev) => prev.filter((e) => e.key !== key));
+    setSwapKey((current) => (current === key ? null : current));
+  }
+
+  function substituteExercise(key: string, replacementId: string) {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.key !== key || completedSetCount(entry.sets) > 0) return entry;
+        const originalPlanId = entry.plannedExerciseId ?? entry.exerciseId;
+        const plan = plannedById.get(originalPlanId);
+        return {
+          ...entry,
+          exerciseId: replacementId,
+          plannedExerciseId: plan ? originalPlanId : undefined,
+          sets: resetSetsForSubstitution(entry.sets, plan?.target),
+        };
+      }),
+    );
+    setSwapKey(null);
+    capture("exercise_substituted", { todayOnly: true });
   }
 
   function addSet(key: string) {
@@ -628,9 +660,18 @@ export function LogForm({
       {entries.map((entry) => {
         const ex = exerciseById.get(entry.exerciseId);
         const sem = weightSemantics(ex?.equipment);
-        const plan = plannedById.get(entry.exerciseId);
+        const planExerciseId = entry.plannedExerciseId ?? entry.exerciseId;
+        const plan = plannedById.get(planExerciseId);
+        const isTodaySwap = entry.plannedExerciseId != null && entry.exerciseId !== entry.plannedExerciseId;
         const entryCompleted = completedSetCount(entry.sets);
         const isOpen = openKeys.has(entry.key);
+        const usedExerciseIds = new Set(entries.map((item) => item.exerciseId));
+        const substitutions = ex
+          ? buildExerciseSubstitutions(ex, exercises, usedExerciseIds, {
+              equipment: availableEquipment,
+              avoid,
+            }).slice(0, 5)
+          : [];
         // The first set not yet marked done is "up next", highlighted so the eye
         // lands on what to do rather than on the sets already logged. -1 (all
         // done) highlights nothing.
@@ -694,6 +735,7 @@ export function LogForm({
                     {ex?.muscle_group}
                     {ex?.equipment && ` · ${ex.equipment}`}
                     {ex?.is_major && <span className="text-brand"> · major</span>}
+                    {isTodaySwap && <span className="text-brand"> · today swap</span>}
                     <span> · {entryCompleted}/{entry.sets.length} done</span>
                   </p>
                 </div>
@@ -714,7 +756,9 @@ export function LogForm({
                   <span className="readout text-sm font-semibold">{targetLabel(plan.target)}</span>
                 </div>
                 <p className="mt-1 text-[11px] leading-snug text-muted">
-                  {plan.weightBasis === "no_history"
+                  {isTodaySwap
+                    ? "Replacement for this workout. Enter the weight you use."
+                    : plan.weightBasis === "no_history"
                     ? "First time logging this one. Enter the weight you use."
                     : (plan.note ?? "Weight carried over from your last session.")}
                 </p>
@@ -722,7 +766,7 @@ export function LogForm({
                     Stated rather than silently resolved, and styled as a
                     warning because raising reps on a near-maximal lift is the
                     case that matters. */}
-                {plan.conflict && (
+                {!isTodaySwap && plan.conflict && (
                   <p
                     className={`mt-1.5 text-[11px] leading-snug ${
                       plan.repsAdjusted === "raised_to_floor" ? "text-warning" : "text-muted"
@@ -738,6 +782,61 @@ export function LogForm({
             <p className="mb-3 rounded-lg bg-brand/10 px-2.5 py-1.5 text-[11px] leading-snug text-brand">
               {sem.hint}
             </p>
+
+            {entryCompleted === 0 && ex && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSwapKey((current) => (current === entry.key ? null : entry.key))}
+                  aria-expanded={swapKey === entry.key}
+                  className="tap inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Swap for today
+                </button>
+
+                {swapKey === entry.key && (
+                  <div className="mt-2 rounded-lg border border-border bg-surface-2 p-2.5">
+                    <p className="text-xs font-semibold">Choose a replacement</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted">
+                      Only this workout changes. Your plan stays the same.
+                    </p>
+                    {substitutions.length > 0 ? (
+                      <div className="mt-2 divide-y divide-border">
+                        {substitutions.map(({ exercise, match }) => (
+                          <button
+                            key={exercise.id}
+                            type="button"
+                            onClick={() => substituteExercise(entry.key, exercise.id)}
+                            className="tap flex w-full items-center gap-2.5 py-2 text-left"
+                          >
+                            <IconBadge
+                              icon={exerciseGlyph(exercise)}
+                              color={exerciseColor(exercise.muscle_group)}
+                              size="sm"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-medium">{exercise.name}</span>
+                              <span className="block truncate text-[11px] text-muted">
+                                {match === "same_stimulus"
+                                  ? "Same training focus"
+                                  : match === "same_movement"
+                                    ? "Same movement pattern"
+                                    : "Same muscle group"}
+                                {exercise.equipment && ` · ${exercise.equipment}`}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-muted">
+                        No matching alternatives for your available equipment.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="grid grid-cols-[2.25rem_1fr_1fr_1fr_2.25rem] items-center gap-2">

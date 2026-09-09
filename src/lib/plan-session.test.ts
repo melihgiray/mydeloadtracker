@@ -498,6 +498,21 @@ describe("mergePlannedIntoDraft", () => {
     merged[1].sets[0].reps = "99";
     expect(planned.sets[0].reps).toBe("8");
   });
+
+  it("does not re-add the original exercise behind a today-only substitution", () => {
+    const replacement: DraftEntry = {
+      ...draftEntry("dumbbell-bench"),
+      plannedExerciseId: "bench",
+    };
+    const merged = mergePlannedIntoDraft(
+      [replacement],
+      [plannedExercise("bench")],
+      "2026-08-07",
+      "2026-08-07",
+    );
+
+    expect(merged).toEqual([replacement]);
+  });
 });
 
 describe("mergeScanIntoDraft", () => {
