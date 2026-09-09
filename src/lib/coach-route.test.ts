@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getProfile: vi.fn(),
   getTrainingSets: vi.fn(),
   getCheckins: vi.fn(),
+  getRecentPlanSessionContexts: vi.fn(),
   getSessionWithSets: vi.fn(),
 }));
 
@@ -26,6 +27,7 @@ vi.mock("@/lib/data", () => ({
   getProfile: mocks.getProfile,
   getTrainingSets: mocks.getTrainingSets,
   getCheckins: mocks.getCheckins,
+  getRecentPlanSessionContexts: mocks.getRecentPlanSessionContexts,
   getSessionWithSets: mocks.getSessionWithSets,
 }));
 
@@ -79,6 +81,7 @@ beforeEach(() => {
   mocks.getProfile.mockReset().mockResolvedValue({ units: "kg" });
   mocks.getTrainingSets.mockReset().mockResolvedValue([]);
   mocks.getCheckins.mockReset().mockResolvedValue([]);
+  mocks.getRecentPlanSessionContexts.mockReset().mockResolvedValue([]);
   mocks.getSessionWithSets.mockReset().mockResolvedValue(selectedSession);
   mocks.messagesStream.mockReturnValue({
     async *[Symbol.asyncIterator]() {
@@ -107,5 +110,51 @@ describe("coach selected workout context", () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "Workout not found." });
     expect(mocks.messagesStream).not.toHaveBeenCalled();
+  });
+
+  it("gives the general Coach durable plan adherence memory", async () => {
+    mocks.getTrainingSets.mockResolvedValue([
+      {
+        date: "2026-09-08T12:00:00.000Z",
+        sessionId: "session-id",
+        exerciseId: "squat",
+        exerciseName: "Back Squat",
+        muscleGroup: "Quads",
+        isMajor: true,
+        reps: 5,
+        weight: 100,
+        rpe: 8,
+      },
+    ]);
+    mocks.getRecentPlanSessionContexts.mockResolvedValue([
+      {
+        sessionId: "session-id",
+        performedAt: "2026-09-08T12:00:00.000Z",
+        planId: "plan-id",
+        planDayId: "day-id",
+        snapshot: {
+          version: 1,
+          dayIndex: 0,
+          dayName: "Lower A",
+          planned: [{
+            exerciseId: "squat",
+            name: "Back Squat",
+            position: 0,
+            sets: 3,
+            repLow: 5,
+            repHigh: 8,
+            rpeTarget: 8,
+          }],
+          substitutions: [],
+        },
+      },
+    ]);
+
+    const response = await POST(request("session-id"));
+    await response.text();
+
+    const call = mocks.messagesStream.mock.calls[0][0];
+    expect(call.system[1].text).toContain("=== PLAN ADHERENCE MEMORY ===");
+    expect(call.system[1].text).toContain("Lower A: logged 1 of 3 planned sets");
   });
 });

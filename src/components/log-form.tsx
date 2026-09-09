@@ -22,7 +22,11 @@ import { estimate1RM } from "@/lib/analytics/epley";
 import { toKg } from "@/lib/units";
 import { weightSemantics } from "@/lib/weight-semantics";
 import { aliasesFor } from "@/lib/exercise-aliases";
-import { saveWorkoutSession } from "@/lib/workout-save";
+import { recordWorkoutPlanContext, saveWorkoutSession } from "@/lib/workout-save";
+import {
+  buildPlanSessionSnapshot,
+  type PlanSessionContextInput,
+} from "@/lib/plan-adherence";
 import {
   buildExerciseSubstitutions,
   resetSetsForSubstitution,
@@ -82,6 +86,7 @@ export function LogForm({
   initialNotes,
   initialEntries,
   planned,
+  planContext,
   availableEquipment,
   avoid,
 }: {
@@ -97,6 +102,8 @@ export function LogForm({
    * confirming rather than searching and typing.
    */
   planned?: PlannedExercise[];
+  /** Exact active plan identity paired with the planned prescription above. */
+  planContext?: PlanSessionContextInput;
   /** Active plan constraints used only to filter today-only alternatives. */
   availableEquipment?: string[];
   avoid?: string[];
@@ -466,6 +473,21 @@ export function LogForm({
         notes: notes || null,
         sets: rows,
       });
+
+      // Attach durable adherence context only when this is today's unchanged
+      // plan prefill. A restored draft from an older plan or a manually
+      // backdated workout is still safe to save, but must not be mislabeled as
+      // following today's prescription.
+      if (
+        !isEdit &&
+        date === today &&
+        !planChanged &&
+        planContext &&
+        planned?.length
+      ) {
+        const snapshot = buildPlanSessionSnapshot(planContext, planned, entries);
+        await recordWorkoutPlanContext(supabase, targetSessionId, planContext, snapshot);
+      }
 
       let prNames: string[] = [];
       if (!isEdit) {

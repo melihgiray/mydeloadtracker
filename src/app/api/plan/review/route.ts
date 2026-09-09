@@ -13,7 +13,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { PLAN_MODEL, toUsageReport } from "@/lib/ai-model";
 import { cloudAvailable } from "@/lib/ai-provider";
-import { getExercises, getProfile, getTrainingSets } from "@/lib/data";
+import {
+  getExercises,
+  getProfile,
+  getRecentPlanSessionContexts,
+  getTrainingSets,
+} from "@/lib/data";
 import { buildRecords } from "@/lib/analytics/records";
 import { buildSetVolume } from "@/lib/analytics/setVolume";
 import { localDateKey } from "@/lib/analytics/dates";
@@ -64,15 +69,16 @@ export async function POST() {
 
     const profile = await getProfile(supabase);
     const units = profile?.units ?? "kg";
-    const [library, sets] = await Promise.all([
+    const [library, sets, contexts] = await Promise.all([
       getExercises(supabase),
       // Three weeks covers the two the review compares plus a margin for
       // sessions dated slightly off. Anything older is not evidence about
       // this week.
       getTrainingSets(supabase, units, 3),
+      getRecentPlanSessionContexts(supabase, 3),
     ]);
 
-    const review = buildPlanReview(plan, sets, localDateKey(new Date()));
+    const review = buildPlanReview(plan, sets, localDateKey(new Date()), contexts);
 
     const equipment = plan.equipment.filter((e): e is EquipmentTag =>
       (EQUIPMENT_TAGS as readonly string[]).includes(e),

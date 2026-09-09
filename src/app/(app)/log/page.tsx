@@ -119,6 +119,16 @@ export default async function LogPage() {
         exercises={exercises}
         units={units}
         planned={planned}
+        planContext={
+          today && planned
+            ? {
+                planId: today.plan.id,
+                planDayId: today.day.id,
+                dayIndex: today.day.day_index,
+                dayName: today.day.name,
+              }
+            : undefined
+        }
         availableEquipment={today?.plan.equipment}
         avoid={today?.plan.avoid}
       />

@@ -5,6 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyCheckin, Exercise, Profile, TrainingSet, Units } from "@/lib/types";
 import { localDateKey } from "@/lib/analytics/dates";
 import { fromKg } from "@/lib/units";
+import {
+  isPlanSessionSnapshot,
+  type StoredPlanSessionContext,
+} from "@/lib/plan-adherence";
 
 function isoWeeksAgo(weeks: number, now: Date = new Date()): string {
   const d = new Date(now);
@@ -77,6 +81,58 @@ export async function getTrainingSetsForExercises(
 
   if (error) throw error;
   return mapTrainingSets((data ?? []) as unknown as SetRow[], units);
+}
+
+interface PlanSessionContextRow {
+  id: unknown;
+  performed_at: unknown;
+  plan_id: unknown;
+  plan_day_id: unknown;
+  plan_snapshot: unknown;
+}
+
+/**
+ * Versioned plan context for recent completed workouts.
+ *
+ * Migration 0020 is deliberately optional during rollout. Missing columns
+ * mean there is no durable context yet. Any other database failure still
+ * surfaces, so Coach never silently invents an empty adherence history.
+ */
+export async function getRecentPlanSessionContexts(
+  supabase: SupabaseClient,
+  weeks: number = 8,
+  now: Date = new Date(),
+): Promise<StoredPlanSessionContext[]> {
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("id, performed_at, plan_id, plan_day_id, plan_snapshot")
+    .not("plan_snapshot", "is", null)
+    .gte("performed_at", isoWeeksAgo(weeks, now))
+    .order("performed_at", { ascending: true });
+
+  if (error) {
+    if (error.code === "PGRST204" || error.code === "42703") return [];
+    throw error;
+  }
+
+  return ((data ?? []) as PlanSessionContextRow[]).flatMap((row) => {
+    if (
+      typeof row.id !== "string" ||
+      typeof row.performed_at !== "string" ||
+      typeof row.plan_id !== "string" ||
+      typeof row.plan_day_id !== "string" ||
+      !isPlanSessionSnapshot(row.plan_snapshot)
+    ) {
+      return [];
+    }
+    return [{
+      sessionId: row.id,
+      performedAt: row.performed_at,
+      planId: row.plan_id,
+      planDayId: row.plan_day_id,
+      snapshot: row.plan_snapshot,
+    }];
+  });
 }
 
 export async function getExercises(supabase: SupabaseClient): Promise<Exercise[]> {

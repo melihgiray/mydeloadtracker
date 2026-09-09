@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getCheckins,
   getProfile,
+  getRecentPlanSessionContexts,
   getSessionsWithSets,
   getTrainingSets,
   getTrainingSetsForExercises,
@@ -104,6 +105,20 @@ function sessionsClient(result: { data: unknown; error: unknown }): SupabaseClie
   } as unknown as SupabaseClient;
 }
 
+function planContextClient(result: { data: unknown; error: unknown }): SupabaseClient {
+  return {
+    from: () => ({
+      select: () => ({
+        not: () => ({
+          gte: () => ({
+            order: async () => result,
+          }),
+        }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+}
+
 // numeric columns arrive as strings over PostgREST, hence the string weight.
 const setRow = (weightKg: string) => ({
   reps: 5,
@@ -141,6 +156,59 @@ describe("getTrainingSetsForExercises", () => {
   it("does not query when a workout has no exercises", async () => {
     const client = { from: () => { throw new Error("should not query"); } } as unknown as SupabaseClient;
     await expect(getTrainingSetsForExercises(client, "kg", [])).resolves.toEqual([]);
+  });
+});
+
+describe("getRecentPlanSessionContexts", () => {
+  const row = {
+    id: "session-1",
+    performed_at: "2026-09-08T12:00:00.000Z",
+    plan_id: "plan-1",
+    plan_day_id: "day-1",
+    plan_snapshot: {
+      version: 1,
+      dayIndex: 0,
+      dayName: "Upper A",
+      planned: [],
+      substitutions: [],
+    },
+  };
+
+  it("maps valid versioned snapshots", async () => {
+    const contexts = await getRecentPlanSessionContexts(
+      planContextClient({ data: [row], error: null }),
+      8,
+      new Date("2026-09-09T12:00:00.000Z"),
+    );
+    expect(contexts).toEqual([{
+      sessionId: "session-1",
+      performedAt: row.performed_at,
+      planId: "plan-1",
+      planDayId: "day-1",
+      snapshot: row.plan_snapshot,
+    }]);
+  });
+
+  it("skips malformed snapshot rows", async () => {
+    const bad = { ...row, plan_snapshot: { version: 2 } };
+    await expect(
+      getRecentPlanSessionContexts(planContextClient({ data: [bad], error: null })),
+    ).resolves.toEqual([]);
+  });
+
+  it("allows migration 0020 to be absent during rollout", async () => {
+    await expect(
+      getRecentPlanSessionContexts(
+        planContextClient({ data: null, error: { code: "PGRST204", message: "column missing" } }),
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  it("does not reinterpret a database outage as no adherence history", async () => {
+    const error = { code: "PGRST000", message: "database unavailable" };
+    await expect(
+      getRecentPlanSessionContexts(planContextClient({ data: null, error })),
+    ).rejects.toBe(error);
   });
 });
 

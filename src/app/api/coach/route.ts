@@ -15,9 +15,16 @@ import {
   type Provider,
 } from "@/lib/ai-provider";
 import { ollamaChat, ollamaTextChunks } from "@/lib/ollama";
-import { getCheckins, getProfile, getSessionWithSets, getTrainingSets } from "@/lib/data";
+import {
+  getCheckins,
+  getProfile,
+  getRecentPlanSessionContexts,
+  getSessionWithSets,
+  getTrainingSets,
+} from "@/lib/data";
 import { buildCoachContext } from "@/lib/analytics/context";
 import { buildWorkoutCoachContext } from "@/lib/workout-coach-context";
+import { summarisePlanAdherenceMemory } from "@/lib/plan-adherence";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -83,19 +90,24 @@ export async function POST(req: Request) {
 
   const profile = await getProfile(supabase);
   const units = profile?.units ?? "kg";
-  const [sets, checkins, selectedSession] = await Promise.all([
+  const [sets, checkins, selectedSession, planSessionContexts] = await Promise.all([
     getTrainingSets(supabase, units, 8),
     getCheckins(supabase, 30),
     requestedSessionId
       ? getSessionWithSets(supabase, units, requestedSessionId)
       : Promise.resolve(null),
+    getRecentPlanSessionContexts(supabase, 8),
   ]);
   if (requestedSessionId && !selectedSession) {
     return NextResponse.json({ error: "Workout not found." }, { status: 404 });
   }
   const context = buildCoachContext(sets, profile, checkins);
 
-  const systemText = `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`;
+  const adherenceMemory = summarisePlanAdherenceMemory(planSessionContexts, sets);
+  const systemText = [
+    `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
+    adherenceMemory,
+  ].filter(Boolean).join("\n\n");
   const selectedWorkoutText = selectedSession
     ? buildWorkoutCoachContext(selectedSession, units)
     : null;

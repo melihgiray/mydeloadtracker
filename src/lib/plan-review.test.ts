@@ -8,6 +8,7 @@ import {
   withoutDayEmptyingOps,
 } from "@/lib/plan-review";
 import type { PlanOp } from "@/lib/plan-patch";
+import type { StoredPlanSessionContext } from "@/lib/plan-adherence";
 import type { PlanWithDays, TrainingSet } from "@/lib/types";
 
 function planExercise(exerciseId: string, name: string, position: number, sets = 3) {
@@ -166,6 +167,73 @@ describe("buildPlanReview", () => {
     );
     expect(review.sessionsLogged).toBe(2);
     expect(review.sessionsPlanned).toBe(1);
+  });
+
+  it("uses linked prescriptions and excludes unrelated workouts", () => {
+    const current: StoredPlanSessionContext = {
+      sessionId: "linked-current",
+      performedAt: "2026-07-24T12:00:00.000Z",
+      planId: "p1",
+      planDayId: "d1",
+      snapshot: {
+        version: 1,
+        dayIndex: 0,
+        dayName: "Full Body A",
+        planned: [
+          { exerciseId: "bench", name: "Bench Press", position: 0, sets: 4, repLow: 6, repHigh: 10, rpeTarget: 9 },
+          { exerciseId: "row", name: "Barbell Row", position: 1, sets: 2, repLow: 6, repHigh: 10, rpeTarget: 9 },
+        ],
+        substitutions: [{ plannedExerciseId: "bench", performedExerciseId: "db-bench" }],
+      },
+    };
+    const prior: StoredPlanSessionContext = {
+      ...current,
+      sessionId: "linked-prior",
+      performedAt: "2026-07-16T12:00:00.000Z",
+      snapshot: { ...current.snapshot, substitutions: [] },
+    };
+    const logged = [
+      { ...set("db-bench", "2026-07-24", 30, 8), sessionId: "linked-current" },
+      { ...set("db-bench", "2026-07-24", 30, 8), sessionId: "linked-current" },
+      { ...set("bench", "2026-07-16", 60, 8), sessionId: "linked-prior" },
+      { ...set("bench", "2026-07-25", 999, 10), sessionId: "unrelated" },
+    ];
+
+    const review = buildPlanReview(plan(), logged, today, [prior, current]);
+    const bench = review.lifts.find((lift) => lift.exerciseId === "bench")!;
+    const row = review.lifts.find((lift) => lift.exerciseId === "row")!;
+
+    expect(review.sessionsLogged).toBe(1);
+    expect(bench).toMatchObject({ setsPlanned: 4, setsLogged: 2, topWeight: null, priorTopWeight: 60 });
+    expect(row).toMatchObject({ setsPlanned: 2, setsLogged: 0, trend: "untrained" });
+  });
+
+  it("does not call a lift skipped when it was added after that day was trained", () => {
+    const context: StoredPlanSessionContext = {
+      sessionId: "linked-current",
+      performedAt: "2026-07-24T12:00:00.000Z",
+      planId: "p1",
+      planDayId: "d1",
+      snapshot: {
+        version: 1,
+        dayIndex: 0,
+        dayName: "Full Body A",
+        planned: [
+          { exerciseId: "bench", name: "Bench Press", position: 0, sets: 3, repLow: 6, repHigh: 10, rpeTarget: 9 },
+        ],
+        substitutions: [],
+      },
+    };
+
+    const review = buildPlanReview(
+      plan(),
+      [{ ...set("bench", "2026-07-24", 60), sessionId: "linked-current" }],
+      today,
+      [context],
+    );
+    const row = review.lifts.find((lift) => lift.exerciseId === "row")!;
+    expect(row).toMatchObject({ setsPlanned: 0, setsLogged: 0, trend: "held" });
+    expect(review.untrained.map((lift) => lift.exerciseId)).not.toContain("row");
   });
 });
 

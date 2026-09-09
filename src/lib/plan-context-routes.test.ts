@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   messagesCreate: vi.fn(),
+  getRecentPlanSessionContexts: vi.fn(),
   getTrainingSets: vi.fn(),
   getAthleteLifts: vi.fn(),
 }));
@@ -15,6 +16,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 vi.mock("@/lib/data", () => ({
   getExercises: vi.fn().mockResolvedValue([]),
   getProfile: vi.fn().mockResolvedValue({ units: "kg", bodyweight: null, sex: null }),
+  getRecentPlanSessionContexts: mocks.getRecentPlanSessionContexts,
   getTrainingSets: mocks.getTrainingSets,
 }));
 
@@ -89,6 +91,7 @@ beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   mocks.messagesCreate.mockReset();
+  mocks.getRecentPlanSessionContexts.mockReset().mockResolvedValue([]);
   mocks.getTrainingSets.mockReset();
   mocks.getAthleteLifts.mockReset();
   mocks.getTrainingSets.mockResolvedValue([]);
@@ -117,6 +120,17 @@ describe.each(routes)("$name context reads", ({ run }) => {
     read.mockRejectedValue(new Error("context unavailable"));
 
     const response = await run();
+
+    expect(response.status).toBe(502);
+    expect(mocks.messagesCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("weekly review plan context read", () => {
+  it("does not invent empty adherence when the database read fails", async () => {
+    mocks.getRecentPlanSessionContexts.mockRejectedValue(new Error("context unavailable"));
+
+    const response = await reviewPOST();
 
     expect(response.status).toBe(502);
     expect(mocks.messagesCreate).not.toHaveBeenCalled();

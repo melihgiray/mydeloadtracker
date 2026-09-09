@@ -10,6 +10,7 @@
 
 import { localDateKey } from "@/lib/analytics/dates";
 import { patchFootprint, type PlanOp } from "@/lib/plan-patch";
+import type { StoredPlanSessionContext } from "@/lib/plan-adherence";
 import type { PlanWithDays, TrainingSet } from "@/lib/types";
 
 /** A plan week is seven days. Reviewing sooner has nothing new to read. */
@@ -98,6 +99,7 @@ export function buildPlanReview(
   plan: PlanWithDays,
   sets: TrainingSet[],
   today: string = localDateKey(new Date()),
+  contexts: StoredPlanSessionContext[] = [],
 ): PlanReview {
   const to = dayKey(today);
   const from = shiftDays(to, -REVIEW_INTERVAL_DAYS);
@@ -105,20 +107,99 @@ export function buildPlanReview(
 
   const inWindow = sets.filter((s) => dayKey(s.date) >= from && dayKey(s.date) < to);
   const inPrior = sets.filter((s) => dayKey(s.date) >= priorFrom && dayKey(s.date) < from);
+  const linkedContexts = contexts.filter(
+    (context) =>
+      context.planId === plan.id &&
+      dayKey(context.performedAt) >= priorFrom &&
+      dayKey(context.performedAt) < to,
+  );
+  const useExactContext = linkedContexts.length > 0;
+  const currentContexts = linkedContexts.filter(
+    (context) => dayKey(context.performedAt) >= from,
+  );
+  const priorContexts = linkedContexts.filter(
+    (context) => dayKey(context.performedAt) < from,
+  );
+  const setsBySession = new Map<string, TrainingSet[]>();
+  for (const set of sets) {
+    const sessionSets = setsBySession.get(set.sessionId) ?? [];
+    sessionSets.push(set);
+    setsBySession.set(set.sessionId, sessionSets);
+  }
+
+  function exactEvidence(
+    windowContexts: StoredPlanSessionContext[],
+    dayIndex: number,
+    exerciseId: string,
+  ): { logged: TrainingSet[]; comparable: TrainingSet[]; plannedSets: number } {
+    const matchingDay = windowContexts.filter(
+      (context) => context.snapshot.dayIndex === dayIndex,
+    );
+    const applicable = matchingDay.flatMap((context) => {
+      const prescription = context.snapshot.planned.find(
+        (exercise) => exercise.exerciseId === exerciseId,
+      );
+      if (!prescription) return [];
+      const substitution = context.snapshot.substitutions.find(
+        (swap) => swap.plannedExerciseId === exerciseId,
+      );
+      return [{ context, prescription, actualId: substitution?.performedExerciseId ?? exerciseId }];
+    });
+    const logged = applicable.flatMap(({ context, actualId }) =>
+      (setsBySession.get(context.sessionId) ?? []).filter(
+        (set) => set.exerciseId === actualId,
+      ),
+    );
+    // A substitute completes the planned slot, but its load is not comparable
+    // to the original movement. Do not turn a dumbbell or machine swap into a
+    // false regression or PR on the planned lift.
+    const comparable = applicable.flatMap(({ context, actualId }) =>
+      actualId === exerciseId
+        ? (setsBySession.get(context.sessionId) ?? []).filter(
+            (set) => set.exerciseId === exerciseId,
+          )
+        : [],
+    );
+    return {
+      logged,
+      comparable,
+      // If this day was completed but the lift was added to the plan later,
+      // it was not prescribed in that workout and must not be called skipped.
+      plannedSets: matchingDay.length > 0
+        ? applicable.reduce((total, item) => total + item.prescription.sets, 0)
+        : -1,
+    };
+  }
 
   const lifts: LiftReview[] = [];
   for (const day of plan.days) {
     for (const planned of day.exercises) {
-      const logged = inWindow.filter((s) => s.exerciseId === planned.exercise_id);
-      const prior = inPrior.filter((s) => s.exerciseId === planned.exercise_id);
-      const topWeight = logged.length ? Math.max(...logged.map((s) => s.weight)) : null;
+      const currentExact = useExactContext
+        ? exactEvidence(currentContexts, day.day_index, planned.exercise_id)
+        : null;
+      const priorExact = useExactContext
+        ? exactEvidence(priorContexts, day.day_index, planned.exercise_id)
+        : null;
+      const logged = currentExact?.logged ??
+        inWindow.filter((s) => s.exerciseId === planned.exercise_id);
+      const prior = priorExact?.comparable ??
+        inPrior.filter((s) => s.exerciseId === planned.exercise_id);
+      const currentComparable = currentExact?.comparable ?? logged;
+      const setsPlanned = currentExact && currentExact.plannedSets >= 0
+        ? currentExact.plannedSets
+        : planned.sets;
+      const topWeight = currentComparable.length
+        ? Math.max(...currentComparable.map((s) => s.weight))
+        : null;
       const priorTopWeight = prior.length ? Math.max(...prior.map((s) => s.weight)) : null;
       const meanRpe = mean(
         logged.map((s) => s.rpe).filter((r): r is number => r != null),
       );
 
       let trend: LiftTrend;
-      if (logged.length === 0) {
+      if (setsPlanned === 0) {
+        trend = "held";
+      } else if (logged.length === 0) {
         trend = "untrained";
       } else if (priorTopWeight == null || topWeight == null) {
         // First week on this lift. No comparison exists, so no claim is made.
@@ -138,7 +219,7 @@ export function buildPlanReview(
         name: planned.name,
         dayIndex: day.day_index,
         position: planned.position,
-        setsPlanned: planned.sets,
+        setsPlanned,
         setsLogged: logged.length,
         topWeight,
         priorTopWeight,
@@ -148,7 +229,9 @@ export function buildPlanReview(
     }
   }
 
-  const sessionsLogged = new Set(inWindow.map((s) => dayKey(s.date))).size;
+  const sessionsLogged = useExactContext
+    ? new Set(currentContexts.map((context) => context.sessionId)).size
+    : new Set(inWindow.map((s) => dayKey(s.date))).size;
 
   return {
     from,
