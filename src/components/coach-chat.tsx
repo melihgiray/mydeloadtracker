@@ -4,12 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Brain, Dumbbell, Sparkles } from "lucide-react";
 import { capture } from "@/lib/track";
 import { usePersistentState } from "@/lib/use-persistent-state";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  error?: boolean;
-}
+import {
+  coachConversationName,
+  sendableCoachHistory,
+  type CoachConversationMessage as Message,
+} from "@/lib/coach-conversation";
 
 const SUGGESTIONS = [
   "Should I deload this week? Why?",
@@ -30,9 +29,12 @@ export function CoachChat({
 }: {
   selectedWorkout?: SelectedWorkoutContext | null;
 }) {
-  // Persisted so the coach conversation is still here after visiting another tab.
-  const [messages, setMessages] = usePersistentState<Message[]>("coach.messages", []);
-  const [input, setInput] = usePersistentState("coach.input", "");
+  // Persisted so the conversation survives navigation. A workout review has
+  // its own transcript because carrying one session's discussion into another
+  // would give the model conflicting evidence about which workout is in scope.
+  const conversationName = coachConversationName(selectedWorkout?.id);
+  const [messages, setMessages] = usePersistentState<Message[]>(`${conversationName}.messages`, []);
+  const [input, setInput] = usePersistentState(`${conversationName}.input`, "");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,10 @@ export function CoachChat({
     const content = text.trim();
     if (!content || streaming) return;
 
-    const next: Message[] = [...messages, { role: "user", content }];
+    const next: Message[] = [
+      ...sendableCoachHistory(messages),
+      { role: "user", content },
+    ];
     setMessages([...next, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);

@@ -52,7 +52,7 @@ export default async function CoachPage({
           Build my plan
         </Link>
       </div>
-      <CoachChat selectedWorkout={selectedWorkout} />
+      <CoachChat key={selectedWorkout?.id ?? "general"} selectedWorkout={selectedWorkout} />
     </div>
   );
 }
