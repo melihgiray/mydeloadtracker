@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, Timer } from "lucide-react";
-import { isValidRestDuration, resolveRestDuration } from "@/lib/rest-duration";
+import {
+  isValidRestDuration,
+  remainingRestSeconds,
+  resolveRestDuration,
+} from "@/lib/rest-duration";
 
 const PRESETS = [90, 120, 180];
 
@@ -23,6 +27,7 @@ export function RestTimer({ startRequest }: { startRequest?: RestStartRequest } 
   const [running, setRunning] = useState(false);
   const [usingPlanDuration, setUsingPlanDuration] = useState(false);
   const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const deadlineRef = useRef<number | null>(null);
 
   // Auto-start when the caller signals a set was just completed, so finishing a
   // set starts the rest clock without a second tap. Guarded to the first render
@@ -36,6 +41,7 @@ export function RestTimer({ startRequest }: { startRequest?: RestStartRequest } 
     setDuration(nextDuration);
     setRemaining(nextDuration);
     setUsingPlanDuration(isValidRestDuration(startRequest?.duration));
+    deadlineRef.current = Date.now() + nextDuration * 1_000;
     setRunning(true);
     // duration and request data are read as the payload for a changing signal,
     // not as independent triggers.
@@ -44,21 +50,30 @@ export function RestTimer({ startRequest }: { startRequest?: RestStartRequest } 
 
   useEffect(() => {
     if (!running) return;
-    ref.current = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          if (ref.current) clearInterval(ref.current);
-          setRunning(false);
-          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-            navigator.vibrate?.([200, 100, 200]);
-          }
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+    function tick() {
+      if (deadlineRef.current == null) return;
+      const next = remainingRestSeconds(deadlineRef.current);
+      setRemaining(next);
+      if (next > 0) return;
+
+      deadlineRef.current = null;
+      if (ref.current) {
+        clearInterval(ref.current);
+        ref.current = null;
+      }
+      setRunning(false);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate?.([200, 100, 200]);
+      }
+    }
+
+    tick();
+    ref.current = setInterval(tick, 1_000);
+    document.addEventListener("visibilitychange", tick);
     return () => {
       if (ref.current) clearInterval(ref.current);
+      ref.current = null;
+      document.removeEventListener("visibilitychange", tick);
     };
   }, [running]);
 
@@ -66,13 +81,26 @@ export function RestTimer({ startRequest }: { startRequest?: RestStartRequest } 
     setDuration(s);
     setRemaining(s);
     setUsingPlanDuration(false);
+    deadlineRef.current = null;
     setRunning(false);
   }
   function toggle() {
-    if (remaining === 0) setRemaining(duration);
-    setRunning((r) => !r);
+    if (running) {
+      if (deadlineRef.current != null) {
+        setRemaining(remainingRestSeconds(deadlineRef.current));
+      }
+      deadlineRef.current = null;
+      setRunning(false);
+      return;
+    }
+
+    const next = remaining === 0 ? duration : remaining;
+    setRemaining(next);
+    deadlineRef.current = Date.now() + next * 1_000;
+    setRunning(true);
   }
   function reset() {
+    deadlineRef.current = null;
     setRunning(false);
     setRemaining(duration);
   }

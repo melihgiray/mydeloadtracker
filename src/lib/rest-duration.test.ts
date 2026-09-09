@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isValidRestDuration,
   plannedRestDuration,
+  remainingRestSeconds,
   resolveRestDuration,
 } from "@/lib/rest-duration";
 
@@ -29,5 +30,15 @@ describe("rest duration validation", () => {
     expect(isValidRestDuration(0)).toBe(false);
     expect(isValidRestDuration(601)).toBe(false);
     expect(isValidRestDuration(90.5)).toBe(false);
+  });
+});
+
+describe("remainingRestSeconds", () => {
+  it("measures wall-clock time instead of counting timer callbacks", () => {
+    const deadline = 100_000;
+    expect(remainingRestSeconds(deadline, 10_000)).toBe(90);
+    expect(remainingRestSeconds(deadline, 70_250)).toBe(30);
+    expect(remainingRestSeconds(deadline, 99_500)).toBe(1);
+    expect(remainingRestSeconds(deadline, 100_500)).toBe(0);
   });
 });

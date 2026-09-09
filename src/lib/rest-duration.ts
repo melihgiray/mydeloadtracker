@@ -24,3 +24,8 @@ export function plannedRestDuration(target?: PlannedRestTarget | null): number |
 export function resolveRestDuration(requested: unknown, current: number): number {
   return isValidRestDuration(requested) ? requested : current;
 }
+
+/** A wall-clock countdown does not pause when mobile browsers throttle intervals. */
+export function remainingRestSeconds(deadlineMs: number, nowMs: number = Date.now()): number {
+  return Math.max(0, Math.ceil((deadlineMs - nowMs) / 1_000));
+}
