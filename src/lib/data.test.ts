@@ -4,6 +4,7 @@ import {
   getCheckins,
   getProfile,
   getRecentPlanSessionContexts,
+  getRecentWorkoutNotes,
   getSessionsWithSets,
   getTrainingSets,
   getTrainingSetsForExercises,
@@ -119,6 +120,22 @@ function planContextClient(result: { data: unknown; error: unknown }): SupabaseC
   } as unknown as SupabaseClient;
 }
 
+function workoutNotesClient(result: { data: unknown; error: unknown }): SupabaseClient {
+  return {
+    from: () => ({
+      select: () => ({
+        not: () => ({
+          gte: () => ({
+            order: () => ({
+              limit: async () => result,
+            }),
+          }),
+        }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+}
+
 // numeric columns arrive as strings over PostgREST, hence the string weight.
 const setRow = (weightKg: string) => ({
   reps: 5,
@@ -208,6 +225,28 @@ describe("getRecentPlanSessionContexts", () => {
     const error = { code: "PGRST000", message: "database unavailable" };
     await expect(
       getRecentPlanSessionContexts(planContextClient({ data: null, error })),
+    ).rejects.toBe(error);
+  });
+});
+
+describe("getRecentWorkoutNotes", () => {
+  it("returns only valid non-empty note rows", async () => {
+    const data = [
+      { performed_at: "2026-09-08T12:00:00.000Z", notes: "Grip felt weak." },
+      { performed_at: "2026-09-07T12:00:00.000Z", notes: "   " },
+      { performed_at: null, notes: "invalid" },
+    ];
+    await expect(
+      getRecentWorkoutNotes(workoutNotesClient({ data, error: null })),
+    ).resolves.toEqual([
+      { performedAt: "2026-09-08T12:00:00.000Z", note: "Grip felt weak." },
+    ]);
+  });
+
+  it("surfaces a failed note read instead of erasing context", async () => {
+    const error = { code: "PGRST000", message: "database unavailable" };
+    await expect(
+      getRecentWorkoutNotes(workoutNotesClient({ data: null, error })),
     ).rejects.toBe(error);
   });
 });

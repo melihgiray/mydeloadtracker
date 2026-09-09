@@ -9,6 +9,7 @@ import {
   isPlanSessionSnapshot,
   type StoredPlanSessionContext,
 } from "@/lib/plan-adherence";
+import type { RecentWorkoutNote } from "@/lib/workout-notes";
 
 function isoWeeksAgo(weeks: number, now: Date = new Date()): string {
   const d = new Date(now);
@@ -133,6 +134,33 @@ export async function getRecentPlanSessionContexts(
       snapshot: row.plan_snapshot,
     }];
   });
+}
+
+interface WorkoutNoteRow {
+  performed_at: unknown;
+  notes: unknown;
+}
+
+/** Recent free-text session context, newest first and bounded for Coach. */
+export async function getRecentWorkoutNotes(
+  supabase: SupabaseClient,
+  weeks: number = 8,
+  now: Date = new Date(),
+): Promise<RecentWorkoutNote[]> {
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("performed_at, notes")
+    .not("notes", "is", null)
+    .gte("performed_at", isoWeeksAgo(weeks, now))
+    .order("performed_at", { ascending: false })
+    .limit(8);
+  if (error) throw error;
+
+  return ((data ?? []) as WorkoutNoteRow[]).flatMap((row) =>
+    typeof row.performed_at === "string" && typeof row.notes === "string" && row.notes.trim()
+      ? [{ performedAt: row.performed_at, note: row.notes }]
+      : [],
+  );
 }
 
 export async function getExercises(supabase: SupabaseClient): Promise<Exercise[]> {

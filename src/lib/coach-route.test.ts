@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getTrainingSets: vi.fn(),
   getCheckins: vi.fn(),
   getRecentPlanSessionContexts: vi.fn(),
+  getRecentWorkoutNotes: vi.fn(),
   getSessionWithSets: vi.fn(),
 }));
 
@@ -28,6 +29,7 @@ vi.mock("@/lib/data", () => ({
   getTrainingSets: mocks.getTrainingSets,
   getCheckins: mocks.getCheckins,
   getRecentPlanSessionContexts: mocks.getRecentPlanSessionContexts,
+  getRecentWorkoutNotes: mocks.getRecentWorkoutNotes,
   getSessionWithSets: mocks.getSessionWithSets,
 }));
 
@@ -82,6 +84,7 @@ beforeEach(() => {
   mocks.getTrainingSets.mockReset().mockResolvedValue([]);
   mocks.getCheckins.mockReset().mockResolvedValue([]);
   mocks.getRecentPlanSessionContexts.mockReset().mockResolvedValue([]);
+  mocks.getRecentWorkoutNotes.mockReset().mockResolvedValue([]);
   mocks.getSessionWithSets.mockReset().mockResolvedValue(selectedSession);
   mocks.messagesStream.mockReturnValue({
     async *[Symbol.asyncIterator]() {
@@ -156,5 +159,18 @@ describe("coach selected workout context", () => {
     const call = mocks.messagesStream.mock.calls[0][0];
     expect(call.system[1].text).toContain("=== PLAN ADHERENCE MEMORY ===");
     expect(call.system[1].text).toContain("Lower A: logged 1 of 3 planned sets");
+  });
+
+  it("gives Coach bounded recent workout notes", async () => {
+    mocks.getRecentWorkoutNotes.mockResolvedValue([
+      { performedAt: "2026-09-08T12:00:00.000Z", note: "Grip felt weak after poor sleep." },
+    ]);
+
+    const response = await POST(request("session-id"));
+    await response.text();
+
+    const call = mocks.messagesStream.mock.calls[0][0];
+    expect(call.system[1].text).toContain("=== RECENT WORKOUT NOTES ===");
+    expect(call.system[1].text).toContain('2026-09-08: "Grip felt weak after poor sleep."');
   });
 });
