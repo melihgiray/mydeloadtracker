@@ -1,10 +1,38 @@
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
-import { CoachChat } from "@/components/coach-chat";
+import { CoachChat, type SelectedWorkoutContext } from "@/components/coach-chat";
+import { getProfile, getSessionWithSets } from "@/lib/data";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default function CoachPage() {
+export default async function CoachPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session?: string | string[] }>;
+}) {
+  const { session: sessionParam } = await searchParams;
+  const sessionId = typeof sessionParam === "string" ? sessionParam : null;
+  let selectedWorkout: SelectedWorkoutContext | null = null;
+
+  if (sessionId) {
+    const supabase = createClient();
+    const profile = await getProfile(supabase);
+    const session = await getSessionWithSets(supabase, profile?.units ?? "kg", sessionId);
+    if (session) {
+      selectedWorkout = {
+        id: session.id,
+        date: new Date(session.performed_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        exerciseCount: new Set(session.sets.map((set) => set.exerciseId)).size,
+        setCount: session.sets.length,
+      };
+    }
+  }
+
   return (
     // Explicit height so the chat can fill it and pin its input just above the
     // bottom nav. 100dvh (not vh) tracks the mobile toolbar, and the fixed offset
@@ -24,7 +52,7 @@ export default function CoachPage() {
           Build my plan
         </Link>
       </div>
-      <CoachChat />
+      <CoachChat selectedWorkout={selectedWorkout} />
     </div>
   );
 }

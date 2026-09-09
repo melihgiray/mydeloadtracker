@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Brain, Sparkles } from "lucide-react";
+import { ArrowUp, Brain, Dumbbell, Sparkles } from "lucide-react";
 import { capture } from "@/lib/track";
 import { usePersistentState } from "@/lib/use-persistent-state";
 
@@ -18,7 +18,18 @@ const SUGGESTIONS = [
   "Plan my training for next week.",
 ];
 
-export function CoachChat() {
+export interface SelectedWorkoutContext {
+  id: string;
+  date: string;
+  exerciseCount: number;
+  setCount: number;
+}
+
+export function CoachChat({
+  selectedWorkout,
+}: {
+  selectedWorkout?: SelectedWorkoutContext | null;
+}) {
   // Persisted so the coach conversation is still here after visiting another tab.
   const [messages, setMessages] = usePersistentState<Message[]>("coach.messages", []);
   const [input, setInput] = usePersistentState("coach.input", "");
@@ -37,13 +48,16 @@ export function CoachChat() {
     setMessages([...next, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);
-    capture("coach_message_sent", { turn: next.filter((m) => m.role === "user").length });
+    capture("coach_message_sent", {
+      turn: next.filter((m) => m.role === "user").length,
+      selectedWorkout: Boolean(selectedWorkout),
+    });
 
     try {
       const res = await fetch("/api/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next, sessionId: selectedWorkout?.id }),
       });
 
       if (!res.ok || !res.body) {
@@ -82,6 +96,29 @@ export function CoachChat() {
     // browser toolbar, so the old fixed height overflowed and pushed the input
     // box down behind the nav, out of reach.
     <div className="flex min-h-0 flex-1 flex-col">
+      {selectedWorkout && (
+        <div className="mb-3 flex items-center gap-3 rounded-xl border border-brand/25 bg-brand/10 p-3">
+          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
+            <Dumbbell className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Workout from {selectedWorkout.date}</p>
+            <p className="text-xs text-muted">
+              {selectedWorkout.exerciseCount}{" "}
+              {selectedWorkout.exerciseCount === 1 ? "exercise" : "exercises"}, {selectedWorkout.setCount}{" "}
+              {selectedWorkout.setCount === 1 ? "set" : "sets"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => send(`Review my workout from ${selectedWorkout.date}.`)}
+            disabled={streaming}
+            className="tap flex-shrink-0 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-brand-foreground disabled:opacity-50"
+          >
+            Review
+          </button>
+        </div>
+      )}
       <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto pr-1">
         {messages.length === 0 ? (
           <div className="grid h-full place-items-center">

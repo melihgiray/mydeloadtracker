@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Award, Pencil, Target } from "lucide-react";
+import { ArrowLeft, Award, Brain, Pencil, Target } from "lucide-react";
 import { IconBadge } from "@/components/icon-badge";
 import { round1 } from "@/lib/analytics/epley";
 import {
@@ -166,6 +166,11 @@ export default async function WorkoutSummaryPage({ params }: { params: Promise<{
           <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted">{session.notes}</p>
         </section>
       )}
+
+      <Link href={`/coach?session=${id}`} className="btn-brand w-full">
+        <Brain className="h-4 w-4" />
+        Review with AI coach
+      </Link>
     </div>
   );
 }
