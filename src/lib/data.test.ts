@@ -5,6 +5,7 @@ import {
   getProfile,
   getRecentPlanSessionContexts,
   getRecentWorkoutNotes,
+  getSessionWithSets,
   getSessionsWithSets,
   getTrainingSets,
   getTrainingSetsForExercises,
@@ -100,6 +101,18 @@ function sessionsClient(result: { data: unknown; error: unknown }): SupabaseClie
       select: () => ({
         order: () => ({
           limit: async () => result,
+        }),
+      }),
+    }),
+  } as unknown as SupabaseClient;
+}
+
+function sessionClient(result: { data: unknown; error: unknown }): SupabaseClient {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => result,
         }),
       }),
     }),
@@ -278,5 +291,24 @@ describe("getSessionsWithSets unit conversion (history/edit read seam)", () => {
     ];
     const sessions = await getSessionsWithSets(sessionsClient({ data, error: null }), "lb");
     expect(sessions[0].sets[0].weight).toBe(220.46);
+  });
+});
+
+describe("getSessionWithSets error semantics", () => {
+  it("returns null only for a session with no visible row", async () => {
+    await expect(
+      getSessionWithSets(
+        sessionClient({ data: null, error: { code: "PGRST116", message: "no rows" } }),
+        "kg",
+        "missing",
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("does not reinterpret a database outage as a missing workout", async () => {
+    const error = { code: "PGRST000", message: "database unavailable" };
+    await expect(
+      getSessionWithSets(sessionClient({ data: null, error }), "kg", "session-1"),
+    ).rejects.toBe(error);
   });
 });

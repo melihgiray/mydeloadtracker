@@ -321,7 +321,14 @@ export async function getSessionWithSets(
     )
     .eq("id", sessionId)
     .single();
-  if (error || !data) return null;
+  if (error) {
+    // RLS-hidden and genuinely absent sessions both produce no rows. A real
+    // database failure must surface instead of silently dropping the selected
+    // workout from Coach or turning an outage into a 404.
+    if (error.code === "PGRST116") return null;
+    throw error;
+  }
+  if (!data) return null;
 
   const r = data as unknown as SessionRow;
   return {
