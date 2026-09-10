@@ -81,7 +81,10 @@ export function buildWorkoutSummary(
   const exercises = [...byExercise.entries()].map(([exerciseId, sets]) => {
     const top = topSet(sets);
     const prior = history.filter(
-      (set) => set.exerciseId === exerciseId && set.sessionId !== session.id,
+      (set) =>
+        set.exerciseId === exerciseId &&
+        set.sessionId !== session.id &&
+        set.date < session.performed_at,
     );
     const latestDate = history
       .filter((set) => set.exerciseId === exerciseId)

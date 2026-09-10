@@ -83,6 +83,32 @@ describe("buildWorkoutSummary", () => {
     expect(summary.exercises[0].isPr).toBe(true);
   });
 
+  it("preserves a historical PR even after a stronger future workout", () => {
+    const future = trainingSet({
+      date: "2026-09-15T12:00:00.000Z",
+      sessionId: "future",
+      weight: 120,
+    });
+    const summary = buildWorkoutSummary(
+      session,
+      [trainingSet({ weight: 90 }), ...currentHistory, future],
+      "kg",
+    );
+
+    expect(summary.exercises[0].isPr).toBe(true);
+    expect(summary.prNames).toEqual(["Back Squat"]);
+  });
+
+  it("does not let later history turn the first recorded workout into a PR", () => {
+    const future = trainingSet({
+      date: "2026-09-15T12:00:00.000Z",
+      sessionId: "future",
+      weight: 80,
+    });
+
+    expect(buildWorkoutSummary(session, [...currentHistory, future], "kg").prNames).toEqual([]);
+  });
+
   it("uses reps to recognize bodyweight records", () => {
     const bodyweight: SessionWithSets = {
       ...session,
