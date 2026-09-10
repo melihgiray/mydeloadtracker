@@ -9,6 +9,7 @@ import {
   sendableCoachHistory,
   type CoachConversationMessage as Message,
 } from "@/lib/coach-conversation";
+import { readCoachStream } from "@/lib/coach-stream";
 
 const SUGGESTIONS = [
   "Should I deload this week? Why?",
@@ -36,6 +37,9 @@ export function CoachChat({
   const [messages, setMessages] = usePersistentState<Message[]>(`${conversationName}.messages`, []);
   const [input, setInput] = usePersistentState(`${conversationName}.input`, "");
   const [streaming, setStreaming] = useState(false);
+  // State disables the controls on the next render. This ref closes the small
+  // same-frame window where a fast double tap could start a second model call.
+  const requestInFlight = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +48,8 @@ export function CoachChat({
 
   async function send(text: string) {
     const content = text.trim();
-    if (!content || streaming) return;
+    if (!content || requestInFlight.current) return;
+    requestInFlight.current = true;
 
     const next: Message[] = [
       ...sendableCoachHistory(messages),
@@ -70,18 +75,15 @@ export function CoachChat({
         throw new Error(data.error ?? "The coach could not be reached. Check your connection and try again.");
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
+      const reply = await readCoachStream(res.body, (text) => {
         setMessages((prev) => {
           const copy = [...prev];
-          copy[copy.length - 1] = { role: "assistant", content: acc };
+          copy[copy.length - 1] = { role: "assistant", content: text };
           return copy;
         });
+      });
+      if (!reply.trim()) {
+        throw new Error("The coach returned no reply. Try again.");
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong. Try sending that again.";
@@ -91,6 +93,7 @@ export function CoachChat({
         return copy;
       });
     } finally {
+      requestInFlight.current = false;
       setStreaming(false);
     }
   }
@@ -201,6 +204,7 @@ export function CoachChat({
       >
         <textarea
           rows={1}
+          maxLength={4_000}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
