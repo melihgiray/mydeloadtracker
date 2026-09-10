@@ -27,6 +27,10 @@ import { buildCoachContext } from "@/lib/analytics/context";
 import { buildWorkoutCoachContext } from "@/lib/workout-coach-context";
 import { summarisePlanAdherenceMemory } from "@/lib/plan-adherence";
 import { summariseRecentWorkoutNotes } from "@/lib/workout-notes";
+import {
+  CLOUD_COACH_STREAM_FAILURE,
+  LOCAL_COACH_STREAM_FAILURE,
+} from "@/lib/coach-stream";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -175,7 +179,7 @@ export async function POST(req: Request) {
           } catch (err) {
             // Past the point of no return, so say so rather than silently
             // truncating. The athlete can re-ask and will land on the cloud.
-            controller.enqueue(encoder.encode("\n\n[The coach was cut off. Ask again.]"));
+            controller.enqueue(encoder.encode(`\n\n${LOCAL_COACH_STREAM_FAILURE}`));
             console.error("Local coach stream error:", err);
           } finally {
             controller.close();
@@ -221,7 +225,7 @@ export async function POST(req: Request) {
           }
         } catch (err) {
           controller.enqueue(
-            encoder.encode("\n\n[The coach hit an error. Please try again.]"),
+            encoder.encode(`\n\n${CLOUD_COACH_STREAM_FAILURE}`),
           );
           console.error("Coach stream error:", err);
         } finally {

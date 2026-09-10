@@ -18,13 +18,20 @@ describe("coachConversationName", () => {
 describe("sendableCoachHistory", () => {
   it("keeps real turns and excludes UI errors and empty placeholders", () => {
     expect(sendableCoachHistory([
+      { role: "user", content: "What should I do next?" },
+      { role: "assistant", content: "Add one rep." },
       { role: "user", content: "Review this." },
       { role: "assistant", content: "Network failed.", error: true },
-      { role: "assistant", content: "" },
-      { role: "assistant", content: "Try two more reps." },
     ])).toEqual([
-      { role: "user", content: "Review this." },
-      { role: "assistant", content: "Try two more reps." },
+      { role: "user", content: "What should I do next?" },
+      { role: "assistant", content: "Add one rep." },
     ]);
+  });
+
+  it("removes a stale empty request placeholder with its unanswered question", () => {
+    expect(sendableCoachHistory([
+      { role: "user", content: "Review this." },
+      { role: "assistant", content: "" },
+    ])).toEqual([]);
   });
 });

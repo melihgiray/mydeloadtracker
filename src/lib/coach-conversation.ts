@@ -16,5 +16,16 @@ export function coachConversationName(selectedWorkoutId?: string | null): string
 export function sendableCoachHistory(
   messages: CoachConversationMessage[],
 ): CoachConversationMessage[] {
-  return messages.filter((message) => !message.error && message.content.trim().length > 0);
+  const history: CoachConversationMessage[] = [];
+  for (const message of messages) {
+    if (message.role === "assistant" && (message.error || !message.content.trim())) {
+      // The immediately preceding user turn was never answered. Keeping it
+      // would make the next request ask two questions while the UI shows one.
+      if (history[history.length - 1]?.role === "user") history.pop();
+      continue;
+    }
+    if (!message.content.trim()) continue;
+    history.push(message);
+  }
+  return history;
 }

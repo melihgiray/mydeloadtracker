@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { readCoachStream } from "@/lib/coach-stream";
+import {
+  CLOUD_COACH_STREAM_FAILURE,
+  hasCoachStreamFailure,
+  readCoachStream,
+} from "@/lib/coach-stream";
 
 describe("readCoachStream", () => {
   it("reassembles UTF-8 text split through a multi-byte character", async () => {
@@ -36,5 +40,12 @@ describe("readCoachStream", () => {
     });
 
     await expect(readCoachStream(stream, vi.fn())).rejects.toThrow("connection ended");
+  });
+});
+
+describe("hasCoachStreamFailure", () => {
+  it("recognizes a terminal route failure even after partial text", () => {
+    expect(hasCoachStreamFailure(`Partial advice.\n\n${CLOUD_COACH_STREAM_FAILURE}`)).toBe(true);
+    expect(hasCoachStreamFailure("A complete coaching answer.")).toBe(false);
   });
 });

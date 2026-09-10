@@ -9,7 +9,7 @@ import {
   sendableCoachHistory,
   type CoachConversationMessage as Message,
 } from "@/lib/coach-conversation";
-import { readCoachStream } from "@/lib/coach-stream";
+import { hasCoachStreamFailure, readCoachStream } from "@/lib/coach-stream";
 
 const SUGGESTIONS = [
   "Should I deload this week? Why?",
@@ -84,6 +84,13 @@ export function CoachChat({
       });
       if (!reply.trim()) {
         throw new Error("The coach returned no reply. Try again.");
+      }
+      if (hasCoachStreamFailure(reply)) {
+        setMessages((prev) => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { role: "assistant", content: reply, error: true };
+          return copy;
+        });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong. Try sending that again.";
