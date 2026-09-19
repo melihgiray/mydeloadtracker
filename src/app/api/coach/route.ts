@@ -64,6 +64,49 @@ interface ChatMessage {
   content: string;
 }
 
+async function loadCoachData(
+  supabase: ReturnType<typeof createClient>,
+  requestedSessionId: string | null,
+) {
+  const profile = await getProfile(supabase);
+  const units = profile?.units ?? "kg";
+  const [
+    sets,
+    checkins,
+    selectedSession,
+    planSessionContexts,
+    workoutNotes,
+    activePlanDay,
+    selectedPlanContext,
+  ] = await Promise.all([
+    getTrainingSets(supabase, units, 8),
+    getCheckins(supabase, 30),
+    requestedSessionId
+      ? getSessionWithSets(supabase, units, requestedSessionId)
+      : Promise.resolve(null),
+    getRecentPlanSessionContexts(supabase, 8),
+    getRecentWorkoutNotes(supabase, 8),
+    getPlanDayForToday(supabase),
+    requestedSessionId
+      ? getPlanSessionContext(supabase, requestedSessionId)
+      : Promise.resolve(null),
+  ]);
+  const context = buildCoachContext(sets, profile, checkins);
+  const adherenceMemory = summarisePlanAdherenceMemory(planSessionContexts, sets);
+  const workoutNoteMemory = summariseRecentWorkoutNotes(workoutNotes);
+  const activePlanMemory = activePlanDay
+    ? summariseActivePlan(activePlanDay.plan, activePlanDay.day, localDateKey(new Date()))
+    : null;
+  const systemText = [
+    `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
+    activePlanMemory,
+    adherenceMemory,
+    workoutNoteMemory,
+  ].filter(Boolean).join("\n\n");
+
+  return { units, selectedSession, selectedPlanContext, systemText };
+}
+
 export async function POST(req: Request) {
   // No key is fine when a local model is configured. It is only fatal when the
   // cloud is the only brain available, which the fallback path checks below.
@@ -119,45 +162,21 @@ export async function POST(req: Request) {
   const requestedSessionId =
     typeof body.sessionId === "string" && body.sessionId.length <= 100 ? body.sessionId : null;
 
-  const profile = await getProfile(supabase);
-  const units = profile?.units ?? "kg";
-  const [
-    sets,
-    checkins,
-    selectedSession,
-    planSessionContexts,
-    workoutNotes,
-    activePlanDay,
-    selectedPlanContext,
-  ] = await Promise.all([
-    getTrainingSets(supabase, units, 8),
-    getCheckins(supabase, 30),
-    requestedSessionId
-      ? getSessionWithSets(supabase, units, requestedSessionId)
-      : Promise.resolve(null),
-    getRecentPlanSessionContexts(supabase, 8),
-    getRecentWorkoutNotes(supabase, 8),
-    getPlanDayForToday(supabase),
-    requestedSessionId
-      ? getPlanSessionContext(supabase, requestedSessionId)
-      : Promise.resolve(null),
-  ]);
+  let loaded: Awaited<ReturnType<typeof loadCoachData>>;
+  try {
+    loaded = await loadCoachData(supabase, requestedSessionId);
+  } catch (error) {
+    console.error("Coach data load error:", error);
+    return NextResponse.json(
+      { error: "The coach could not load your training data. Try again." },
+      { status: 502 },
+    );
+  }
+
+  const { units, selectedSession, selectedPlanContext, systemText } = loaded;
   if (requestedSessionId && !selectedSession) {
     return NextResponse.json({ error: "Workout not found." }, { status: 404 });
   }
-  const context = buildCoachContext(sets, profile, checkins);
-
-  const adherenceMemory = summarisePlanAdherenceMemory(planSessionContexts, sets);
-  const workoutNoteMemory = summariseRecentWorkoutNotes(workoutNotes);
-  const activePlanMemory = activePlanDay
-    ? summariseActivePlan(activePlanDay.plan, activePlanDay.day, localDateKey(new Date()))
-    : null;
-  const systemText = [
-    `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
-    activePlanMemory,
-    adherenceMemory,
-    workoutNoteMemory,
-  ].filter(Boolean).join("\n\n");
   const selectedWorkoutText = selectedSession
     ? buildWorkoutCoachContext(selectedSession, units, selectedPlanContext)
     : null;

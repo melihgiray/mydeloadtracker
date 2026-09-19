@@ -306,4 +306,20 @@ describe("coach selected workout context", () => {
     });
     expect(mocks.messagesStream).not.toHaveBeenCalled();
   });
+
+  it("returns a structured error when training context cannot be loaded", async () => {
+    const error = { code: "PGRST000", message: "database unavailable" };
+    mocks.getProfile.mockRejectedValueOnce(error);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await POST(request("session-id"));
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "The coach could not load your training data. Try again.",
+    });
+    expect(consoleError).toHaveBeenCalledWith("Coach data load error:", error);
+    expect(mocks.messagesStream).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });
