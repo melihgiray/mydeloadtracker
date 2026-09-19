@@ -80,3 +80,14 @@ The log never stores a photo, video, frame, or base64 payload. It stores only
 small diagnostic metadata and the structured reading already returned to the
 athlete. Migration absence is rollout-safe and cannot make a scan fail, but the
 trail is not durable until the founder applies 0021.
+
+Failure cards show the athlete the first eight characters of the attempt ID as
+a scan reference. To reconstruct that attempt in the Supabase SQL editor:
+
+```sql
+select created_at, event, stage, status, capture_mode, frame_count,
+       duration_ms, provider, model, reading, details
+from public.scan_logs
+where attempt_id::text like lower('REFERENCE') || '%'
+order by created_at asc;
+```

@@ -4,11 +4,17 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Camera,
   Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleStop,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   ScanLine,
+  ShieldCheck,
   SwitchCamera,
   Trophy,
   Video,
@@ -97,6 +103,7 @@ const FAILURES: Record<FailReason, { title: string; hint: string }> = {
 
 const MAX_CLIP_SECONDS = 90;
 const REQUEST_TIMEOUT_MS = 25_000;
+const currentTimeMs = () => Date.now();
 
 function standaloneSnapshot() {
   return (
@@ -278,7 +285,8 @@ export function BarScanner({
   const [exerciseId, setExerciseId] = useState("");
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
-  const [editing, setEditing] = useState<"exercise" | "weight" | "reps" | null>(null);
+  const [attemptReference, setAttemptReference] = useState("");
+  const [canRetry, setCanRetry] = useState(false);
   const [logging, setLogging] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
   const [result, setResult] = useState<LogResult | null>(null);
@@ -308,13 +316,13 @@ export function BarScanner({
     streamRef.current = null;
   }, [clearTimers]);
 
-  const teardown = useCallback(() => {
+  function teardown() {
     disposeCapture();
     setStream(null);
     setVideoReady(false);
     setNeedsTap(false);
     setSlowStart(false);
-  }, [disposeCapture]);
+  }
 
   useEffect(() => disposeCapture, [disposeCapture]); // release the camera on unmount
 
@@ -378,6 +386,7 @@ export function BarScanner({
     attemptId = captureAttemptRef.current || newScanAttemptId(),
   ) {
     captureAttemptRef.current = attemptId;
+    setAttemptReference(attemptId.slice(0, 8).toUpperCase());
     clearTimers();
     setFailure(reason);
     setPhase("failed");
@@ -401,7 +410,9 @@ export function BarScanner({
   ) {
     if (!preserveAttempt) {
       captureAttemptRef.current = newScanAttemptId();
-      captureStartedAtRef.current = Date.now();
+      setAttemptReference(captureAttemptRef.current.slice(0, 8).toUpperCase());
+      setCanRetry(false);
+      captureStartedAtRef.current = currentTimeMs();
       queueScanLog({
         attemptId: captureAttemptRef.current,
         event: "capture_started",
@@ -449,7 +460,7 @@ export function BarScanner({
         status: "succeeded",
         captureMode: "video",
         frameCount: 0,
-        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        durationMs: Math.min(currentTimeMs() - captureStartedAtRef.current, 300_000),
         details: { requestedFacing: want, resolvedFacing: resolved },
       });
     } catch (err) {
@@ -500,7 +511,7 @@ export function BarScanner({
     bufRef.current = [];
     tickRef.current = 0;
     everyNthRef.current = 1;
-    const start = Date.now();
+    const start = currentTimeMs();
     queueScanLog({
       attemptId: captureAttemptRef.current,
       event: "recording_started",
@@ -512,7 +523,7 @@ export function BarScanner({
       details: { facing },
     });
     intervalRef.current = window.setInterval(() => {
-      const secs = (Date.now() - start) / 1000;
+      const secs = (currentTimeMs() - start) / 1000;
       setElapsed(Math.floor(secs));
       if (secs > MAX_CLIP_SECONDS) return finishRecording();
       tickRef.current += 1;
@@ -542,7 +553,7 @@ export function BarScanner({
         status: "succeeded",
         captureMode: "video",
         frameCount: frames.length,
-        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        durationMs: Math.min(currentTimeMs() - captureStartedAtRef.current, 300_000),
         details: { facing },
       });
       void analyze(frames);
@@ -552,8 +563,10 @@ export function BarScanner({
 
   async function onPhoto(file: File) {
     captureAttemptRef.current = newScanAttemptId();
+    setAttemptReference(captureAttemptRef.current.slice(0, 8).toUpperCase());
+    setCanRetry(false);
     captureModeRef.current = "photo";
-    captureStartedAtRef.current = Date.now();
+    captureStartedAtRef.current = currentTimeMs();
     queueScanLog({
       attemptId: captureAttemptRef.current,
       event: "capture_started",
@@ -575,7 +588,7 @@ export function BarScanner({
         status: "succeeded",
         captureMode: "photo",
         frameCount: 1,
-        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        durationMs: Math.min(currentTimeMs() - captureStartedAtRef.current, 300_000),
         details: { mimeType: file.type.slice(0, 80) },
       });
       await analyze([dataUrl]);
@@ -595,10 +608,12 @@ export function BarScanner({
   async function analyze(images: string[], retrying = false) {
     const attemptId = captureAttemptRef.current || newScanAttemptId();
     captureAttemptRef.current = attemptId;
+    setAttemptReference(attemptId.slice(0, 8).toUpperCase());
     if (captureModeRef.current === "unknown") {
       captureModeRef.current = images.length > 1 ? "video" : "photo";
     }
     lastFramesRef.current = images;
+    setCanRetry(images.length > 0);
     setFrameCount(images.length);
     setReading(null);
     setLogError(null);
@@ -629,6 +644,7 @@ export function BarScanner({
         },
       );
       captureAttemptRef.current = recordedAttemptId;
+      setAttemptReference(recordedAttemptId.slice(0, 8).toUpperCase());
       clearTimers();
       // Real token spend per scan, so the cost of a model or frame-count
       // change is measured rather than assumed.
@@ -662,7 +678,6 @@ export function BarScanner({
       weight: displayWeight,
       reps: displayReps,
     };
-    setEditing(null);
     setPhase("result");
   }
 
@@ -881,7 +896,9 @@ export function BarScanner({
     setResult(null);
     setLogError(null);
     lastFramesRef.current = [];
+    setCanRetry(false);
     captureAttemptRef.current = "";
+    setAttemptReference("");
     captureModeRef.current = "unknown";
     captureStartedAtRef.current = 0;
     originalFieldsRef.current = { exerciseId: "", weight: "", reps: "" };
@@ -893,8 +910,13 @@ export function BarScanner({
   const review = reading ? fieldsNeedingReview(reading, exerciseId, frameCount) : null;
   const hint = reading ? captureHintFor(reading, frameCount) : null;
   const labels = stageLabels(frameCount);
-  const exerciseName = exercises.find((e) => e.id === exerciseId)?.name ?? "";
-
+  const reviewState = {
+    exercise: Boolean(review?.exercise || !exerciseId),
+    weight: Boolean(review?.weight || !(Number(weight) > 0)),
+    reps: Boolean(review?.reps || !(Number(reps) > 0)),
+  };
+  const reviewCount = [reviewState.exercise, reviewState.weight, reviewState.reps]
+    .filter(Boolean).length;
   return (
     <div className="space-y-4">
       <input
@@ -910,36 +932,55 @@ export function BarScanner({
         }}
       />
 
-      {/* IDLE: the two ways in, with the camera sentence shown before any prompt */}
+      {/* IDLE: one obvious path, with lower-friction fallbacks kept secondary. */}
       {phase === "idle" && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div className="panel overflow-hidden p-0">
+          <button
+            onClick={() => void startLive()}
+            className="tap group flex min-h-32 w-full items-center gap-4 border-b border-border bg-brand/10 px-5 py-6 text-left transition-colors hover:bg-brand/15"
+          >
+            <span className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl bg-brand text-brand-foreground shadow-lg shadow-brand/20">
+              <Video className="h-6 w-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-lg font-semibold">Record a set</span>
+              <span className="mt-1 block text-sm leading-snug text-muted">
+                Reads the lift, weight, and reps
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 flex-shrink-0 text-brand transition-transform group-hover:translate-x-0.5" />
+          </button>
+
+          <div className="grid grid-cols-2 divide-x divide-border">
             <button
               onClick={() => fileRef.current?.click()}
-              className="card flex flex-col items-center gap-2 border-dashed py-8 text-center transition-colors hover:bg-surface-hover"
+              className="tap flex min-h-24 flex-col items-center justify-center gap-2 px-3 py-4 text-center transition-colors hover:bg-surface-hover"
             >
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand/15 text-brand">
-                <Camera className="h-5 w-5" />
+              <ImageIcon className="h-5 w-5 text-brand" />
+              <span>
+                <span className="block text-sm font-semibold">Take a photo</span>
+                <span className="mt-0.5 block text-xs text-muted">Weight only</span>
               </span>
-              <span className="font-medium">Take a photo</span>
-              <span className="text-xs text-muted">Reads the weight</span>
             </button>
-            <button
-              onClick={() => void startLive()}
-              className="card flex flex-col items-center gap-2 border-dashed py-8 text-center transition-colors hover:bg-surface-hover"
+            <Link
+              href="/log"
+              className="tap flex min-h-24 flex-col items-center justify-center gap-2 px-3 py-4 text-center transition-colors hover:bg-surface-hover"
             >
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand/15 text-brand">
-                <Video className="h-5 w-5" />
+              <span className="grid h-5 w-5 place-items-center text-brand">
+                <span className="text-lg font-semibold leading-none">+</span>
               </span>
-              <span className="font-medium">Record a set</span>
-              <span className="text-xs text-muted">Reads weight, reps, and the lift</span>
-            </button>
+              <span>
+                <span className="block text-sm font-semibold">Log manually</span>
+                <span className="mt-0.5 block text-xs text-muted">Skip the camera</span>
+              </span>
+            </Link>
           </div>
-          <p className="text-xs leading-relaxed text-muted">
-            The camera is used to read the bar. A few still frames are sent to identify the lift,
-            the plates, and your reps. No video is stored.
-          </p>
-        </>
+
+          <div className="flex items-start gap-2.5 border-t border-border px-4 py-3 text-xs leading-relaxed text-muted">
+            <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+            <p>Only a few still frames are analyzed. No photo or video is stored.</p>
+          </div>
+        </div>
       )}
 
       {/* PERMISSION PENDING: this used to render nothing at all */}
@@ -1053,48 +1094,55 @@ export function BarScanner({
             </div>
           )}
           {recording && countdown === 0 && (
-            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-danger/90 px-2.5 py-1 text-xs font-medium tabular-nums text-danger-foreground">
+            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-danger/90 px-3 py-1.5 text-xs font-semibold tabular-nums text-danger-foreground">
               <span className="h-2 w-2 animate-pulse rounded-full bg-danger-foreground" />
-              recording {elapsed}s, do your set
+              Recording {elapsed}s
             </div>
           )}
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-3">
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-4 pb-4 pt-10">
             <button
               onClick={stopLive}
-              className="rounded-lg bg-white/15 px-3 py-2 text-sm text-white"
+              className="grid h-12 w-12 place-items-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur"
               aria-label="Cancel"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
             {recording && countdown === 0 ? (
               <button
                 onClick={finishRecording}
-                className="rounded-xl bg-danger px-5 py-2.5 text-sm font-semibold text-danger-foreground"
+                className="flex h-14 items-center gap-2 rounded-full bg-danger px-6 text-sm font-semibold text-danger-foreground shadow-lg shadow-black/30"
               >
+                <CircleStop className="h-5 w-5" />
                 Stop and read
               </button>
             ) : (
               <button
                 onClick={startRecording}
                 disabled={recording}
-                className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground disabled:opacity-60"
+                className="flex h-14 items-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/30 disabled:opacity-60"
               >
+                <span className="h-3 w-3 rounded-full bg-current" />
                 Record a set
               </button>
             )}
-            <span className="w-9" />
+            <span className="h-12 w-12" aria-hidden />
           </div>
         </div>
       )}
 
       {/* UPLOADING: real progress, so a slow connection never looks frozen */}
       {phase === "uploading" && (
-        <div className="card space-y-3">
+        <div className="panel space-y-4" aria-live="polite">
           <div className="flex items-center gap-3">
-            <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-brand" />
-            <p className="font-medium">
-              Sending {frameCount === 1 ? "the photo" : `${frameCount} frames`}
-            </p>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/15 text-brand">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </span>
+            <div>
+              <p className="font-semibold">Sending your capture</p>
+              <p className="text-xs text-muted">
+                {frameCount === 1 ? "One photo" : `${frameCount} still frames`}
+              </p>
+            </div>
             <span className="ml-auto text-sm tabular-nums text-muted">{uploadPct}%</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-border">
@@ -1108,10 +1156,15 @@ export function BarScanner({
 
       {/* PROCESSING: name what is happening, in order */}
       {phase === "processing" && (
-        <div className="card space-y-3">
+        <div className="panel space-y-4" aria-live="polite">
           <div className="flex items-center gap-3">
-            <ScanLine className="h-5 w-5 flex-shrink-0 text-brand" />
-            <p className="font-medium">{labels[stage]}</p>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/15 text-brand">
+              <ScanLine className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-semibold">{labels[stage]}</p>
+              <p className="text-xs text-muted">This usually takes a few seconds</p>
+            </div>
             <Loader2 className="ml-auto h-4 w-4 flex-shrink-0 animate-spin text-muted" />
           </div>
           <div className="flex gap-1.5">
@@ -1127,21 +1180,31 @@ export function BarScanner({
 
       {/* FAILURE: specific, friendly, one suggestion, always a way forward */}
       {phase === "failed" && (
-        <div className="card space-y-3">
-          <p className="font-medium">{FAILURES[failure].title}</p>
-          <p className="text-sm leading-relaxed text-muted">{FAILURES[failure].hint}</p>
-          <div className="flex flex-wrap gap-2">
-            {lastFramesRef.current.length > 0 && failure !== "few_frames" && (
-              <button onClick={retry} className="btn-brand">
+        <div className="panel space-y-4" role="alert">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-danger/15 text-danger">
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-semibold">{FAILURES[failure].title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{FAILURES[failure].hint}</p>
+              {attemptReference && (
+                <p className="micro mt-2">Scan reference {attemptReference}</p>
+              )}
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {canRetry && failure !== "few_frames" && (
+              <button onClick={retry} className="btn-brand w-full">
                 <RefreshCw className="h-4 w-4" />
                 Try again
               </button>
             )}
-            <button onClick={scanAgain} className="btn-ghost">
+            <button onClick={scanAgain} className="btn-ghost w-full">
               <Camera className="h-4 w-4" />
               New capture
             </button>
-            <Link href="/log" className="btn-ghost">
+            <Link href="/log" className="btn-ghost w-full">
               Log by hand
             </Link>
           </div>
@@ -1150,19 +1213,42 @@ export function BarScanner({
 
       {/* RESULT: the money screen */}
       {phase === "result" && reading && review && (
-        <div className="card space-y-4">
+        <div className="panel space-y-4">
           {reading.detected ? (
             <>
-              {editing === "exercise" ? (
+              <div
+                className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 ${
+                  reviewCount > 0
+                    ? "border-warning/35 bg-warning/10"
+                    : "border-success/35 bg-success/10"
+                }`}
+              >
+                {reviewCount > 0 ? (
+                  <AlertTriangle className="h-5 w-5 flex-shrink-0 text-warning" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-success" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">
+                    {reviewCount > 0
+                      ? `Check ${reviewCount} ${reviewCount === 1 ? "field" : "fields"}`
+                      : "Ready to log"}
+                  </p>
+                  <p className="text-xs text-muted">Confirm the numbers before saving</p>
+                </div>
+                <span className="micro flex-shrink-0">{reading.confidence}</span>
+              </div>
+
+              <div>
+                <label htmlFor="scan-exercise" className="label">Lift</label>
                 <select
-                  autoFocus
-                  className="input text-base"
+                  id="scan-exercise"
+                  className={`input text-base ${reviewState.exercise ? "border-warning/60" : ""}`}
                   value={exerciseId}
                   onChange={(e) => {
                     setExerciseId(e.target.value);
-                    setEditing(null);
+                    setLogError(null);
                   }}
-                  onBlur={() => setEditing(null)}
                 >
                   <option value="">Pick the lift</option>
                   {exercises.map((ex) => (
@@ -1171,79 +1257,54 @@ export function BarScanner({
                     </option>
                   ))}
                 </select>
-              ) : (
-                <button
-                  onClick={() => setEditing("exercise")}
-                  className="flex w-full items-baseline justify-between gap-3 text-left"
-                >
-                  <span className="text-2xl font-semibold leading-tight">
-                    {exerciseName || "Pick the lift"}
-                  </span>
-                  <span className="micro flex-shrink-0">{review.exercise ? "check" : "change"}</span>
-                </button>
-              )}
-
-              {/* Weight and reps, big enough to film */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className={`rounded-xl p-3 ${review.weight ? "bg-warning/10" : "bg-surface-2"}`}>
-                  {/* One line, so this tile matches the reps tile's height. */}
-                  <span className="micro">Total on bar ({units})</span>
-                  {editing === "weight" ? (
-                    <input
-                      autoFocus
-                      type="number"
-                      inputMode="decimal"
-                      step="0.5"
-                      className="input readout mt-1 text-center text-2xl"
-                      value={weight}
-                      onChange={(e) => setWeight(e.target.value)}
-                      onBlur={() => setEditing(null)}
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setEditing("weight")}
-                      className="readout mt-1 block w-full text-left text-4xl font-semibold tabular-nums"
-                    >
-                      {weight || "—"}
-                    </button>
-                  )}
-                </div>
-                <div className={`rounded-xl p-3 ${review.reps ? "bg-warning/10" : "bg-surface-2"}`}>
-                  <span className="micro">Reps</span>
-                  {editing === "reps" ? (
-                    <input
-                      autoFocus
-                      type="number"
-                      inputMode="numeric"
-                      className="input readout mt-1 text-center text-2xl"
-                      value={reps}
-                      onChange={(e) => setReps(e.target.value)}
-                      onBlur={() => setEditing(null)}
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setEditing("reps")}
-                      className="readout mt-1 block w-full text-left text-4xl font-semibold tabular-nums"
-                    >
-                      {reps || "—"}
-                    </button>
-                  )}
-                </div>
               </div>
 
-              {/* What the model saw, and where it is unsure */}
-              <p className="text-sm leading-relaxed text-muted">{reading.note}</p>
-              {(review.weight || review.reps || review.exercise) && (
-                <p className="text-sm leading-relaxed text-warning">
-                  {review.weight && !weight
-                    ? "The plates were not readable. Enter the weight."
-                    : review.reps && !reps && frameCount === 1
-                      ? "A photo cannot count reps. Enter them."
-                      : "Tap any number to correct it before saving."}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block min-w-0">
+                  <span className="label">Weight ({units})</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.5"
+                    placeholder="0"
+                    className={`input readout h-16 px-3 text-center text-3xl font-semibold ${reviewState.weight ? "border-warning/60 bg-warning/5" : "bg-background"}`}
+                    value={weight}
+                    onChange={(e) => {
+                      setWeight(e.target.value);
+                      setLogError(null);
+                    }}
+                  />
+                </label>
+                <label className="block min-w-0">
+                  <span className="label">Reps</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    className={`input readout h-16 px-3 text-center text-3xl font-semibold ${reviewState.reps ? "border-warning/60 bg-warning/5" : "bg-background"}`}
+                    value={reps}
+                    onChange={(e) => {
+                      setReps(e.target.value);
+                      setLogError(null);
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-xl bg-background/55 px-3.5 py-3 text-sm leading-relaxed text-muted">
+                <p>{reading.note}</p>
+                {reviewState.reps && !reps && frameCount === 1 ? (
+                  <p className="mt-1 text-xs text-warning">A photo cannot count reps. Enter them above.</p>
+                ) : hint ? (
+                  <p className="mt-1 text-xs text-faint">{hint}</p>
+                ) : null}
+              </div>
+              {logError && (
+                <p className="flex items-start gap-2 text-sm text-danger" role="alert">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  {logError}
                 </p>
               )}
-              {hint && <p className="text-xs leading-relaxed text-muted">{hint}</p>}
-              {logError && <p className="text-sm text-danger">{logError}</p>}
 
               <button onClick={logSet} disabled={logging} className="btn-brand w-full">
                 {logging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -1256,21 +1317,32 @@ export function BarScanner({
                     : "Log this set"}
               </button>
               <button onClick={scanAgain} className="btn-ghost w-full">
+                <Camera className="h-4 w-4" />
                 Scan again
               </button>
             </>
           ) : (
             <>
-              <p className="font-medium">No loaded bar in frame</p>
-              <p className="text-sm leading-relaxed text-muted">
-                {hint ?? "Get the whole bar and plates in frame, filmed from the side."}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={scanAgain} className="btn-brand">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-warning/15 text-warning">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="font-semibold">No loaded bar found</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    {hint ?? "Get the whole bar and plates in frame, filmed from the side."}
+                  </p>
+                  {attemptReference && (
+                    <p className="micro mt-2">Scan reference {attemptReference}</p>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button onClick={scanAgain} className="btn-brand w-full">
                   <Camera className="h-4 w-4" />
                   Try another capture
                 </button>
-                <Link href="/log" className="btn-ghost">
+                <Link href="/log" className="btn-ghost w-full">
                   Log by hand
                 </Link>
               </div>
@@ -1281,15 +1353,18 @@ export function BarScanner({
 
       {/* LOGGED: the set, in context */}
       {phase === "logged" && result && (
-        <div className="card space-y-4 text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-success/15 text-success">
+        <div className="panel space-y-5 text-center" aria-live="polite">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-success/15 text-success">
             {result.destination === "database" && result.isPR ? (
-              <Trophy className="h-6 w-6" />
+              <Trophy className="h-7 w-7" />
             ) : (
-              <Check className="h-6 w-6" />
+              <Check className="h-7 w-7" />
             )}
           </div>
           <div>
+            <p className="micro mb-1 text-success">
+              {result.destination === "draft" ? "Added to workout" : "Set logged"}
+            </p>
             <p className="text-2xl font-semibold leading-tight">{result.name}</p>
             <p className="readout mt-1 text-3xl font-semibold tabular-nums">
               {result.weight} {units} × {result.reps}
@@ -1309,17 +1384,17 @@ export function BarScanner({
                 : `estimated 1RM ${result.e1rm} ${units}`}
             </p>
           )}
-          <div className="flex gap-2">
-            <button onClick={scanAgain} className="btn-brand flex-1">
-              <ScanLine className="h-4 w-4" />
-              Scan another
-            </button>
+          <div className="grid gap-2 sm:grid-cols-2">
             <Link
               href={result.destination === "draft" ? "/log" : "/dashboard"}
-              className="btn-ghost flex-1 justify-center"
+              className="btn-brand w-full justify-center"
             >
               {result.destination === "draft" ? "Back to workout" : "Done"}
             </Link>
+            <button onClick={scanAgain} className="btn-ghost w-full">
+              <ScanLine className="h-4 w-4" />
+              Scan another
+            </button>
           </div>
         </div>
       )}

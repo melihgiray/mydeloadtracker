@@ -15,14 +15,12 @@ export default async function ScanPage({
   const units = profile?.units ?? "kg";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Scan the bar</h1>
-        {/* Kept to two lines: on a vertical recording this sits above the
-            result card, and a long intro pushes the money screen off frame. */}
-        <p className="text-sm leading-relaxed text-muted">
-          Point the camera at the bar. It reads the plates, identifies the lift, and counts your
-          reps.
+    <div className="mx-auto max-w-2xl space-y-5">
+      <div className="space-y-1">
+        <p className="micro">Camera log</p>
+        <h1 className="text-3xl font-semibold">Scan a set</h1>
+        <p className="max-w-xl text-sm leading-relaxed text-muted">
+          Record the lift, check the result, then add it to your workout.
         </p>
       </div>
       <BarScanner
