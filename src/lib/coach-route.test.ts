@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getRecentPlanSessionContexts: vi.fn(),
   getRecentWorkoutNotes: vi.fn(),
   getSessionWithSets: vi.fn(),
+  getPlanDayForToday: vi.fn(),
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
@@ -31,6 +32,11 @@ vi.mock("@/lib/data", () => ({
   getRecentPlanSessionContexts: mocks.getRecentPlanSessionContexts,
   getRecentWorkoutNotes: mocks.getRecentWorkoutNotes,
   getSessionWithSets: mocks.getSessionWithSets,
+}));
+
+vi.mock("@/lib/plans", () => ({
+  getPlanDayForToday: mocks.getPlanDayForToday,
+  planCycleWeek: () => 2,
 }));
 
 vi.mock("@/lib/analytics/context", () => ({
@@ -89,6 +95,7 @@ beforeEach(() => {
   mocks.getRecentPlanSessionContexts.mockReset().mockResolvedValue([]);
   mocks.getRecentWorkoutNotes.mockReset().mockResolvedValue([]);
   mocks.getSessionWithSets.mockReset().mockResolvedValue(selectedSession);
+  mocks.getPlanDayForToday.mockReset().mockResolvedValue(null);
   mocks.messagesStream.mockReturnValue({
     async *[Symbol.asyncIterator]() {
       yield { type: "content_block_delta", delta: { type: "text_delta", text: "Review" } };
@@ -162,6 +169,65 @@ describe("coach selected workout context", () => {
     const call = mocks.messagesStream.mock.calls[0][0];
     expect(call.system[1].text).toContain("=== PLAN ADHERENCE MEMORY ===");
     expect(call.system[1].text).toContain("Lower A: logged 1 of 3 planned sets");
+  });
+
+  it("gives Coach the active prescription and current rotation day", async () => {
+    const day = {
+      id: "day-id",
+      plan_id: "plan-id",
+      day_index: 0,
+      name: "Upper A",
+      focus: "Chest and back",
+      exercises: [{
+        id: "plan-exercise-id",
+        plan_day_id: "day-id",
+        exercise_id: "bench-id",
+        position: 0,
+        sets: 3,
+        rep_low: 5,
+        rep_high: 8,
+        rpe_target: 8,
+        rest_seconds: 180,
+        role: "primary",
+        note: null,
+        name: "Bench Press",
+        muscle_group: "Chest",
+        equipment: "barbell",
+      }],
+    };
+    mocks.getPlanDayForToday.mockResolvedValue({
+      plan: {
+        id: "plan-id",
+        user_id: "user-id",
+        name: "Strength block",
+        goal: "strength",
+        split: "upper_lower",
+        days_per_week: 1,
+        session_minutes: 60,
+        equipment: ["barbell"],
+        avoid: [],
+        mesocycle_weeks: 5,
+        deload_week: 5,
+        notes: null,
+        active: true,
+        started_on: "2026-09-01",
+        created_at: "2026-09-01T00:00:00.000Z",
+        updated_at: "2026-09-01T00:00:00.000Z",
+        last_reviewed_on: null,
+        training_style: null,
+        days: [day],
+      },
+      day,
+    });
+
+    const response = await POST(request("session-id"));
+    await response.text();
+
+    expect(mocks.getPlanDayForToday).toHaveBeenCalledWith(expect.anything());
+    const call = mocks.messagesStream.mock.calls[0][0];
+    expect(call.system[1].text).toContain("=== ACTIVE TRAINING PLAN ===");
+    expect(call.system[1].text).toContain("Day 1, Upper A. Current rotation day.");
+    expect(call.system[1].text).toContain("Bench Press (3 sets of 5 to 8 reps, RPE 8");
   });
 
   it("gives Coach bounded recent workout notes", async () => {

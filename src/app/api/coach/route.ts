@@ -27,6 +27,9 @@ import { buildCoachContext } from "@/lib/analytics/context";
 import { buildWorkoutCoachContext } from "@/lib/workout-coach-context";
 import { summarisePlanAdherenceMemory } from "@/lib/plan-adherence";
 import { summariseRecentWorkoutNotes } from "@/lib/workout-notes";
+import { summariseActivePlan } from "@/lib/active-plan-context";
+import { getPlanDayForToday } from "@/lib/plans";
+import { localDateKey } from "@/lib/analytics/dates";
 import {
   CLOUD_COACH_STREAM_FAILURE,
   LOCAL_COACH_STREAM_FAILURE,
@@ -117,7 +120,14 @@ export async function POST(req: Request) {
 
   const profile = await getProfile(supabase);
   const units = profile?.units ?? "kg";
-  const [sets, checkins, selectedSession, planSessionContexts, workoutNotes] = await Promise.all([
+  const [
+    sets,
+    checkins,
+    selectedSession,
+    planSessionContexts,
+    workoutNotes,
+    activePlanDay,
+  ] = await Promise.all([
     getTrainingSets(supabase, units, 8),
     getCheckins(supabase, 30),
     requestedSessionId
@@ -125,6 +135,7 @@ export async function POST(req: Request) {
       : Promise.resolve(null),
     getRecentPlanSessionContexts(supabase, 8),
     getRecentWorkoutNotes(supabase, 8),
+    getPlanDayForToday(supabase),
   ]);
   if (requestedSessionId && !selectedSession) {
     return NextResponse.json({ error: "Workout not found." }, { status: 404 });
@@ -133,8 +144,12 @@ export async function POST(req: Request) {
 
   const adherenceMemory = summarisePlanAdherenceMemory(planSessionContexts, sets);
   const workoutNoteMemory = summariseRecentWorkoutNotes(workoutNotes);
+  const activePlanMemory = activePlanDay
+    ? summariseActivePlan(activePlanDay.plan, activePlanDay.day, localDateKey(new Date()))
+    : null;
   const systemText = [
     `=== ATHLETE TRAINING DATA (last 8 weeks) ===\n${context.summary}`,
+    activePlanMemory,
     adherenceMemory,
     workoutNoteMemory,
   ].filter(Boolean).join("\n\n");
