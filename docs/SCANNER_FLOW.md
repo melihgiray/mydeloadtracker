@@ -67,3 +67,16 @@ Data notes:
   before interpreting or saving it. Legacy unit-less drafts are left numeric
   and marked as current because their historical unit cannot be inferred.
 - Failure reasons are tracked to PostHog as scan_failed with a reason field.
+
+## Durable diagnostics
+
+Migration 0021 adds an append-only `scan_logs` event trail. One attempt ID
+connects capture failures, request validation, provider choice and fallback,
+the structured model reading, latency, a discarded result, athlete corrections,
+and the final save outcome. Offline client events wait in a bounded local queue
+and flush when connectivity returns.
+
+The log never stores a photo, video, frame, or base64 payload. It stores only
+small diagnostic metadata and the structured reading already returned to the
+athlete. Migration absence is rollout-safe and cannot make a scan fail, but the
+trail is not durable until the founder applies 0021.

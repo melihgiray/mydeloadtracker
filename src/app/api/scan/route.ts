@@ -5,6 +5,7 @@
 // a specialized on-device model comes later.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTrainingSets } from "@/lib/data";
@@ -19,6 +20,12 @@ import {
   type Provider,
 } from "@/lib/ai-provider";
 import { ollamaChat } from "@/lib/ollama";
+import {
+  isScanAttemptId,
+  recordScanLogs,
+  scanErrorDetails,
+  type ScanCaptureMode,
+} from "@/lib/scan-log";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -59,23 +66,69 @@ const TOOL: Anthropic.Tool = {
 };
 
 export async function POST(req: Request) {
-  // A missing key is fine when a local model is configured; the fallback path
-  // below is the one that actually needs the cloud.
-  if (!cloudAvailable() && preferredProvider("scan") !== "local") {
-    return NextResponse.json({ error: "Scanning isn't configured on this server." }, { status: 503 });
-  }
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
+  const startedAt = Date.now();
+  let attemptId: string = randomUUID();
+  let captureMode: ScanCaptureMode = "unknown";
+  let frameCount = 0;
+  const log = async (
+    event: string,
+    stage: string,
+    status: "started" | "succeeded" | "failed",
+    extra: {
+      provider?: string | null;
+      model?: string | null;
+      reading?: ScanReading | null;
+      details?: Record<string, unknown>;
+    } = {},
+  ) => recordScanLogs(supabase, user.id, [{
+    attemptId,
+    event,
+    stage,
+    status,
+    captureMode,
+    frameCount,
+    durationMs: Date.now() - startedAt,
+    ...extra,
+  }]);
+
+  // A missing key is fine when a local model is configured; the fallback path
+  // below is the one that actually needs the cloud.
+  if (!cloudAvailable() && preferredProvider("scan") !== "local") {
+    await log("request_rejected", "configuration", "failed", {
+      details: { reason: "not_configured" },
+    });
+    return NextResponse.json(
+      { error: "Scanning isn't configured on this server.", attemptId },
+      { status: 503 },
+    );
+  }
+
   type MediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
-  let body: { image?: string; images?: string[] };
+  let body: {
+    image?: string;
+    images?: string[];
+    attemptId?: unknown;
+    captureMode?: unknown;
+    retry?: unknown;
+    client?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    await log("request_rejected", "request", "failed", {
+      details: { reason: "invalid_json" },
+    });
+    return NextResponse.json({ error: "Invalid request.", attemptId }, { status: 400 });
+  }
+  if (isScanAttemptId(body.attemptId)) attemptId = body.attemptId;
+  if (body.captureMode === "photo" || body.captureMode === "video") {
+    captureMode = body.captureMode;
   }
   const raw = Array.isArray(body.images) ? body.images : body.image ? [body.image] : [];
   const frames: { media_type: MediaType; data: string }[] = [];
@@ -88,12 +141,40 @@ export async function POST(req: Request) {
     totalBytes += m[2].length;
     frames.push({ media_type: m[1] as MediaType, data: m[2] });
   }
+  frameCount = frames.length;
+  if (captureMode === "unknown") captureMode = frameCount > 1 ? "video" : "photo";
   if (frames.length === 0) {
-    return NextResponse.json({ error: "Send a JPEG/PNG/WebP image." }, { status: 400 });
+    await log("request_rejected", "validation", "failed", {
+      details: { reason: "no_valid_frames", receivedItems: raw.length },
+    });
+    return NextResponse.json(
+      { error: "Send a JPEG/PNG/WebP image.", attemptId },
+      { status: 400 },
+    );
   }
   if (totalBytes > 12_000_000) {
-    return NextResponse.json({ error: "Images too large." }, { status: 413 });
+    await log("request_rejected", "validation", "failed", {
+      details: { reason: "payload_too_large", encodedCharacters: totalBytes },
+    });
+    return NextResponse.json({ error: "Images too large.", attemptId }, { status: 413 });
   }
+
+  const client = body.client && typeof body.client === "object"
+    ? body.client as Record<string, unknown>
+    : {};
+  await log("analysis_started", "analysis", "started", {
+    details: {
+      encodedCharacters: totalBytes,
+      retry: body.retry === true,
+      online: typeof client.online === "boolean" ? client.online : null,
+      standalone: typeof client.standalone === "boolean" ? client.standalone : null,
+      facing:
+        client.facing === "environment" || client.facing === "user"
+          ? client.facing
+          : null,
+      userAgent: req.headers.get("user-agent")?.slice(0, 300) ?? null,
+    },
+  });
 
   // Bias the exercise guess toward what this athlete actually trains — a still
   // photo is often ambiguous (a racked bar could be squat / front squat / press),
@@ -126,6 +207,7 @@ export async function POST(req: Request) {
    * 60 kg for a 100 kg bar produces perfectly valid JSON. Accuracy is a gym
    * benchmark, not a code path. See docs/AI_COST.md.
    */
+  let localFallback: Record<string, unknown> | null = null;
   async function readLocally(): Promise<ScanReading | null> {
     try {
       const res = await ollamaChat(
@@ -141,15 +223,20 @@ export async function POST(req: Request) {
       );
       const body = (await res.json()) as { message?: { content?: string } };
       const raw = body.message?.content;
-      if (!raw) return null;
+      if (!raw) {
+        localFallback = { reason: "empty_local_response" };
+        return null;
+      }
       const parsed = JSON.parse(raw) as ScanReading;
       // The schema marks these required, so their absence means the model
       // ignored the format and the reading cannot be trusted.
       if (typeof parsed?.detected !== "boolean" || typeof parsed?.confidence !== "string") {
+        localFallback = { reason: "invalid_local_schema" };
         return null;
       }
       return parsed;
     } catch (err) {
+      localFallback = { reason: "local_error", ...scanErrorDetails(err) };
       console.warn("Local scan unavailable, falling back to the cloud:", err);
       return null;
     }
@@ -158,15 +245,35 @@ export async function POST(req: Request) {
   if (preferredProvider("scan") === "local") {
     const reading = await readLocally();
     if (reading) {
+      await log(
+        "analysis_completed",
+        "analysis",
+        reading.detected ? "succeeded" : "failed",
+        {
+          provider: "local",
+          model: LOCAL_MODELS.scan,
+          reading,
+          details: reading.detected ? {} : { reason: "no_detection" },
+        },
+      );
       return NextResponse.json({
         reading,
         usage: { model: LOCAL_MODELS.scan, provider: "local" satisfies Provider },
+        attemptId,
       });
     }
   }
 
   if (!cloudAvailable()) {
-    return NextResponse.json({ error: "Scanning isn't reachable right now." }, { status: 503 });
+    await log("analysis_failed", "analysis", "failed", {
+      provider: "local",
+      model: LOCAL_MODELS.scan,
+      details: localFallback ?? { reason: "cloud_unavailable" },
+    });
+    return NextResponse.json(
+      { error: "Scanning isn't reachable right now.", attemptId },
+      { status: 503 },
+    );
   }
 
   try {
@@ -190,14 +297,54 @@ export async function POST(req: Request) {
       ],
     });
     const toolUse = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!toolUse) return NextResponse.json({ error: "Couldn't read the image. Try a clearer shot." }, { status: 502 });
+    if (!toolUse) {
+      await log("analysis_failed", "analysis", "failed", {
+        provider: "cloud",
+        model: SCAN_MODEL,
+        details: {
+          reason: "missing_tool_result",
+          localFallback,
+          usage: toUsageReport(SCAN_MODEL, res.usage),
+        },
+      });
+      return NextResponse.json(
+        { error: "Couldn't read the image. Try a clearer shot.", attemptId },
+        { status: 502 },
+      );
+    }
+    const reading = toolUse.input as unknown as ScanReading;
+    const usage = { ...toUsageReport(SCAN_MODEL, res.usage), provider: "cloud" satisfies Provider };
+    await log(
+      "analysis_completed",
+      "analysis",
+      reading.detected ? "succeeded" : "failed",
+      {
+        provider: "cloud",
+        model: SCAN_MODEL,
+        reading,
+        details: {
+          ...(reading.detected ? {} : { reason: "no_detection" }),
+          localFallback,
+          usage,
+        },
+      },
+    );
     // Usage rides along so the client can report real cost to PostHog.
     return NextResponse.json({
-      reading: toolUse.input,
-      usage: { ...toUsageReport(SCAN_MODEL, res.usage), provider: "cloud" satisfies Provider },
+      reading,
+      usage,
+      attemptId,
     });
   } catch (err) {
     console.error("Scan error:", err);
-    return NextResponse.json({ error: "Vision request failed. Try again." }, { status: 502 });
+    await log("analysis_failed", "analysis", "failed", {
+      provider: "cloud",
+      model: SCAN_MODEL,
+      details: { ...scanErrorDetails(err), localFallback },
+    });
+    return NextResponse.json(
+      { error: "Vision request failed. Try again.", attemptId },
+      { status: 502 },
+    );
   }
 }

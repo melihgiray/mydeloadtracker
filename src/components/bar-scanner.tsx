@@ -34,6 +34,12 @@ import {
   scanToSetRow,
   type ScanReading,
 } from "@/lib/scan-mapping";
+import {
+  flushScanLogQueue,
+  newScanAttemptId,
+  queueScanLog,
+} from "@/lib/scan-log-client";
+import type { ScanCaptureMode } from "@/lib/scan-log";
 import type { Exercise, Units } from "@/lib/types";
 
 /**
@@ -110,9 +116,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class ScanError extends Error {
   reason: FailReason;
-  constructor(reason: FailReason) {
+  attemptId: string;
+  details: Record<string, unknown>;
+  constructor(reason: FailReason, attemptId: string, details: Record<string, unknown> = {}) {
     super(reason);
     this.reason = reason;
+    this.attemptId = attemptId;
+    this.details = details;
   }
 }
 
@@ -164,12 +174,16 @@ function grabFrame(video: HTMLVideoElement, maxDim = 640, quality = 0.55): strin
  */
 function postScan(
   images: string[],
+  attemptId: string,
+  captureMode: ScanCaptureMode,
+  retry: boolean,
+  client: { online: boolean; standalone: boolean; facing: "environment" | "user" },
   onProgress: (pct: number) => void,
   onUploaded: () => void,
-): Promise<{ reading: ScanReading; usage?: Record<string, unknown> }> {
+): Promise<{ reading: ScanReading; usage?: Record<string, unknown>; attemptId: string }> {
   return new Promise((resolve, reject) => {
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      return reject(new ScanError("offline"));
+      return reject(new ScanError("offline", attemptId));
     }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/scan");
@@ -182,21 +196,33 @@ function postScan(
       onProgress(100);
       onUploaded();
     };
-    xhr.upload.onerror = () => reject(new ScanError("upload"));
+    xhr.upload.onerror = () => reject(new ScanError("upload", attemptId));
     xhr.onload = () => {
-      let json: { reading?: ScanReading; usage?: Record<string, unknown> } | null = null;
+      let json: {
+        reading?: ScanReading;
+        usage?: Record<string, unknown>;
+        attemptId?: string;
+        error?: string;
+      } | null = null;
       try {
         json = JSON.parse(xhr.responseText);
       } catch {
         /* the server's own copy is user-safe; a parse failure is a server fault */
       }
       if (xhr.status >= 200 && xhr.status < 300 && json?.reading)
-        resolve({ reading: json.reading, usage: json.usage });
-      else reject(new ScanError("server"));
+        resolve({
+          reading: json.reading,
+          usage: json.usage,
+          attemptId: json.attemptId ?? attemptId,
+        });
+      else reject(new ScanError("server", json?.attemptId ?? attemptId, {
+        httpStatus: xhr.status,
+        serverMessage: json?.error?.slice(0, 300) ?? null,
+      }));
     };
-    xhr.onerror = () => reject(new ScanError("offline"));
-    xhr.ontimeout = () => reject(new ScanError("timeout"));
-    xhr.send(JSON.stringify({ images }));
+    xhr.onerror = () => reject(new ScanError("offline", attemptId));
+    xhr.ontimeout = () => reject(new ScanError("timeout", attemptId));
+    xhr.send(JSON.stringify({ images, attemptId, captureMode, retry, client }));
   });
 }
 
@@ -220,6 +246,10 @@ export function BarScanner({
   const lastFramesRef = useRef<string[]>([]); // retry without re-capturing
   const stageRef = useRef<number | null>(null);
   const captureRunRef = useRef(0);
+  const captureAttemptRef = useRef("");
+  const captureModeRef = useRef<ScanCaptureMode>("unknown");
+  const captureStartedAtRef = useRef(0);
+  const originalFieldsRef = useRef({ exerciseId: "", weight: "", reps: "" });
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [recording, setRecording] = useState(false);
@@ -252,6 +282,13 @@ export function BarScanner({
   const [logging, setLogging] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
   const [result, setResult] = useState<LogResult | null>(null);
+
+  useEffect(() => {
+    void flushScanLogQueue();
+    const flush = () => void flushScanLogQueue();
+    window.addEventListener("online", flush);
+    return () => window.removeEventListener("online", flush);
+  }, []);
 
   const clearTimers = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -306,6 +343,17 @@ export function BarScanner({
   }, [phase, stream]);
 
   function stopLive() {
+    if (captureAttemptRef.current) {
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "capture_cancelled",
+        stage: "capture",
+        status: "failed",
+        captureMode: "video",
+        frameCount: Math.min(MAX_SCAN_FRAMES, bufRef.current.length),
+        details: { reason: "athlete_cancelled", recording },
+      });
+    }
     teardown();
     setRecording(false);
     setCountdown(0);
@@ -323,16 +371,48 @@ export function BarScanner({
     );
   }
 
-  function fail(reason: FailReason, frames: number) {
+  function fail(
+    reason: FailReason,
+    frames: number,
+    details: Record<string, unknown> = {},
+    attemptId = captureAttemptRef.current || newScanAttemptId(),
+  ) {
+    captureAttemptRef.current = attemptId;
     clearTimers();
     setFailure(reason);
     setPhase("failed");
     capture("scan_failed", { reason, frames });
+    queueScanLog({
+      attemptId,
+      event: "client_failure",
+      stage: frames > 0 ? "upload" : "capture",
+      status: "failed",
+      captureMode: captureModeRef.current,
+      frameCount: frames,
+      details: { reason, ...details },
+    });
   }
 
   // ---- capture ------------------------------------------------------------
 
-  async function startLive(want: "environment" | "user" = facing) {
+  async function startLive(
+    want: "environment" | "user" = facing,
+    preserveAttempt = false,
+  ) {
+    if (!preserveAttempt) {
+      captureAttemptRef.current = newScanAttemptId();
+      captureStartedAtRef.current = Date.now();
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "capture_started",
+        stage: "permission",
+        status: "started",
+        captureMode: "video",
+        frameCount: 0,
+        details: { requestedFacing: want, standalone },
+      });
+    }
+    captureModeRef.current = "video";
     setSlowStart(false);
     setReading(null);
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -362,17 +442,36 @@ export function BarScanner({
       setNeedsTap(false);
       setStream(s); // the effect above attaches it once <video> is committed
       setPhase("live");
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "permission_granted",
+        stage: "permission",
+        status: "succeeded",
+        captureMode: "video",
+        frameCount: 0,
+        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        details: { requestedFacing: want, resolvedFacing: resolved },
+      });
     } catch (err) {
       teardown();
       const name = err instanceof Error ? err.name : "";
       if (name === "NotFoundError" || name === "OverconstrainedError") return fail("no_camera", 0);
       setPhase("denied");
       capture("scan_failed", { reason: "permission_denied", frames: 0 });
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "client_failure",
+        stage: "permission",
+        status: "failed",
+        captureMode: "video",
+        frameCount: 0,
+        details: { reason: "permission_denied", errorName: name || null, standalone },
+      });
     }
   }
 
   function flipCamera() {
-    void startLive(facing === "environment" ? "user" : "environment");
+    void startLive(facing === "environment" ? "user" : "environment", true);
   }
 
   // If the preview has not produced a frame after a few seconds, say so instead
@@ -402,6 +501,16 @@ export function BarScanner({
     tickRef.current = 0;
     everyNthRef.current = 1;
     const start = Date.now();
+    queueScanLog({
+      attemptId: captureAttemptRef.current,
+      event: "recording_started",
+      stage: "capture",
+      status: "started",
+      captureMode: "video",
+      frameCount: 0,
+      durationMs: Math.min(start - captureStartedAtRef.current, 300_000),
+      details: { facing },
+    });
     intervalRef.current = window.setInterval(() => {
       const secs = (Date.now() - start) / 1000;
       setElapsed(Math.floor(secs));
@@ -425,13 +534,50 @@ export function BarScanner({
     setRecording(false);
     setCountdown(0);
     setElapsed(0);
-    if (frames.length >= 2) void analyze(frames);
+    if (frames.length >= 2) {
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "capture_completed",
+        stage: "capture",
+        status: "succeeded",
+        captureMode: "video",
+        frameCount: frames.length,
+        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        details: { facing },
+      });
+      void analyze(frames);
+    }
     else fail("few_frames", frames.length);
   }
 
   async function onPhoto(file: File) {
+    captureAttemptRef.current = newScanAttemptId();
+    captureModeRef.current = "photo";
+    captureStartedAtRef.current = Date.now();
+    queueScanLog({
+      attemptId: captureAttemptRef.current,
+      event: "capture_started",
+      stage: "capture",
+      status: "started",
+      captureMode: "photo",
+      frameCount: 0,
+      details: {
+        mimeType: file.type.slice(0, 80),
+        sourceBytes: file.size,
+      },
+    });
     try {
       const dataUrl = await fileToDataUrl(file);
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "capture_completed",
+        stage: "capture",
+        status: "succeeded",
+        captureMode: "photo",
+        frameCount: 1,
+        durationMs: Math.min(Date.now() - captureStartedAtRef.current, 300_000),
+        details: { mimeType: file.type.slice(0, 80) },
+      });
       await analyze([dataUrl]);
     } catch {
       fail("photo", 0);
@@ -446,7 +592,12 @@ export function BarScanner({
       : ["Reading the plates", "Identifying the lift"];
   }
 
-  async function analyze(images: string[]) {
+  async function analyze(images: string[], retrying = false) {
+    const attemptId = captureAttemptRef.current || newScanAttemptId();
+    captureAttemptRef.current = attemptId;
+    if (captureModeRef.current === "unknown") {
+      captureModeRef.current = images.length > 1 ? "video" : "photo";
+    }
     lastFramesRef.current = images;
     setFrameCount(images.length);
     setReading(null);
@@ -457,8 +608,16 @@ export function BarScanner({
 
     const labels = stageLabels(images.length);
     try {
-      const { reading: r, usage } = await postScan(
+      const { reading: r, usage, attemptId: recordedAttemptId } = await postScan(
         images,
+        attemptId,
+        captureModeRef.current,
+        retrying,
+        {
+          online: navigator.onLine,
+          standalone,
+          facing,
+        },
         (pct) => setUploadPct(pct),
         () => {
           // Upload done, the model is working: name what happens, in order.
@@ -469,6 +628,7 @@ export function BarScanner({
           }, 2200);
         },
       );
+      captureAttemptRef.current = recordedAttemptId;
       clearTimers();
       // Real token spend per scan, so the cost of a model or frame-count
       // change is measured rather than assumed.
@@ -481,30 +641,87 @@ export function BarScanner({
       if (!r.detected) capture("scan_failed", { reason: "no_detection", frames: images.length });
       applyReading(r);
     } catch (e) {
-      fail(e instanceof ScanError ? e.reason : "server", images.length);
+      if (e instanceof ScanError) {
+        fail(e.reason, images.length, e.details, e.attemptId);
+      } else {
+        fail("server", images.length);
+      }
     }
   }
 
   function applyReading(r: ScanReading) {
+    const matchedExerciseId = matchExercise(r.exercise);
+    const displayWeight = readingWeightForDisplay(r.total_weight_kg, units);
+    const displayReps = r.reps && r.reps > 0 ? String(r.reps) : "";
     setReading(r);
-    setExerciseId(matchExercise(r.exercise));
-    setWeight(readingWeightForDisplay(r.total_weight_kg, units));
-    setReps(r.reps && r.reps > 0 ? String(r.reps) : "");
+    setExerciseId(matchedExerciseId);
+    setWeight(displayWeight);
+    setReps(displayReps);
+    originalFieldsRef.current = {
+      exerciseId: matchedExerciseId,
+      weight: displayWeight,
+      reps: displayReps,
+    };
     setEditing(null);
     setPhase("result");
   }
 
   function retry() {
-    if (lastFramesRef.current.length > 0) void analyze(lastFramesRef.current);
+    if (lastFramesRef.current.length > 0) void analyze(lastFramesRef.current, true);
     else setPhase("idle");
   }
 
   // ---- log ----------------------------------------------------------------
 
+  function recordConfirmation(
+    destination: "draft" | "database",
+    name: string,
+  ) {
+    const original = originalFieldsRef.current;
+    const corrections = {
+      exercise: original.exerciseId !== exerciseId,
+      weight: original.weight !== weight,
+      reps: original.reps !== reps,
+    };
+    const corrected = Object.values(corrections).some(Boolean);
+    queueScanLog({
+      attemptId: captureAttemptRef.current || newScanAttemptId(),
+      event: "set_confirmed",
+      stage: "confirmation",
+      status: corrected ? "corrected" : "succeeded",
+      captureMode: captureModeRef.current,
+      frameCount,
+      details: {
+        destination,
+        exerciseId,
+        exerciseName: name,
+        weight,
+        units,
+        reps,
+        confidence: reading?.confidence ?? null,
+        corrections,
+      },
+    });
+  }
+
   async function logSet() {
     const row = scanToSetRow({ weight, reps }, units);
     if (!exerciseId || !row) {
       setLogError("Pick the lift, and check the weight and reps.");
+      queueScanLog({
+        attemptId: captureAttemptRef.current || newScanAttemptId(),
+        event: "confirmation_blocked",
+        stage: "confirmation",
+        status: "failed",
+        captureMode: captureModeRef.current,
+        frameCount,
+        details: {
+          reason: "invalid_confirmed_fields",
+          hasExercise: Boolean(exerciseId),
+          hasWeight: Boolean(weight),
+          hasReps: Boolean(reps),
+        },
+      });
       return;
     }
     setLogging(true);
@@ -532,6 +749,7 @@ export function BarScanner({
             exercise_id: exerciseId,
             set_number: merged.setNumber,
           });
+          recordConfirmation("draft", name);
           setResult({
             destination: "draft",
             name,
@@ -614,6 +832,7 @@ export function BarScanner({
 
       const e1rmKg = estimate1RM(row.weight, row.reps);
       capture("workout_logged", { sets: 1, exercises: 1, edit: false, source: "scan" });
+      recordConfirmation("database", name);
       setResult({
         destination: "database",
         name,
@@ -626,17 +845,46 @@ export function BarScanner({
       setPhase("logged");
       router.refresh();
     } catch (e) {
-      setLogError(e instanceof Error ? e.message : "Could not save the set.");
+      const message = e instanceof Error ? e.message : "Could not save the set.";
+      setLogError(message);
+      queueScanLog({
+        attemptId: captureAttemptRef.current || newScanAttemptId(),
+        event: "set_log_failed",
+        stage: "logging",
+        status: "failed",
+        captureMode: captureModeRef.current,
+        frameCount,
+        details: { message: message.slice(0, 300), draftMode },
+      });
     } finally {
       setLogging(false);
     }
   }
 
   function scanAgain() {
+    if (reading && captureAttemptRef.current && phase === "result") {
+      queueScanLog({
+        attemptId: captureAttemptRef.current,
+        event: "result_discarded",
+        stage: "confirmation",
+        status: "failed",
+        captureMode: captureModeRef.current,
+        frameCount,
+        details: {
+          reason: "new_capture_requested",
+          detected: reading.detected,
+          confidence: reading.confidence,
+        },
+      });
+    }
     setReading(null);
     setResult(null);
     setLogError(null);
     lastFramesRef.current = [];
+    captureAttemptRef.current = "";
+    captureModeRef.current = "unknown";
+    captureStartedAtRef.current = 0;
+    originalFieldsRef.current = { exerciseId: "", weight: "", reps: "" };
     setPhase("idle");
   }
 
