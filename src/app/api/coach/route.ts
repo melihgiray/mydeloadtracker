@@ -17,6 +17,7 @@ import {
 import { ollamaChat, ollamaTextChunks } from "@/lib/ollama";
 import {
   getCheckins,
+  getPlanSessionContext,
   getProfile,
   getRecentPlanSessionContexts,
   getRecentWorkoutNotes,
@@ -127,6 +128,7 @@ export async function POST(req: Request) {
     planSessionContexts,
     workoutNotes,
     activePlanDay,
+    selectedPlanContext,
   ] = await Promise.all([
     getTrainingSets(supabase, units, 8),
     getCheckins(supabase, 30),
@@ -136,6 +138,9 @@ export async function POST(req: Request) {
     getRecentPlanSessionContexts(supabase, 8),
     getRecentWorkoutNotes(supabase, 8),
     getPlanDayForToday(supabase),
+    requestedSessionId
+      ? getPlanSessionContext(supabase, requestedSessionId)
+      : Promise.resolve(null),
   ]);
   if (requestedSessionId && !selectedSession) {
     return NextResponse.json({ error: "Workout not found." }, { status: 404 });
@@ -154,7 +159,7 @@ export async function POST(req: Request) {
     workoutNoteMemory,
   ].filter(Boolean).join("\n\n");
   const selectedWorkoutText = selectedSession
-    ? buildWorkoutCoachContext(selectedSession, units)
+    ? buildWorkoutCoachContext(selectedSession, units, selectedPlanContext)
     : null;
   const localSystemText = [COACH_INSTRUCTIONS, systemText, selectedWorkoutText]
     .filter(Boolean)

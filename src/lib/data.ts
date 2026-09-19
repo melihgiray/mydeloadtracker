@@ -92,6 +92,26 @@ interface PlanSessionContextRow {
   plan_snapshot: unknown;
 }
 
+function mapPlanSessionContextRow(row: PlanSessionContextRow): StoredPlanSessionContext | null {
+  if (
+    typeof row.id !== "string" ||
+    typeof row.performed_at !== "string" ||
+    typeof row.plan_id !== "string" ||
+    typeof row.plan_day_id !== "string" ||
+    !isPlanSessionSnapshot(row.plan_snapshot)
+  ) {
+    return null;
+  }
+
+  return {
+    sessionId: row.id,
+    performedAt: row.performed_at,
+    planId: row.plan_id,
+    planDayId: row.plan_day_id,
+    snapshot: row.plan_snapshot,
+  };
+}
+
 /**
  * Versioned plan context for recent completed workouts.
  *
@@ -117,23 +137,30 @@ export async function getRecentPlanSessionContexts(
   }
 
   return ((data ?? []) as PlanSessionContextRow[]).flatMap((row) => {
-    if (
-      typeof row.id !== "string" ||
-      typeof row.performed_at !== "string" ||
-      typeof row.plan_id !== "string" ||
-      typeof row.plan_day_id !== "string" ||
-      !isPlanSessionSnapshot(row.plan_snapshot)
-    ) {
-      return [];
-    }
-    return [{
-      sessionId: row.id,
-      performedAt: row.performed_at,
-      planId: row.plan_id,
-      planDayId: row.plan_day_id,
-      snapshot: row.plan_snapshot,
-    }];
+    const context = mapPlanSessionContextRow(row);
+    return context ? [context] : [];
   });
+}
+
+/** Exact saved prescription for one owned workout, when migration 0020 is available. */
+export async function getPlanSessionContext(
+  supabase: SupabaseClient,
+  sessionId: string,
+): Promise<StoredPlanSessionContext | null> {
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("id, performed_at, plan_id, plan_day_id, plan_snapshot")
+    .eq("id", sessionId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116" || error.code === "PGRST204" || error.code === "42703") {
+      return null;
+    }
+    throw error;
+  }
+  if (!data) return null;
+  return mapPlanSessionContextRow(data as unknown as PlanSessionContextRow);
 }
 
 interface WorkoutNoteRow {

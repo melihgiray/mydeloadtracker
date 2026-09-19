@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import {
   getCheckins,
+  getPlanSessionContext,
   getProfile,
   getRecentPlanSessionContexts,
   getRecentWorkoutNotes,
@@ -238,6 +239,55 @@ describe("getRecentPlanSessionContexts", () => {
     const error = { code: "PGRST000", message: "database unavailable" };
     await expect(
       getRecentPlanSessionContexts(planContextClient({ data: null, error })),
+    ).rejects.toBe(error);
+  });
+});
+
+describe("getPlanSessionContext", () => {
+  const row = {
+    id: "session-1",
+    performed_at: "2026-09-08T12:00:00.000Z",
+    plan_id: "plan-1",
+    plan_day_id: "day-1",
+    plan_snapshot: {
+      version: 1,
+      dayIndex: 0,
+      dayName: "Upper A",
+      planned: [],
+      substitutions: [],
+    },
+  };
+
+  it("loads the exact saved prescription for a selected workout", async () => {
+    await expect(
+      getPlanSessionContext(sessionClient({ data: row, error: null }), "session-1"),
+    ).resolves.toMatchObject({
+      sessionId: "session-1",
+      planId: "plan-1",
+      planDayId: "day-1",
+      snapshot: row.plan_snapshot,
+    });
+  });
+
+  it("allows the optional context migration or workout row to be absent", async () => {
+    await expect(
+      getPlanSessionContext(
+        sessionClient({ data: null, error: { code: "PGRST204", message: "column missing" } }),
+        "session-1",
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      getPlanSessionContext(
+        sessionClient({ data: null, error: { code: "PGRST116", message: "no rows" } }),
+        "missing",
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("does not reinterpret an outage as missing plan context", async () => {
+    const error = { code: "PGRST000", message: "database unavailable" };
+    await expect(
+      getPlanSessionContext(sessionClient({ data: null, error }), "session-1"),
     ).rejects.toBe(error);
   });
 });

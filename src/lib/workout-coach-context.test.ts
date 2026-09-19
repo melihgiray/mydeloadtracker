@@ -47,4 +47,66 @@ describe("buildWorkoutCoachContext", () => {
   it("states plainly when the workout has no notes", () => {
     expect(buildWorkoutCoachContext({ ...session, notes: null }, "lb")).toContain("Notes: None");
   });
+
+  it("compares the workout with its saved prescription rather than the current plan", () => {
+    const context = buildWorkoutCoachContext(session, "kg", {
+      sessionId: session.id,
+      performedAt: session.performed_at,
+      planId: "old-plan",
+      planDayId: "old-day",
+      snapshot: {
+        version: 1,
+        dayIndex: 0,
+        dayName: "Upper A",
+        planned: [
+          {
+            exerciseId: "bench",
+            name: "Bench Press",
+            position: 0,
+            sets: 3,
+            repLow: 5,
+            repHigh: 8,
+            rpeTarget: 8,
+          },
+          {
+            exerciseId: "row",
+            name: "Barbell Row",
+            position: 1,
+            sets: 2,
+            repLow: 8,
+            repHigh: 10,
+            rpeTarget: null,
+          },
+        ],
+        substitutions: [
+          { plannedExerciseId: "bench", performedExerciseId: "squat" },
+        ],
+      },
+    });
+
+    expect(context).toContain("=== PLAN PRESCRIPTION FOR THIS WORKOUT ===");
+    expect(context).toContain("Plan day: Upper A");
+    expect(context).toContain(
+      "Bench Press: planned 3 sets of 5 to 8 reps, RPE 8. Performed as Back Squat: 1 set, reps 5, RPE 8.",
+    );
+    expect(context).toContain("Barbell Row: planned 2 sets of 8 to 10 reps. Not logged.");
+  });
+
+  it("names work that was added outside the saved plan", () => {
+    const context = buildWorkoutCoachContext(session, "kg", {
+      sessionId: session.id,
+      performedAt: session.performed_at,
+      planId: "plan",
+      planDayId: "day",
+      snapshot: {
+        version: 1,
+        dayIndex: 0,
+        dayName: "Lower A",
+        planned: [],
+        substitutions: [],
+      },
+    });
+
+    expect(context).toContain("Additional work not in the saved plan: Back Squat, Pull Up.");
+  });
 });

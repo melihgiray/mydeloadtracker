@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getRecentPlanSessionContexts: vi.fn(),
   getRecentWorkoutNotes: vi.fn(),
   getSessionWithSets: vi.fn(),
+  getPlanSessionContext: vi.fn(),
   getPlanDayForToday: vi.fn(),
 }));
 
@@ -32,6 +33,7 @@ vi.mock("@/lib/data", () => ({
   getRecentPlanSessionContexts: mocks.getRecentPlanSessionContexts,
   getRecentWorkoutNotes: mocks.getRecentWorkoutNotes,
   getSessionWithSets: mocks.getSessionWithSets,
+  getPlanSessionContext: mocks.getPlanSessionContext,
 }));
 
 vi.mock("@/lib/plans", () => ({
@@ -95,6 +97,7 @@ beforeEach(() => {
   mocks.getRecentPlanSessionContexts.mockReset().mockResolvedValue([]);
   mocks.getRecentWorkoutNotes.mockReset().mockResolvedValue([]);
   mocks.getSessionWithSets.mockReset().mockResolvedValue(selectedSession);
+  mocks.getPlanSessionContext.mockReset().mockResolvedValue(null);
   mocks.getPlanDayForToday.mockReset().mockResolvedValue(null);
   mocks.messagesStream.mockReturnValue({
     async *[Symbol.asyncIterator]() {
@@ -123,6 +126,38 @@ describe("coach selected workout context", () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "Workout not found." });
     expect(mocks.messagesStream).not.toHaveBeenCalled();
+  });
+
+  it("gives a selected workout its historical plan prescription", async () => {
+    mocks.getPlanSessionContext.mockResolvedValue({
+      sessionId: "session-id",
+      performedAt: selectedSession.performed_at,
+      planId: "plan-id",
+      planDayId: "day-id",
+      snapshot: {
+        version: 1,
+        dayIndex: 0,
+        dayName: "Lower A",
+        planned: [{
+          exerciseId: "squat",
+          name: "Back Squat",
+          position: 0,
+          sets: 3,
+          repLow: 5,
+          repHigh: 8,
+          rpeTarget: 8,
+        }],
+        substitutions: [],
+      },
+    });
+
+    const response = await POST(request("session-id"));
+    await response.text();
+
+    expect(mocks.getPlanSessionContext).toHaveBeenCalledWith(expect.anything(), "session-id");
+    const call = mocks.messagesStream.mock.calls[0][0];
+    expect(call.system[2].text).toContain("=== PLAN PRESCRIPTION FOR THIS WORKOUT ===");
+    expect(call.system[2].text).toContain("Back Squat: planned 3 sets of 5 to 8 reps, RPE 8");
   });
 
   it("gives the general Coach durable plan adherence memory", async () => {
