@@ -86,4 +86,21 @@ describe("scanner log delivery queue", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(scanLogQueueSize()).toBe(0);
   });
+
+  it("keeps an event queued when the diagnostic endpoint rejects the write", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+    queueScanLog({
+      attemptId,
+      event: "set_log_failed",
+      stage: "logging",
+      status: "failed",
+      captureMode: "photo",
+      details: { reason: "database_unavailable" },
+    });
+    await flushScanLogQueue();
+
+    expect(scanLogQueueSize()).toBe(1);
+  });
 });
